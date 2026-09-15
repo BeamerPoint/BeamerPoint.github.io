@@ -136,6 +136,26 @@ they can still be explained:
 - **Filenames are sanitised.** Spaces and punctuation are legal in a filename and a
   reliable way to break `\includegraphics`.
 
+Selecting an image gives drag handles on the canvas:
+
+- **Resize** from any corner. In the flow this sets width as a fraction of the text
+  column; when absolutely placed it sets a real length.
+- **Drag to move**, which lifts the image out of the text flow into `textpos`
+  absolute placement, starting from wherever it was already drawn so it does not
+  jump. *Return to text flow* puts it back, and the `textpos` package disappears from
+  the preamble by itself, because packages are derived from content.
+- **Align** left, centre or right, emitted as the matching alignment environment.
+  Disabled while absolutely placed, where it would have nothing to act on.
+- **Crop**, dragging the edge handles. Stored as big points and emitted as
+  `trim=... ,clip`.
+
+Crop is absolute rather than fractional for a reason: graphicx rejects `\width`
+inside `trim` (it fails with *File ended while scanning use of \Gread@parse@vp*),
+verified against the engine. Storing the units LaTeX consumes also keeps the round
+trip exact, with no rounding drift. For images with no embedded resolution — every
+screenshot, every plot, everything BeamerPoint rasterises itself — one big point is
+one pixel, so the handles map directly onto the image.
+
 A deck with images exports as a **zip** containing `main.tex` and every file it
 references — a bare `.tex` pointing at `images/plot.png` is not self-contained. Decks
 with no images still export as a plain `.tex`. If a referenced file was never stored

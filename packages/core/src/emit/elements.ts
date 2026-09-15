@@ -116,17 +116,26 @@ function emitElementBody(w: TexWriter, el: Element, ctx: EmitContext): void {
       const optPart = opts === '' ? '' : `[${opts}]`;
       const graphic = `\\includegraphics${optPart}{${path}}`;
 
-      if (el.caption === undefined) {
+      // A figure already centres its contents, so the alignment wrapper would be
+      // redundant inside one.
+      if (el.caption !== undefined) {
+        w.line_('\\begin{figure}');
+        w.indented(() => {
+          w.line_('\\centering');
+          w.line_(graphic);
+          w.line_(`\\caption{${emitInline(el.caption!)}}`);
+        });
+        w.line_('\\end{figure}');
+        return;
+      }
+
+      // Absolute placement positions the box itself, so alignment within a column
+      // has nothing to act on.
+      if (el.align === undefined || el.placement.mode === 'absolute') {
         w.line_(graphic);
         return;
       }
-      w.line_('\\begin{figure}');
-      w.indented(() => {
-        w.line_('\\centering');
-        w.line_(graphic);
-        w.line_(`\\caption{${emitInline(el.caption!)}}`);
-      });
-      w.line_('\\end{figure}');
+      w.line_(wrapAlignment(graphic, el.align));
       return;
     }
 
@@ -179,10 +188,21 @@ function graphicsOptions(el: Extract<Element, { kind: 'image' }>): string {
     parts.push('keepaspectratio');
   }
   if (el.rotate) parts.push(`angle=${roundMm(el.rotate)}`);
+  if (el.trim !== undefined && hasCrop(el.trim)) {
+    const bp = (n: number): string => `${Math.round(n * 100) / 100}bp`;
+    // graphicx order is left, bottom, right, top.
+    parts.push(`trim=${bp(el.trim.left)} ${bp(el.trim.bottom)} ${bp(el.trim.right)} ${bp(el.trim.top)}`);
+    parts.push('clip');
+  }
   if (el.altGraphicsOptions !== undefined && el.altGraphicsOptions !== '') {
     parts.push(el.altGraphicsOptions);
   }
   return parts.join(',');
+}
+
+/** True when a trim actually removes anything; an all-zero crop should not be emitted. */
+export function hasCrop(t: { left: number; bottom: number; right: number; top: number }): boolean {
+  return t.left > 0 || t.bottom > 0 || t.right > 0 || t.top > 0;
 }
 
 /** Render a length, expanding the LaTeX-relative units to their control sequences. */

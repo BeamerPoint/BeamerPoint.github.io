@@ -5,6 +5,7 @@ import type {
   Element,
   Id,
   ImageElement,
+  ImageTrim,
   Length,
   ListElement,
   ListItem,
@@ -210,6 +211,9 @@ function recognizeBlockLevel(node: CstNode, ctx: RecognizeCtx): Element {
       const fig = recognizeFigure(node, ctx);
       if (fig !== null) return fig;
     }
+
+    const aligned = recognizeAlignedImage(node, ctx);
+    if (aligned !== null) return aligned;
   }
 
   if (node.n === 'cmd' && node.name === 'includegraphics') {
@@ -396,6 +400,33 @@ function recognizeColumns(
 
 /* -------------------------------------------------------------------- images */
 
+const ALIGN_ENVS: Readonly<Record<string, 'left' | 'center' | 'right'>> = {
+  center: 'center',
+  flushleft: 'left',
+  flushright: 'right',
+};
+
+/** `\begin{center}\includegraphics{...}\end{center}` and its left/right siblings. */
+function recognizeAlignedImage(
+  node: Extract<CstNode, { n: 'env' }>,
+  ctx: RecognizeCtx,
+): ImageElement | null {
+  const align = ALIGN_ENVS[node.name];
+  if (align === undefined) return null;
+
+  const significant = node.children.filter(
+    (c) => !(c.n === 'parbreak' || (c.n === 'text' && c.value.trim() === '')),
+  );
+  if (significant.length !== 1) return null;
+
+  const only = significant[0]!;
+  if (only.n !== 'cmd' || only.name !== 'includegraphics') return null;
+
+  const img = recognizeIncludegraphics(only, ctx);
+  if (img === null) return null;
+  return { ...img, align, src: node.span };
+}
+
 /** Bare `\includegraphics[...]{path}`. */
 function recognizeIncludegraphics(
   node: Extract<CstNode, { n: 'cmd' }>,
@@ -422,6 +453,7 @@ function recognizeIncludegraphics(
     ...(parsed.width !== undefined ? { width: parsed.width } : {}),
     ...(parsed.height !== undefined ? { height: parsed.height } : {}),
     ...(parsed.rotate !== undefined ? { rotate: parsed.rotate } : {}),
+    ...(parsed.trim !== undefined ? { trim: parsed.trim } : {}),
     ...(parsed.rest !== '' ? { altGraphicsOptions: parsed.rest } : {}),
     keepAspect: parsed.keepAspect,
     src: node.span,
@@ -476,21 +508,51 @@ interface GraphicsOptions {
   width?: Length;
   height?: Length;
   rotate?: number;
+  trim?: ImageTrim;
   keepAspect: boolean;
   /** Options we understood well enough to keep, but not to model. */
   rest: string;
+}
+
+/** `trim=L B R T`, in any length unit graphicx accepts. */
+function parseTrim(value: string): ImageTrim | null {
+  const parts = value.trim().split(/\s+/);
+  if (parts.length !== 4) return null;
+
+  const nums = parts.map((p) => {
+    const m = /^(-?[\d.]+)\s*(bp|pt|mm|cm|in|px)?$/.exec(p);
+    if (m === null) return null;
+    const n = Number.parseFloat(m[1]!);
+    if (!Number.isFinite(n)) return null;
+    // Normalise to big points, the unit the model stores.
+    switch (m[2] ?? 'bp') {
+      case 'bp': case 'px': return n;
+      case 'pt': return n * 72 / 72.27;
+      case 'mm': return n * 72 / 25.4;
+      case 'cm': return n * 720 / 25.4;
+      case 'in': return n * 72;
+      default: return null;
+    }
+  });
+
+  if (nums.some((n) => n === null)) return null;
+  const [left, bottom, right, top] = nums as number[];
+  return { left: left!, bottom: bottom!, right: right!, top: top! };
 }
 
 /** Parse the `\includegraphics` option list, preserving anything unrecognised. */
 function parseGraphicsOptions(raw: string): GraphicsOptions | null {
   const out: GraphicsOptions = { keepAspect: false, rest: '' };
   const rest: string[] = [];
+  let sawClip = false;
+  let trimSource = '';
 
   for (const part of splitTopLevel(raw)) {
     const opt = part.trim();
     if (opt === '') continue;
 
     if (opt === 'keepaspectratio') { out.keepAspect = true; continue; }
+    if (opt === 'clip') { sawClip = true; continue; }
 
     const kv = /^([A-Za-z]+)\s*=\s*(.+)$/.exec(opt);
     if (kv === null) { rest.push(opt); continue; }
@@ -506,7 +568,21 @@ function parseGraphicsOptions(raw: string): GraphicsOptions | null {
       const n = Number.parseFloat(value);
       if (Number.isFinite(n)) { out.rotate = n; continue; }
     }
+    if (key === 'trim') {
+      const trim = parseTrim(value);
+      if (trim !== null) { out.trim = trim; trimSource = opt; continue; }
+    }
     rest.push(opt);
+  }
+
+  // `trim` without `clip` resizes the box without hiding anything, which is not a crop.
+  // Hand it back VERBATIM rather than re-serialising the parsed numbers: reconstructing
+  // it would drop the original units and no longer match the source.
+  if (out.trim !== undefined && !sawClip) {
+    rest.push(trimSource);
+    delete out.trim;
+  } else if (sawClip && out.trim === undefined) {
+    rest.push('clip');
   }
 
   out.rest = rest.join(',');

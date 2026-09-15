@@ -30,6 +30,11 @@ export function Inspector(): React.ReactElement {
   const setImageWidth = useStore((s) => s.setImageWidth);
   const setImageCaption = useStore((s) => s.setImageCaption);
   const images = useImageImport();
+  const setImageAlign = useStore((s) => s.setImageAlign);
+  const setImageTrim = useStore((s) => s.setImageTrim);
+  const overlayMode = useStore((s) => s.overlayMode);
+  const setOverlayMode = useStore((s) => s.setOverlayMode);
+  const returnElementToFlow = useStore((s) => s.returnElementToFlow);
 
   const selected = frame?.children.find((e) => e.id === selection.elementId);
   const selectedImage = selected?.kind === 'image' ? selected : undefined;
@@ -114,6 +119,52 @@ export function Inspector(): React.ReactElement {
                 }
               />
             </label>
+            <div className="bp-align-row">
+              <span className="bp-field-label">Align</span>
+              <div className="bp-btn-row">
+                {(['left', 'center', 'right'] as const).map((a) => (
+                  <button
+                    key={a}
+                    disabled={locked || selectedImage.placement.mode === 'absolute'}
+                    className={selectedImage.align === a ? 'is-active' : ''}
+                    title={selectedImage.placement.mode === 'absolute'
+                      ? 'Alignment does not apply to a freely positioned image'
+                      : `Align ${a}`}
+                    onClick={() => setImageAlign(frame.id, selectedImage.id, a)}
+                  >
+                    {a === 'left' ? '←' : a === 'center' ? '↔' : '→'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="bp-btn-row">
+              <button
+                disabled={locked}
+                className={overlayMode === 'crop' ? 'is-active' : ''}
+                title="Drag the edge handles on the canvas to crop"
+                onClick={() => setOverlayMode(overlayMode === 'crop' ? 'transform' : 'crop')}
+              >
+                {overlayMode === 'crop' ? 'Done cropping' : 'Crop'}
+              </button>
+              <button
+                disabled={locked || selectedImage.trim === undefined}
+                onClick={() => setImageTrim(frame.id, selectedImage.id, null)}
+              >
+                Reset crop
+              </button>
+            </div>
+
+            {selectedImage.placement.mode === 'absolute' && (
+              <button
+                disabled={locked}
+                title="Put the image back into the text flow"
+                onClick={() => returnElementToFlow(frame.id, selectedImage.id)}
+              >
+                Return to text flow
+              </button>
+            )}
+
             <label>
               Caption
               <input

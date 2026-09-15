@@ -143,6 +143,23 @@ export interface ColumnsElement extends ElementBase {
   columns: ColumnSpec[];
 }
 
+/**
+ * Crop, as big points removed from each edge, applied before any scaling.
+ *
+ * Absolute rather than fractional because graphicx rejects `\width` inside `trim`
+ * (verified against the engine: it fails with "File ended while scanning use of
+ * \Gread@parse@vp"). Storing the same units LaTeX consumes also keeps the round trip
+ * exact, with no rounding drift. For an image with no embedded resolution — which is
+ * every screenshot, every plot, and everything BeamerPoint rasterises itself — one big
+ * point is one pixel, so the UI can map these straight onto the image.
+ */
+export interface ImageTrim {
+  left: number;
+  bottom: number;
+  right: number;
+  top: number;
+}
+
 export interface ImageElement extends ElementBase {
   kind: 'image';
   resourceId: Id;
@@ -150,6 +167,9 @@ export interface ImageElement extends ElementBase {
   height?: Length;
   keepAspect: boolean;
   rotate?: Deg;
+  /** Horizontal placement within the text column. Ignored when absolutely placed. */
+  align?: 'left' | 'center' | 'right';
+  trim?: ImageTrim;
   caption?: RichText;
   /** Anything unrecognised in \includegraphics[...], preserved verbatim. */
   altGraphicsOptions?: TexString;

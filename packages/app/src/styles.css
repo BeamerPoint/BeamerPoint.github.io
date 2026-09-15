@@ -345,3 +345,51 @@ body.bp-resizing iframe { pointer-events: none; }
   border-top: 1px solid var(--bp-border); padding-top: 8px; margin-top: 4px;
 }
 .bp-image-props input[type="range"] { padding: 0; }
+
+/* ------------------------------------------------- image selection handles */
+.bp-overlay { position: absolute; inset: 0; z-index: 4; }
+.bp-overlay-label {
+  position: absolute; top: -18px; left: 0;
+  background: var(--bp-accent); color: #fff;
+  font-size: 10px; padding: 1px 5px; border-radius: 3px;
+  white-space: nowrap; pointer-events: none;
+}
+.bp-overlay-note {
+  position: absolute; inset: 0; display: flex; align-items: center;
+  justify-content: center; text-align: center; padding: 4px;
+  background: rgba(255, 255, 255, 0.85); font-size: 11px; color: var(--bp-warn);
+}
+
+.bp-move-target { position: absolute; inset: 8px; cursor: move; }
+
+.bp-handle {
+  position: absolute; width: 11px; height: 11px;
+  background: #fff; border: 1.5px solid var(--bp-accent); border-radius: 2px;
+}
+.bp-handle-nw { top: -6px; left: -6px; cursor: nwse-resize; }
+.bp-handle-ne { top: -6px; right: -6px; cursor: nesw-resize; }
+.bp-handle-sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
+.bp-handle-se { bottom: -6px; right: -6px; cursor: nwse-resize; }
+
+/* Crop: the element shows the full image, and these mark the kept region. */
+.bp-overlay-crop { outline: 1px dashed var(--bp-warn); outline-offset: -1px; }
+.bp-crop-edge { position: absolute; background: var(--bp-warn); opacity: 0.75; }
+.bp-crop-edge:hover { opacity: 1; }
+.bp-crop-n { top: -3px; left: 12%; right: 12%; height: 6px; cursor: ns-resize; border-radius: 3px; }
+.bp-crop-s { bottom: -3px; left: 12%; right: 12%; height: 6px; cursor: ns-resize; border-radius: 3px; }
+.bp-crop-w { left: -3px; top: 12%; bottom: 12%; width: 6px; cursor: ew-resize; border-radius: 3px; }
+.bp-crop-e { right: -3px; top: 12%; bottom: 12%; width: 6px; cursor: ew-resize; border-radius: 3px; }
+
+.bp-image-crop { position: relative; overflow: hidden; width: 100%; }
+.bp-image-crop img { position: absolute; max-width: none; display: block; }
+.bp-image-uncropped { opacity: 0.55; }
+
+body.bp-dragging { user-select: none; }
+
+.bp-align-row { margin-bottom: 8px; }
+.bp-field-label {
+  display: block; font-size: 12px; color: var(--bp-muted); margin-bottom: 3px;
+}
+.bp-btn-row button.is-active {
+  background: var(--bp-accent); color: #fff; border-color: var(--bp-accent);
+}

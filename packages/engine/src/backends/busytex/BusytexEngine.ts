@@ -175,7 +175,9 @@ export class BusytexEngine implements LatexEngine {
 
       return {
         jobId: job.jobId,
-        ok: result.success && result.pdf !== undefined,
+        // A zero-length PDF means TeX aborted after opening the output file. Treating
+        // that as success shows the user an empty preview with no explanation.
+        ok: result.success && result.pdf !== undefined && result.pdf.length > 0,
         ...(result.pdf !== undefined ? { pdf: result.pdf } : {}),
         ...(result.synctex !== undefined ? { synctex: result.synctex } : {}),
         log: result.log,

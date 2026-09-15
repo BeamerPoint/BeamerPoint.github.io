@@ -22,6 +22,10 @@ export function App(): React.ReactElement {
   const images = useImageImport();
   const [recovery, setRecovery] = useState<{ at: number; tex: string } | null>(null);
   const [exportNote, setExportNote] = useState<string | null>(null);
+  const overlayMode = useStore((s) => s.overlayMode);
+  const nudgeImageWidth = useStore((s) => s.nudgeImageWidth);
+  const moveElementBy = useStore((s) => s.moveElementBy);
+  const setImageTrim = useStore((s) => s.setImageTrim);
 
   const deck = useStore((s) => s.deck);
   const frame = useStore(selectCurrentFrame);
@@ -165,6 +169,18 @@ export function App(): React.ReactElement {
               if (selection.slideId !== null) {
                 setListItemContent(selection.slideId, elementId, itemId, content);
               }
+            }}
+            overlayMode={overlayMode}
+            onResizeImage={(elementId, deltaPx, boxPx) => {
+              if (selection.slideId !== null) {
+                nudgeImageWidth(selection.slideId, elementId, deltaPx, boxPx);
+              }
+            }}
+            onMoveImage={(elementId, dx, dy) => {
+              if (selection.slideId !== null) moveElementBy(selection.slideId, elementId, dx, dy);
+            }}
+            onTrimImage={(elementId, trim) => {
+              if (selection.slideId !== null) setImageTrim(selection.slideId, elementId, trim);
             }}
           />
           <p className="bp-approx-note">

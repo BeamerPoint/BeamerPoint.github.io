@@ -2,6 +2,7 @@ import type { Element, ListElement, ResourceRef, RichText, ThemeSpec } from '@be
 import { InlineText, MathView } from './InlineText.js';
 import { readInlineFromDom } from './domInline.js';
 import { ImageView } from './ImageView.js';
+import { SelectionOverlay, type OverlayMode } from './SelectionOverlay.js';
 
 interface Props {
   el: Element;
@@ -12,6 +13,10 @@ interface Props {
   onSelect(id: string): void;
   onEditContent(elementId: string, content: RichText): void;
   onEditItem(elementId: string, itemId: string, content: RichText): void;
+  overlayMode: OverlayMode;
+  onResizeImage(elementId: string, deltaPx: number, boxPx: number): void;
+  onMoveImage(elementId: string, dxMm: number, dyMm: number): void;
+  onTrimImage(elementId: string, trim: import('@beamerpoint/core').ImageTrim): void;
 }
 
 /**
@@ -44,6 +49,21 @@ export function ElementView(props: Props): React.ReactElement {
     >
       {el.overlay !== undefined && <span className="bp-overlay-badge">{el.overlay}</span>}
       <Body {...props} />
+      {selected && el.kind === 'image' && (
+        <SelectionOverlay
+          el={el}
+          resource={props.resources.find((r) => r.id === el.resourceId)}
+          mode={props.overlayMode}
+          onResize={(deltaPx) => {
+            // Resize is expressed against the text column, which is the element's
+            // own parent here.
+            const box = document.querySelector('.bp-body')?.getBoundingClientRect();
+            props.onResizeImage(el.id, deltaPx, box?.width ?? 1);
+          }}
+          onMove={(dx, dy) => props.onMoveImage(el.id, dx, dy)}
+          onTrim={(t) => props.onTrimImage(el.id, t)}
+        />
+      )}
     </div>
   );
 }
@@ -123,7 +143,13 @@ function Body(props: Props): React.ReactElement {
       );
 
     case 'image':
-      return <ImageView el={el} resource={props.resources.find((r) => r.id === el.resourceId)} />;
+      return (
+        <ImageView
+          el={el}
+          resource={props.resources.find((r) => r.id === el.resourceId)}
+          showUncropped={props.selected && props.overlayMode === 'crop'}
+        />
+      );
 
     case 'math':
       return <MathView tex={el.tex} display />;

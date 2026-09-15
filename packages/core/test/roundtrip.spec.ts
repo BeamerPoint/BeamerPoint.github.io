@@ -188,6 +188,60 @@ describe('images', () => {
     expect(second.resources[0]?.path).toBe('images/plot.png');
   });
 
+  it('round-trips alignment', () => {
+    for (const [align, env] of [
+      ['center', 'center'], ['left', 'flushleft'], ['right', 'flushright'],
+    ] as const) {
+      const { round, tex } = expectFixpoint(imageDeck({ align }));
+      expect(tex).toContain(`\\begin{${env}}`);
+      const frame = round.deck.nodes.find((n) => n.kind === 'frame');
+      if (frame?.kind !== 'frame') throw new Error('expected frame');
+      const img = frame.children[0];
+      if (img?.kind !== 'image') throw new Error('expected image');
+      expect(img.align).toBe(align);
+    }
+  });
+
+  it('round-trips a crop as trim plus clip', () => {
+    const trim = { left: 64, bottom: 36, right: 12, top: 8 };
+    const { round, tex } = expectFixpoint(imageDeck({ trim }));
+    expect(tex).toContain('trim=64bp 36bp 12bp 8bp');
+    expect(tex).toContain('clip');
+
+    const frame = round.deck.nodes.find((n) => n.kind === 'frame');
+    if (frame?.kind !== 'frame') throw new Error('expected frame');
+    const img = frame.children[0];
+    if (img?.kind !== 'image') throw new Error('expected image');
+    expect(img.trim).toEqual(trim);
+  });
+
+  it('emits no trim for an all-zero crop', () => {
+    const tex = emitDeck(imageDeck({ trim: { left: 0, bottom: 0, right: 0, top: 0 } })).tex;
+    expect(tex).not.toContain('trim=');
+    expect(tex).not.toContain('clip');
+  });
+
+  it('refuses to model trim without clip, since that is not a crop', () => {
+    const src = [
+      '\\documentclass[aspectratio=169,11pt]{beamer}',
+      '\\usetheme{Madrid}',
+      '\\begin{document}',
+      '\\begin{frame}',
+      '  \\includegraphics[trim=10bp 10bp 0bp 0bp]{a.png}',
+      '\\end{frame}',
+      '\\end{document}',
+    ].join('\n');
+    const r = parseDeck(src, { newId: makeSeededIdFactory('r') });
+    const frame = r.deck.nodes.find((n) => n.kind === 'frame');
+    if (frame?.kind !== 'frame') throw new Error('expected frame');
+    const img = frame.children[0];
+    if (img?.kind !== 'image') throw new Error('expected image');
+    expect(img.trim).toBeUndefined();
+    // Preserved exactly as written, units and all, rather than re-serialised.
+    expect(emitDeck(r.deck).tex).toContain('trim=10bp 10bp 0bp 0bp');
+    expect(emitDeck(r.deck).tex).not.toContain('clip');
+  });
+
   it('preserves graphics options it cannot model', () => {
     const src = [
       '\\documentclass[aspectratio=169,11pt]{beamer}',

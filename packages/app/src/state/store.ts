@@ -15,6 +15,7 @@ import {
   type FrameNode,
   type ParseResult,
   type TexProgram,
+  type ImageTrim,
   type ResourceRef,
   type RichText,
   type SourceMap,
@@ -66,6 +67,10 @@ interface AppState {
 
   history: { past: Deck[]; future: Deck[] };
 
+  /** Whether the selection handles resize/move, or crop. */
+  overlayMode: 'transform' | 'crop';
+  setOverlayMode(mode: 'transform' | 'crop'): void;
+
   /* actions */
   loadDeck(deck: Deck): void;
   resetDeck(): void;
@@ -88,6 +93,11 @@ interface AppState {
   addImageElement(slideId: string, ref: ResourceRef): void;
   setImageWidth(slideId: string, elementId: string, fraction: number): void;
   setImageCaption(slideId: string, elementId: string, caption: string | null): void;
+  setImageAlign(slideId: string, elementId: string, align: 'left' | 'center' | 'right'): void;
+  setImageTrim(slideId: string, elementId: string, trim: ImageTrim | null): void;
+  nudgeImageWidth(slideId: string, elementId: string, deltaPx: number, bodyPx: number): void;
+  moveElementBy(slideId: string, elementId: string, dxMm: number, dyMm: number): void;
+  returnElementToFlow(slideId: string, elementId: string): void;
   moveElementToAbsolute(slideId: string, elementId: string, x: number, y: number, w: number): void;
 
   setTheme(name: string): void;
@@ -126,6 +136,14 @@ function frames(deck: Deck): FrameNode[] {
   framesCache = { deck, frames: result };
   return result;
 }
+
+/**
+ * Where each element is currently drawn, in slide millimetres.
+ *
+ * Recorded by the canvas as it renders. Lifting an element out of the text flow needs
+ * its present position, or it would jump to an arbitrary spot the moment it is dragged.
+ */
+export const measuredRects = new Map<string, { x: number; y: number; w: number }>();
 
 /** Find a top-level element of a frame, for comparing an edit against current state. */
 function findElement(deck: Deck, slideId: string, elementId: string): Element | undefined {
@@ -207,6 +225,11 @@ export const useStore = create<AppState>()((set, get) => {
     },
     engine: { status: { s: 'uninitialised' }, result: null, compiling: false },
     history: { past: [], future: [] },
+    overlayMode: 'transform',
+
+    setOverlayMode(mode) {
+      set({ overlayMode: mode });
+    },
 
     loadDeck(deck) {
       const regen = regenerate(deck);
@@ -231,7 +254,7 @@ export const useStore = create<AppState>()((set, get) => {
     },
 
     selectElement(slideId, elementId) {
-      set({ selection: { slideId, elementId } });
+      set({ selection: { slideId, elementId }, overlayMode: 'transform' });
     },
 
     addSlide() {
@@ -399,6 +422,111 @@ export const useStore = create<AppState>()((set, get) => {
           }
           return { ...el, caption: plain(caption) };
         }),
+      );
+    },
+
+    setImageAlign(slideId, elementId, align) {
+      mutate((deck) =>
+        mapElement(deck, slideId, elementId, (el) =>
+          el.kind === 'image' ? { ...el, align } : el,
+        ),
+      );
+    },
+
+    setImageTrim(slideId, elementId, trim) {
+      mutate((deck) =>
+        mapElement(deck, slideId, elementId, (el) => {
+          if (el.kind !== 'image') return el;
+          if (trim === null) {
+            const { trim: _drop, ...rest } = el;
+            return rest;
+          }
+          return { ...el, trim };
+        }),
+      );
+    },
+
+    nudgeImageWidth(slideId, elementId, deltaPx, bodyPx) {
+      const el = findElement(get().deck, slideId, elementId);
+      if (el?.kind !== 'image') return;
+
+      if (el.placement.mode === 'absolute') {
+        // Absolutely placed: width is a real length, so resize in millimetres.
+        const g = get();
+        const mmPerPx = g.deck.preamble.documentClass.aspectRatio === '43' ? 128 : 160;
+        const deltaMm = (deltaPx / bodyPx) * mmPerPx;
+        const next = Math.max(10, Math.round((el.placement.w + deltaMm) * 10) / 10);
+        mutate((deck) =>
+          mapElement(deck, slideId, elementId, (e) =>
+            e.placement.mode === 'absolute'
+              ? { ...e, placement: { ...e.placement, w: next } }
+              : e,
+          ),
+        );
+        return;
+      }
+
+      // In flow: width is a fraction of 	extwidth.
+      const current = el.width?.v ?? 0.6;
+      const next = Math.min(1, Math.max(0.05, current + deltaPx / bodyPx));
+      mutate((deck) =>
+        mapElement(deck, slideId, elementId, (e) =>
+          e.kind === 'image'
+            ? { ...e, width: { v: Math.round(next * 100) / 100, u: 'textwidth' } }
+            : e,
+        ),
+      );
+    },
+
+    /**
+     * Move an element by a delta in millimetres.
+     *
+     * Dragging something that is in the text flow lifts it out into absolute
+     * placement, which is what makes the canvas feel like PowerPoint. The starting
+     * position is taken from where it currently sits, so it does not jump.
+     */
+    moveElementBy(slideId, elementId, dxMm, dyMm) {
+      const el = findElement(get().deck, slideId, elementId);
+      if (el === undefined) return;
+
+      if (el.placement.mode === 'absolute') {
+        const p = el.placement;
+        mutate((deck) =>
+          mapElement(deck, slideId, elementId, (e) => ({
+            ...e,
+            placement: {
+              ...p,
+              x: Math.round((p.x + dxMm) * 10) / 10,
+              y: Math.round((p.y + dyMm) * 10) / 10,
+            },
+          })),
+        );
+        return;
+      }
+
+      const measured = measuredRects.get(elementId);
+      const start = measured ?? { x: 20, y: 30, w: 80 };
+      mutate((deck) =>
+        mapElement(deck, slideId, elementId, (e) => ({
+          ...e,
+          placement: {
+            mode: 'absolute',
+            x: Math.round((start.x + dxMm) * 10) / 10,
+            y: Math.round((start.y + dyMm) * 10) / 10,
+            w: Math.round(start.w * 10) / 10,
+            z: 0,
+            driver: 'textpos',
+          },
+        })),
+      );
+    },
+
+    returnElementToFlow(slideId, elementId) {
+      mutate((deck) =>
+        mapElement(deck, slideId, elementId, (el) => ({
+          ...el,
+          placement: { mode: 'flow' },
+        })),
       );
     },
 

@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import type { RichText } from '@beamerpoint/core';
+import type { ImageTrim, RichText } from '@beamerpoint/core';
 import {
   PAPER,
   PX_PER_MM,
@@ -9,6 +9,8 @@ import {
   type FrameNode,
 } from '@beamerpoint/core';
 import { ElementView } from './ElementView.js';
+import { CanvasContext } from './CanvasContext.js';
+import type { OverlayMode } from './SelectionOverlay.js';
 import { InlineText } from './InlineText.js';
 
 interface Props {
@@ -20,6 +22,10 @@ interface Props {
   onSelectElement(id: string | null): void;
   onEditContent(elementId: string, content: RichText): void;
   onEditItem(elementId: string, itemId: string, content: RichText): void;
+  overlayMode: OverlayMode;
+  onResizeImage(elementId: string, deltaPx: number, boxPx: number): void;
+  onMoveImage(elementId: string, dxMm: number, dyMm: number): void;
+  onTrimImage(elementId: string, trim: ImageTrim): void;
 }
 
 /**
@@ -61,7 +67,14 @@ export function SlideCanvas(props: Props): React.ReactElement {
 
   const hasFrametitle = frame.title !== undefined && !frame.options.plain;
 
+  const geometry = {
+    scale,
+    pxPerMm: PX_PER_MM,
+    bodyWidthMm: paper.w - 2 * theme.margins.hMm,
+  };
+
   return (
+    <CanvasContext.Provider value={geometry}>
     <div className="bp-canvas-wrap" ref={wrapRef}>
       <div
         className={`bp-paper${locked ? ' is-locked' : ''}`}
@@ -130,6 +143,10 @@ export function SlideCanvas(props: Props): React.ReactElement {
               onSelect={onSelectElement}
               onEditContent={props.onEditContent}
               onEditItem={props.onEditItem}
+              overlayMode={props.overlayMode}
+              onResizeImage={props.onResizeImage}
+              onMoveImage={props.onMoveImage}
+              onTrimImage={props.onTrimImage}
             />
           ))}
         </div>
@@ -149,6 +166,7 @@ export function SlideCanvas(props: Props): React.ReactElement {
         )}
       </div>
     </div>
+    </CanvasContext.Provider>
   );
 }
 
