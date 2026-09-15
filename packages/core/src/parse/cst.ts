@@ -42,8 +42,13 @@ export type CstNode =
     }
   /** Verbatim-like content captured opaquely and never tokenized. */
   | { n: 'verb'; name: string; body: string; span: SrcSpan }
-  /** Math shift. `body` is verbatim; we never structurally parse math. */
-  | { n: 'math'; display: boolean; body: string; span: SrcSpan }
+  /**
+   * Math shift. `body` is verbatim; we never structurally parse math.
+   *
+   * `env` records the environment name for display math that came from one, so
+   * `align` does not round-trip as `equation`. Absent for `$...$` and `\[...\]`.
+   */
+  | { n: 'math'; display: boolean; body: string; env?: string; span: SrcSpan }
   /** `%` to end of line. `value` excludes the `%`. */
   | { n: 'comment'; value: string; span: SrcSpan }
   /** A blank line (paragraph separator). */

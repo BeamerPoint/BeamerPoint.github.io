@@ -16,6 +16,7 @@ import {
   type ParseResult,
   type TexProgram,
   type ImageTrim,
+  type MathElement,
   type ResourceRef,
   type RichText,
   type SourceMap,
@@ -31,6 +32,9 @@ import type { CompileResult, EngineStatus } from '@beamerpoint/engine';
  * because a merge is exactly where hand-written LaTeX gets silently clobbered.
  */
 export type SourceStatus = 'synced' | 'dirty' | 'error';
+
+/** The display-math environments the editor can author. */
+export type MathEnv = MathElement['env'];
 
 export interface SourceHealth {
   balanced: boolean;
@@ -91,6 +95,9 @@ interface AppState {
   addBlockElement(slideId: string, variant: 'block' | 'alertblock' | 'exampleblock'): void;
   addColumnsElement(slideId: string): void;
   addImageElement(slideId: string, ref: ResourceRef): void;
+  addMathElement(slideId: string): void;
+  setMathTex(slideId: string, elementId: string, tex: string): void;
+  setMathEnv(slideId: string, elementId: string, env: MathEnv): void;
   setImageWidth(slideId: string, elementId: string, fraction: number): void;
   setImageCaption(slideId: string, elementId: string, caption: string | null): void;
   setImageAlign(slideId: string, elementId: string, align: 'left' | 'center' | 'right'): void;
@@ -401,6 +408,34 @@ export const useStore = create<AppState>()((set, get) => {
         }));
       });
       set({ selection: { slideId, elementId: el.id } });
+    },
+
+    addMathElement(slideId) {
+      const el: Element = {
+        id: newId(),
+        kind: 'math',
+        placement: { mode: 'flow' },
+        env: 'equation',
+        tex: 'E = mc^2',
+      };
+      mutate((deck) => mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, el] })));
+      set({ selection: { slideId, elementId: el.id } });
+    },
+
+    setMathTex(slideId, elementId, tex) {
+      mutate((deck) =>
+        mapElement(deck, slideId, elementId, (el) =>
+          el.kind === 'math' ? { ...el, tex } : el,
+        ),
+      );
+    },
+
+    setMathEnv(slideId, elementId, env) {
+      mutate((deck) =>
+        mapElement(deck, slideId, elementId, (el) =>
+          el.kind === 'math' ? { ...el, env } : el,
+        ),
+      );
     },
 
     setImageWidth(slideId, elementId, fraction) {

@@ -281,6 +281,89 @@ describe('images', () => {
 });
 
 
+describe('display math', () => {
+  const mathDeck = (env: string, tex: string): Deck => {
+    const deck = newDeck({ title: 'T' });
+    deck.nodes = [newFrame('Math', [
+      { id: 'm1', kind: 'math', placement: { mode: 'flow' }, env, tex } as never,
+    ])];
+    return deck;
+  };
+
+  it('round-trips each supported environment', () => {
+    for (const env of ['equation', 'equation*', 'align', 'align*', 'gather', 'gather*']) {
+      const { round, tex } = expectFixpoint(mathDeck(env, '  a = b'));
+      expect(tex).toContain(`\\begin{${env}}`);
+      const frame = round.deck.nodes.find((n) => n.kind === 'frame');
+      if (frame?.kind !== 'frame') throw new Error('expected frame');
+      const m = frame.children[0];
+      if (m?.kind !== 'math') throw new Error(`expected math for ${env}`);
+      expect(m.env).toBe(env);
+    }
+  });
+
+  it('round-trips \\[ ... \\] as displaymath', () => {
+    const { round, tex } = expectFixpoint(mathDeck('displaymath', '  E = mc^2'));
+    expect(tex).toContain('\\[');
+    expect(tex).toContain('\\]');
+    const frame = round.deck.nodes.find((n) => n.kind === 'frame');
+    if (frame?.kind !== 'frame') throw new Error('expected frame');
+    expect((frame.children[0] as { env?: string }).env).toBe('displaymath');
+  });
+
+  it('keeps the body byte-exact, including alignment and line breaks', () => {
+    const body = '  f(x) &= ax^2 + bx + c \\\\\n      &= a(x - h)^2 + k';
+    const { round } = expectFixpoint(mathDeck('align', body));
+    const frame = round.deck.nodes.find((n) => n.kind === 'frame');
+    if (frame?.kind !== 'frame') throw new Error('expected frame');
+    const m = frame.children[0];
+    if (m?.kind !== 'math') throw new Error('expected math');
+    expect(m.tex).toBe(body);
+  });
+
+  it('does not confuse align with equation', () => {
+    // The lexer captures math environments opaquely; before it recorded the name,
+    // every one of them came back as the same environment.
+    const src = [
+      '\\documentclass[aspectratio=169,11pt]{beamer}',
+      '\\usetheme{Madrid}',
+      '\\begin{document}',
+      '\\begin{frame}',
+      '\\begin{align}',
+      'x &= 1',
+      '\\end{align}',
+      '\\end{frame}',
+      '\\end{document}',
+    ].join('\n');
+    const r = parseDeck(src, { newId: makeSeededIdFactory('r') });
+    expect(emitDeck(r.deck).tex).toContain('\\begin{align}');
+    expect(emitDeck(r.deck).tex).not.toContain('\\begin{equation}');
+  });
+
+  it('leaves an unmodelled math environment raw rather than relabelling it', () => {
+    const src = [
+      '\\documentclass[aspectratio=169,11pt]{beamer}',
+      '\\usetheme{Madrid}',
+      '\\begin{document}',
+      '\\begin{frame}',
+      '\\begin{multline}',
+      'a + b',
+      '\\end{multline}',
+      '\\end{frame}',
+      '\\end{document}',
+    ].join('\n');
+    const r = parseDeck(src, { newId: makeSeededIdFactory('r') });
+    const frame = r.deck.nodes.find((n) => n.kind === 'frame');
+    if (frame?.kind !== 'frame') throw new Error('expected frame');
+    expect(frame.children[0]?.kind).toBe('raw');
+    expect(emitDeck(r.deck).tex).toContain('\\begin{multline}');
+  });
+
+  it('adds amsmath when the deck contains display math', () => {
+    expect(emitDeck(mathDeck('align', 'x')).tex).toContain('\\usepackage{amsmath}');
+  });
+});
+
 describe('TeX program selection', () => {
   it('round-trips the "% !TEX program" magic comment', () => {
     const deck = newDeck({ title: 'T' });

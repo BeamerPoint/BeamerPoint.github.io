@@ -326,7 +326,7 @@ function parseOpaqueEnvBody(
   sc.pos = bodyStart + m.index + m[0].length;
 
   if (as === 'math') {
-    return { n: 'math', display: true, body, span: sc.span(start, sc.pos) };
+    return { n: 'math', display: true, body, env: name, span: sc.span(start, sc.pos) };
   }
   return { n: 'verb', name, body, span: sc.span(start, sc.pos) };
 }

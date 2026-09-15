@@ -411,3 +411,23 @@ body.bp-dragging { user-select: none; }
  */
 .bp-abs-layer { position: absolute; inset: 0; pointer-events: none; }
 .bp-abs-layer > .bp-el { pointer-events: auto; margin-bottom: 0; }
+
+/* ---------------------------------------------------------------- math editor */
+.bp-math-editor {
+  border-top: 1px solid var(--bp-border); padding-top: 8px; margin-top: 4px;
+}
+.bp-math-input {
+  display: block; width: 100%; margin-top: 3px; resize: vertical;
+  font-family: Consolas, "Courier New", monospace; font-size: 12px;
+  padding: 5px 6px; border: 1px solid var(--bp-border); border-radius: 4px;
+  color: var(--bp-text);
+}
+.bp-math-preview {
+  margin-top: 6px; padding: 8px 6px; min-height: 40px;
+  background: #fafbfc; border: 1px solid #eef0f3; border-radius: 4px;
+  overflow-x: auto; text-align: center;
+}
+.bp-math-preview-error {
+  color: var(--bp-danger); font-size: 11px; font-family: monospace;
+  text-align: left; display: block;
+}

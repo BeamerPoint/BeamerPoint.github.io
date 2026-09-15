@@ -102,6 +102,24 @@ function emitElementBody(w: TexWriter, el: Element, ctx: EmitContext): void {
       emitList(w, el, ctx);
       return;
 
+    case 'math': {
+      // The body is verbatim and is never re-indented: whitespace inside an align
+      // affects nothing, but rewriting it would make the round-trip guard reject
+      // every equation the user hand-edited.
+      if (el.env === 'displaymath') {
+        w.line_('\\[');
+        w.raw(el.tex);
+        w.nl();
+        w.line_('\\]');
+        return;
+      }
+      w.line_(`\\begin{${el.env}}`);
+      w.raw(el.tex);
+      w.nl();
+      w.line_(`\\end{${el.env}}`);
+      return;
+    }
+
     case 'image': {
       const path = ctx.resourcePath(el.resourceId);
       if (path === undefined) {

@@ -4,6 +4,7 @@ import { readInlineFromDom } from './domInline.js';
 import { ImageView } from './ImageView.js';
 import { SelectionOverlay, type OverlayMode } from './SelectionOverlay.js';
 import { useCanvasGeometry } from './CanvasContext.js';
+import { wrapForKatex } from './mathPreview.js';
 
 interface Props {
   el: Element;
@@ -158,7 +159,7 @@ function Body(props: Props): React.ReactElement {
       );
 
     case 'math':
-      return <MathView tex={el.tex} display />;
+      return <MathView tex={wrapForKatex(el.tex, el.env)} display />;
 
     case 'raw':
       return (

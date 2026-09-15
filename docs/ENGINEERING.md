@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 47 tests
+npm test             # vitest, 53 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -117,6 +117,12 @@ reassembles the model from the DOM. Regression-tested in
 **pdf.js needs `requestAnimationFrame`**, which does not fire in a hidden document, so
 rendering is gated on visibility. A render started while hidden hangs with no error.
 
+**KaTeX cannot render a bare `align` body.** `&` and `\` are only legal inside an
+environment, so a display-math body must be wrapped (`aligned`/`gathered`) before
+preview. `canvas/mathPreview.ts` does it once for both the canvas and the inspector —
+having two copies is how a valid equation rendered correctly in one and as a red error
+in the other.
+
 **Prefer the Write/Edit tools over shell heredocs for files containing LaTeX.** Multiple
 layers of shell/Python escaping have repeatedly halved backslashes and corrupted
 `\includegraphics` into `includegraphics`.
@@ -137,7 +143,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Eight commits on `master`, ~9,900 lines across 60 source files, 47 tests passing.
+Ten commits on `master`, ~10,400 lines across 63 source files, 53 tests passing.
 
 ### Done
 
@@ -148,6 +154,8 @@ Eight commits on `master`, ~9,900 lines across 60 source files, 47 tests passing
   two-column layouts, images
 - **Images**: insert by button/drag/paste, SVG+WebP rasterised at import, filename
   sanitising, resize, drag-to-absolute, align, crop, caption, zip export with assets
+- **Math**: display equations (equation/align/gather and their starred forms, plus
+  `\[ \]`), body kept verbatim, KaTeX preview on the canvas and in the inspector
 - **Sections and speaker notes**: emitted and parsed (no authoring UI yet)
 - **Themes**: 39 presentation themes with measured margins; XeLaTeX auto-selected for
   fontspec themes via a `% !TEX program` magic comment
@@ -160,16 +168,14 @@ Eight commits on `master`, ~9,900 lines across 60 source files, 47 tests passing
 
 Roughly in the order the user and I agreed to tackle them:
 
-1. **Math elements** — the lexer already captures `equation`/`align` verbatim and KaTeX
-   is wired for inline math; needs a recognizer, an editor pane and a canvas renderer
-2. **Tables** — grid editor emitting `booktabs`
-3. **Code blocks** — `listings`; `fragile` is already auto-derived on the frame
-4. **Citations** — `.bib` attach, `\cite` autocomplete, references frame
-5. **TikZ shapes** — fixed shape vocabulary; keep the raw escape hatch for the rest
-6. **pgfplots charts** — small data-table editor
-7. Authoring UI for sections and speaker notes (model/emit/parse already exist)
-8. Image rotation (model and emitter support `angle=`; no handle yet)
-9. Importing an arbitrary external `.tex` (the parser can already do it; needs a file
+1. **Tables** — grid editor emitting `booktabs`
+2. **Code blocks** — `listings`; `fragile` is already auto-derived on the frame
+3. **Citations** — `.bib` attach, `\cite` autocomplete, references frame
+4. **TikZ shapes** — fixed shape vocabulary; keep the raw escape hatch for the rest
+5. **pgfplots charts** — small data-table editor
+6. Authoring UI for sections and speaker notes (model/emit/parse already exist)
+7. Image rotation (model and emitter support `angle=`; no handle yet)
+8. Importing an arbitrary external `.tex` (the parser can already do it; needs a file
    picker and a report of what degraded to raw)
 
 Model types, and in several cases the emitter, already exist for all of these — check

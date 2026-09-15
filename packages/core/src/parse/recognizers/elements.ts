@@ -7,6 +7,7 @@ import type {
   ImageElement,
   ImageTrim,
   Length,
+  MathElement,
   ListElement,
   ListItem,
   Placement,
@@ -221,6 +222,11 @@ function recognizeBlockLevel(node: CstNode, ctx: RecognizeCtx): Element {
     if (img !== null) return img;
   }
 
+  if (node.n === 'math' && node.display) {
+    const math = recognizeDisplayMath(node, ctx);
+    if (math !== null) return math;
+  }
+
   return makeRaw(ctx, rawSlice(ctx, node), 'unrecognised', labelFor(node));
 }
 
@@ -394,6 +400,45 @@ function recognizeColumns(
     placement: { mode: 'flow' },
     ...(envOptions !== undefined ? { envOptions } : {}),
     columns,
+    src: node.span,
+  };
+}
+
+/* ---------------------------------------------------------------------- math */
+
+const MATH_ENVS: ReadonlySet<string> = new Set([
+  'equation', 'equation*', 'align', 'align*', 'gather', 'gather*', 'displaymath',
+]);
+
+/**
+ * Display math: an `equation`-family environment, or `\[ ... \]`.
+ *
+ * The body is kept verbatim and never parsed. Math is the one place where a
+ * structural model buys nothing and risks everything: users paste equations from
+ * papers, and anything we cannot represent we would have to mangle.
+ */
+function recognizeDisplayMath(
+  node: Extract<CstNode, { n: 'math' }>,
+  ctx: RecognizeCtx,
+): MathElement | null {
+  // `multline` and `eqnarray` are captured by the lexer but not modelled; leaving them
+  // raw keeps them byte-exact rather than silently relabelling them.
+  const env = node.env ?? 'displaymath';
+  if (!MATH_ENVS.has(env)) return null;
+
+  // The lexer's capture runs from immediately after `\begin{env}` to immediately
+  // before `\end{env}`, so it includes the newline the emitter writes after the
+  // opening and the indentation before the closing. Left in, every round trip would
+  // add another blank line. Strip exactly that boundary whitespace and nothing else —
+  // whitespace INSIDE the body is the author's alignment and must survive.
+  const tex = node.body.replace(/^\r?\n/, '').replace(/\r?\n[ \t]*$/, '');
+
+  return {
+    id: ctx.newId(),
+    kind: 'math',
+    placement: { mode: 'flow' },
+    env: env as MathElement['env'],
+    tex,
     src: node.span,
   };
 }
