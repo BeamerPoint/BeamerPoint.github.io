@@ -431,3 +431,15 @@ body.bp-dragging { user-select: none; }
   color: var(--bp-danger); font-size: 11px; font-family: monospace;
   text-align: left; display: block;
 }
+
+.bp-log-missing {
+  background: #fef3f2; border: 1px solid #f5c6c2;
+  border-radius: 4px; padding: 10px 12px; margin-bottom: 10px;
+}
+.bp-log-missing ul { margin: 6px 0; padding-left: 18px; }
+.bp-log-missing li { margin-bottom: 3px; }
+.bp-log-missing code {
+  background: #fff; border: 1px solid #f0d8d6; border-radius: 3px;
+  padding: 0 4px; font-family: Consolas, monospace;
+}
+.bp-log-missing p { margin: 6px 0 0; font-size: 12px; }

@@ -22,7 +22,7 @@ function baseName(deck: Deck): string {
   return cleaned === '' ? 'presentation' : cleaned.slice(0, 60);
 }
 
-function download(blob: Blob, filename: string): void {
+export function download(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -30,6 +30,15 @@ function download(blob: Blob, filename: string): void {
   a.click();
   // Revoking immediately can cancel the download in some browsers; one tick is enough.
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Save the compiled PDF to disk. */
+export function exportPdf(deck: Deck, pdf: Uint8Array): string {
+  const name = `${baseName(deck)}.pdf`;
+  // Copy into a fresh buffer: the stored bytes may be a view into a larger one, and
+  // Blob would otherwise capture the whole thing.
+  download(new Blob([pdf.slice().buffer as ArrayBuffer], { type: 'application/pdf' }), name);
+  return name;
 }
 
 export async function exportDeck(deck: Deck): Promise<ExportResult> {

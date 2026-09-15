@@ -11,6 +11,40 @@ import type { Diagnostic } from './LatexEngine.js';
 
 const MAIN_FILE = './main.tex';
 
+/** A package or class the document needs and TeX could not find. */
+export interface MissingFile {
+  /** e.g. "Alegreya.sty". */
+  file: string;
+  /** The package name, i.e. the file without its extension. */
+  pkg: string;
+  kind: 'package' | 'class' | 'graphic' | 'other';
+}
+
+/**
+ * Pull out what the document asked for and could not get.
+ *
+ * A missing `.sty` is the most common compile failure there is, and the raw TeX log
+ * buries it in hundreds of lines. Surfacing it as a named package with a plain
+ * explanation is the difference between "it broke" and "this theme needs a font
+ * package the bundled TeX Live does not carry".
+ */
+export function findMissingFiles(log: string): MissingFile[] {
+  const out = new Map<string, MissingFile>();
+  const re = /File `([^']+)' not found/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(log)) !== null) {
+    const file = m[1]!;
+    const ext = file.split('.').pop()?.toLowerCase() ?? '';
+    const kind: MissingFile['kind'] =
+      ext === 'sty' ? 'package'
+      : ext === 'cls' ? 'class'
+      : ['png', 'jpg', 'jpeg', 'pdf', 'eps', 'svg'].includes(ext) ? 'graphic'
+      : 'other';
+    out.set(file, { file, pkg: file.replace(/\.[^.]+$/, ''), kind });
+  }
+  return [...out.values()];
+}
+
 /** Rejoin lines that TeX wrapped at exactly the print-line limit. */
 function unwrap(log: string, limit = 79): string[] {
   const raw = log.split(/\r?\n/);

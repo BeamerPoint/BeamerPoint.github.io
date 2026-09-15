@@ -3,6 +3,7 @@ import * as pdfjs from 'pdfjs-dist';
 import PdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker';
 import { useStore } from '../state/store.js';
 import { useEngine } from '../engine/useEngine.js';
+import { exportPdf } from '../io/exportProject.js';
 
 // Hand pdf.js a worker Vite has bundled, rather than a URL it has to fetch itself.
 // With a plain `workerSrc` URL the worker silently fails to start and
@@ -129,6 +130,14 @@ export function PdfPanel(): React.ReactElement {
         <button className="bp-primary" disabled={compiling} onClick={() => void compile()}>
           {compiling ? 'Compiling…' : 'Compile'}
         </button>
+        {result?.ok === true && result.pdf !== undefined && (
+          <button
+            title="Save the compiled PDF to disk"
+            onClick={() => exportPdf(useStore.getState().deck, result.pdf!)}
+          >
+            Save PDF
+          </button>
+        )}
         {result !== null && (
           <span className={result.ok ? 'bp-ok' : 'bp-error-text'}>
             {result.ok
