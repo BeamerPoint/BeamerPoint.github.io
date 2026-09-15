@@ -1,25 +1,83 @@
 import { get, set } from 'idb-keyval';
-import type { Deck } from '@beamerpoint/core';
+import { create } from 'zustand';
+import { emitDeck, type Deck } from '@beamerpoint/core';
 import { useStore } from './store.js';
+import { linkedFileName, restoreLink, writeLinkedFile } from './fileLink.js';
 
 /**
- * Autosave, plus a bounded ring of snapshots.
+ * Autosave.
  *
- * The snapshot ring is the backstop for the one failure mode that would be
- * unforgivable: losing hand-written LaTeX to a bad reconcile. It costs almost nothing
- * and means there is always a way back.
+ * Three layers, because each one fails in a different way:
+ *
+ *  1. IndexedDB holds the structured deck. Survives a reload, lost if site data is
+ *     cleared, invisible to every other program.
+ *  2. localStorage holds the emitted .tex. Writes SYNCHRONOUSLY, which is what makes it
+ *     usable from `pagehide` — an async IndexedDB write started during teardown is not
+ *     guaranteed to finish, so this is the layer that actually survives a tab close.
+ *  3. A real file on disk, if the user links one. The only layer that produces something
+ *     another program can open.
+ *
+ * The snapshot ring is separate: a bounded history for recovering from a bad edit,
+ * rather than from a crash.
  */
+
 const CURRENT_KEY = 'bp:deck:current';
 const RING_KEY = 'bp:deck:ring';
+const EMERGENCY_KEY = 'bp:deck:emergency';
 const RING_SIZE = 50;
-const AUTOSAVE_MS = 20_000;
+
+/** Short enough that a crash costs almost nothing, long enough not to thrash. */
+const DEBOUNCE_MS = 800;
+/** Snapshots are for undoing a bad edit, so they can be much rarer than saves. */
+const SNAPSHOT_MS = 60_000;
+
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+interface SaveState {
+  status: SaveStatus;
+  lastSavedAt: number | null;
+  fileName: string | null;
+  /** Set when a linked file exists but the browser has not re-granted write access. */
+  needsPermission: boolean;
+  error: string | null;
+  set(patch: Partial<Omit<SaveState, 'set'>>): void;
+}
+
+export const useSaveState = create<SaveState>()((setState) => ({
+  status: 'idle',
+  lastSavedAt: null,
+  fileName: null,
+  needsPermission: false,
+  error: null,
+  set: (patch) => setState(patch),
+}));
+
+/* ------------------------------------------------------------------ storage */
 
 export async function loadSavedDeck(): Promise<Deck | undefined> {
   return (await get(CURRENT_KEY)) as Deck | undefined;
 }
 
-export async function saveDeck(deck: Deck): Promise<void> {
-  await set(CURRENT_KEY, deck);
+/**
+ * The last emitted .tex, written synchronously so it survives an abrupt close.
+ *
+ * Recovered on the next launch when it is newer than the structured deck.
+ */
+export function readEmergencyTex(): { at: number; tex: string } | null {
+  try {
+    const raw = window.localStorage.getItem(EMERGENCY_KEY);
+    return raw === null ? null : (JSON.parse(raw) as { at: number; tex: string });
+  } catch {
+    return null;
+  }
+}
+
+function writeEmergencyTex(tex: string): void {
+  try {
+    window.localStorage.setItem(EMERGENCY_KEY, JSON.stringify({ at: Date.now(), tex }));
+  } catch {
+    // Quota or a private window. The other two layers still apply.
+  }
 }
 
 export async function snapshot(deck: Deck): Promise<void> {
@@ -32,27 +90,88 @@ export async function listSnapshots(): Promise<Array<{ at: number; deck: Deck }>
   return ((await get(RING_KEY)) as Array<{ at: number; deck: Deck }> | undefined) ?? [];
 }
 
-let timer: number | null = null;
-let lastSaved: Deck | null = null;
+/* ----------------------------------------------------------------- autosave */
+
+let pending: number | null = null;
+let lastSavedDeck: Deck | null = null;
+let lastSnapshotAt = 0;
+
+/**
+ * Persist the current deck across all available layers.
+ *
+ * @param sync When true (teardown), only the synchronous layer is guaranteed to land.
+ */
+async function saveNow(sync = false): Promise<void> {
+  const deck = useStore.getState().deck;
+  if (deck === lastSavedDeck) return;
+
+  const { tex } = emitDeck(deck, { target: 'export' });
+
+  // Synchronous first: during pagehide this is the only layer that reliably completes.
+  writeEmergencyTex(tex);
+  if (sync) return;
+
+  useSaveState.getState().set({ status: 'saving', error: null });
+  try {
+    await set(CURRENT_KEY, deck);
+    lastSavedDeck = deck;
+
+    if (Date.now() - lastSnapshotAt > SNAPSHOT_MS) {
+      lastSnapshotAt = Date.now();
+      await snapshot(deck);
+    }
+
+    const wroteFile = await writeLinkedFile(tex);
+    useSaveState.getState().set({
+      status: 'saved',
+      lastSavedAt: Date.now(),
+      fileName: linkedFileName(),
+      needsPermission: linkedFileName() !== null && !wroteFile,
+    });
+  } catch (err) {
+    useSaveState.getState().set({
+      status: 'error',
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/** Force an immediate save, e.g. right after linking a file. */
+export async function flushSave(): Promise<void> {
+  if (pending !== null) { window.clearTimeout(pending); pending = null; }
+  lastSavedDeck = null;
+  await saveNow();
+}
 
 export function startAutosave(): () => void {
-  const tick = (): void => {
-    const { deck } = useStore.getState();
-    if (deck === lastSaved) return;
-    lastSaved = deck;
-    void saveDeck(deck);
-    void snapshot(deck);
-  };
-  timer = window.setInterval(tick, AUTOSAVE_MS);
-  const unsubscribe = useStore.subscribe((s, prev) => {
-    // Snapshot immediately whenever a source edit is applied, not just on the timer.
-    if (s.source.lastParse !== prev.source.lastParse && s.source.lastParse !== null) {
-      void snapshot(s.deck);
-      void saveDeck(s.deck);
+  void (async () => {
+    const link = await restoreLink();
+    if (link !== null) {
+      useSaveState.getState().set({ fileName: link.name, needsPermission: !link.writable });
     }
+  })();
+
+  const schedule = (): void => {
+    if (pending !== null) window.clearTimeout(pending);
+    pending = window.setTimeout(() => { pending = null; void saveNow(); }, DEBOUNCE_MS);
+  };
+
+  const unsubscribe = useStore.subscribe((s, prev) => {
+    if (s.deck !== prev.deck) schedule();
   });
+
+  // Teardown: the tab is closing, being frozen, or backgrounded on mobile. `pagehide`
+  // is the one event that fires reliably in all of those, unlike `beforeunload`.
+  const onTeardown = (): void => { void saveNow(true); };
+  const onVisibility = (): void => { if (document.hidden) void saveNow(true); };
+
+  window.addEventListener('pagehide', onTeardown);
+  document.addEventListener('visibilitychange', onVisibility);
+
   return () => {
-    if (timer !== null) window.clearInterval(timer);
+    if (pending !== null) window.clearTimeout(pending);
     unsubscribe();
+    window.removeEventListener('pagehide', onTeardown);
+    document.removeEventListener('visibilitychange', onVisibility);
   };
 }

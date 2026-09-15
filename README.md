@@ -121,6 +121,25 @@ working outside BeamerPoint.
 XeLaTeX is noticeably slower than pdfLaTeX (roughly 18s versus 3s for a small deck),
 because it runs a `dvipdfmx` pass on top of TeX.
 
+## Saving
+
+Three layers, because each fails differently:
+
+1. **IndexedDB** holds the structured deck. Survives a reload; lost if site data is
+   cleared; invisible to other programs.
+2. **localStorage** holds the emitted `.tex`, written **synchronously**. This is the
+   layer that actually survives an abrupt tab close: an async IndexedDB write started
+   during `pagehide` is not guaranteed to finish, a synchronous one is. On the next
+   launch, if this mirror is ahead of the stored deck, the app offers to recover it
+   rather than silently choosing — either choice would discard someone's work.
+3. **A real file on disk**, via the File System Access API (Chromium only). The only
+   layer that produces something another program can open. Click **Save to file...**
+   once; after that every autosave writes straight to that `.tex`.
+
+Saves are debounced 800ms, and flushed on `pagehide` and on the tab being hidden.
+A stored file handle does not keep write permission across a reload, so the indicator
+offers to reconnect.
+
 ## Canvas fidelity
 
 The canvas targets roughly 80% visual accuracy and says so in the UI. It will diverge from

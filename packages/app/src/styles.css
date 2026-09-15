@@ -8,6 +8,7 @@
   --bp-danger: #b42318;
   --bp-warn: #b45309;
   --bp-ok: #15803d;
+  --bp-splitter: 6px;
   font-family: "Segoe UI", system-ui, sans-serif;
   font-size: 13px;
   color: var(--bp-text);
@@ -37,10 +38,37 @@ button { font: inherit; cursor: pointer; }
 /* ------------------------------------------------------------------- main */
 .bp-main {
   flex: 1; display: grid;
-  grid-template-columns: 210px minmax(320px, 1fr) minmax(360px, 1fr) 230px;
+  /* Columns are set inline from useColumnLayout; this is only the fallback. */
+  grid-template-columns:
+    210px var(--bp-splitter) minmax(280px, 1fr)
+    var(--bp-splitter) 460px var(--bp-splitter) 230px;
   min-height: 0;
 }
 .bp-main > * { min-width: 0; min-height: 0; }
+
+/* --------------------------------------------------------------- splitters */
+.bp-splitter {
+  position: relative; z-index: 2;
+  background: var(--bp-border);
+  cursor: col-resize;
+  display: flex; align-items: center; justify-content: center;
+  /* Widen the grab area past the visible 6px without shifting the layout. */
+  outline-offset: -2px;
+}
+.bp-splitter::before {
+  content: ''; position: absolute; top: 0; bottom: 0; left: -3px; right: -3px;
+}
+.bp-splitter:hover, .bp-splitter:focus-visible { background: var(--bp-accent); }
+.bp-splitter:focus-visible { outline: 2px solid var(--bp-accent); }
+.bp-splitter-grip {
+  width: 2px; height: 28px; border-radius: 1px;
+  background: rgba(255, 255, 255, 0.65); opacity: 0;
+  transition: opacity 120ms;
+}
+.bp-splitter:hover .bp-splitter-grip { opacity: 1; }
+/* While dragging, stop the cursor flickering and text being selected. */
+body.bp-resizing { cursor: col-resize; user-select: none; }
+body.bp-resizing iframe { pointer-events: none; }
 
 /* ------------------------------------------------------------- slide list */
 .bp-slidelist {
@@ -258,4 +286,31 @@ button { font: inherit; cursor: pointer; }
 .bp-hint-warn {
   color: var(--bp-warn); background: #fff8ec;
   border: 1px solid #f0d8a8; border-radius: 4px; padding: 6px 8px;
+}
+
+/* ------------------------------------------------------- save status / recovery */
+.bp-save {
+  display: flex; align-items: center; gap: 8px;
+  margin-left: auto; font-size: 12px;
+}
+.bp-save-ok { color: var(--bp-muted); }
+.bp-save-busy { color: var(--bp-accent); }
+.bp-save-error { color: var(--bp-danger); font-weight: 600; }
+.bp-save-note { color: var(--bp-muted); font-size: 11px; }
+.bp-save-warn .bp-linkbtn { border-color: var(--bp-warn); color: var(--bp-warn); }
+.bp-linkbtn {
+  border: 1px solid var(--bp-border); background: #fff;
+  border-radius: 4px; padding: 3px 9px; font-size: 12px;
+  max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bp-linkbtn:hover { background: #f0f2f5; }
+
+.bp-recovery {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; background: #fff8ec;
+  border-bottom: 1px solid #f0d8a8; color: var(--bp-warn);
+}
+.bp-recovery button:not(.bp-primary) {
+  border: 1px solid var(--bp-border); background: #fff;
+  border-radius: 4px; padding: 4px 10px;
 }

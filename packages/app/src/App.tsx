@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { emitDeck } from '@beamerpoint/core';
+import { emitDeck, parseDeck } from '@beamerpoint/core';
 import { SlideCanvas } from './canvas/SlideCanvas.js';
 import { SlideList } from './panels/SlideList.js';
 import { SourcePanel } from './panels/SourcePanel.js';
@@ -7,12 +7,17 @@ import { PdfPanel } from './panels/PdfPanel.js';
 import { LogPanel } from './panels/LogPanel.js';
 import { Inspector } from './panels/Inspector.js';
 import { selectCanvasLocked, selectCurrentFrame, selectFrames, useStore } from './state/store.js';
-import { loadSavedDeck, startAutosave } from './state/persist.js';
+import { loadSavedDeck, readEmergencyTex, startAutosave } from './state/persist.js';
+import { useColumnLayout } from './ui/useColumnLayout.js';
+import { Splitter } from './ui/Splitter.js';
+import { SaveIndicator } from './ui/SaveIndicator.js';
 
 type Tab = 'source' | 'pdf' | 'log';
 
 export function App(): React.ReactElement {
   const [tab, setTab] = useState<Tab>('source');
+  const layout = useColumnLayout();
+  const [recovery, setRecovery] = useState<{ at: number; tex: string } | null>(null);
 
   const deck = useStore((s) => s.deck);
   const frame = useStore(selectCurrentFrame);
@@ -32,6 +37,14 @@ export function App(): React.ReactElement {
     void (async () => {
       const saved = await loadSavedDeck();
       if (saved !== undefined) loadDeck(saved);
+
+      // The synchronous .tex mirror is written during teardown, so it can be ahead of
+      // the structured deck if the tab was closed or crashed mid-edit. Offer it rather
+      // than silently picking one, because either choice discards work.
+      const emergency = readEmergencyTex();
+      if (emergency === null) return;
+      const current = saved === undefined ? null : emitDeck(saved, { target: 'export' }).tex;
+      if (current !== emergency.tex) setRecovery(emergency);
     })();
     return startAutosave();
   }, [loadDeck]);
@@ -71,6 +84,7 @@ export function App(): React.ReactElement {
           <button onClick={undo} title="Undo (Ctrl+Z)">Undo</button>
           <button onClick={redo} title="Redo (Ctrl+Y)">Redo</button>
         </div>
+        <SaveIndicator />
         {locked && (
           <span className="bp-lock-banner">
             Source editor has unapplied changes — the canvas is read-only
@@ -78,8 +92,35 @@ export function App(): React.ReactElement {
         )}
       </header>
 
-      <div className="bp-main">
+      {recovery !== null && (
+        <div className="bp-recovery">
+          <span>
+            Unsaved changes were found from{' '}
+            {new Date(recovery.at).toLocaleString()} — the tab probably closed before
+            they were written.
+          </span>
+          <button
+            className="bp-primary"
+            onClick={() => {
+              loadDeck(parseDeck(recovery.tex).deck);
+              setRecovery(null);
+            }}
+          >
+            Recover them
+          </button>
+          <button onClick={() => setRecovery(null)}>Discard</button>
+        </div>
+      )}
+
+      <div className="bp-main" style={{ gridTemplateColumns: layout.gridTemplate }}>
         <SlideList />
+
+        <Splitter
+          label="Resize slide list"
+          onResize={(d) => layout.resize('slides', d)}
+          onCommit={layout.commit}
+          onReset={() => layout.reset('slides')}
+        />
 
         <div className="bp-center">
           <SlideCanvas
@@ -106,6 +147,13 @@ export function App(): React.ReactElement {
           </p>
         </div>
 
+        <Splitter
+          label="Resize the source and preview panel"
+          onResize={(d) => layout.resize('panel', -d)}
+          onCommit={layout.commit}
+          onReset={() => layout.reset('panel')}
+        />
+
         <div className="bp-right">
           <nav className="bp-tabs">
             {(['source', 'pdf', 'log'] as Tab[]).map((t) => (
@@ -124,6 +172,13 @@ export function App(): React.ReactElement {
             {tab === 'log' && <LogPanel />}
           </div>
         </div>
+
+        <Splitter
+          label="Resize the properties panel"
+          onResize={(d) => layout.resize('inspector', -d)}
+          onCommit={layout.commit}
+          onReset={() => layout.reset('inspector')}
+        />
 
         <Inspector />
       </div>
