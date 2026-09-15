@@ -108,6 +108,14 @@ function parsePreamble(
     if (node.n === 'parbreak') continue;
 
     if (node.n === 'comment') {
+      // `% !TEX program = xelatex` is configuration, not a comment to preserve
+      // verbatim: re-emitting it from a chunk as well would duplicate it.
+      const magic = /^\s*!TEX\s+program\s*=\s*(pdflatex|xelatex|lualatex)\s*$/i
+        .exec(node.value);
+      if (magic !== null) {
+        p.texProgram = magic[1]!.toLowerCase() as NonNullable<Preamble['texProgram']>;
+        continue;
+      }
       pendingComments.push(node.value);
       continue;
     }

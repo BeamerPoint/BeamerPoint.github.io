@@ -68,6 +68,11 @@ function emitPreamble(w: TexWriter, deck: Deck, _ctx: EmitContext): void {
   const p: Preamble = deck.preamble;
   const dc = p.documentClass;
 
+  // Magic comment first, so editors that read it see it before anything else.
+  if (p.texProgram !== undefined) {
+    w.line_(`% !TEX program = ${p.texProgram}`);
+  }
+
   const classOpts = [
     `aspectratio=${dc.aspectRatio}`,
     `${dc.fontSize}pt`,

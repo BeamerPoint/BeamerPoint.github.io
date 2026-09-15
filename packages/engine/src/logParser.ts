@@ -110,11 +110,14 @@ export function parseLog(log: string): Diagnostic[] {
     const warn = /^(LaTeX|Package|Class)\s*(\S*)\s*Warning:\s*(.*)$/.exec(line);
     if (warn !== null) {
       let message = warn[3]!;
-      for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
+      // LaTeX indents a wrapped warning with the emitting package in parentheses,
+      // e.g. "(hyperref)   ...". Only those lines continue the message; anything else
+      // is the next log entry, and swallowing it produces messages with file paths
+      // and stray parentheses glued onto the end.
+      for (let j = i + 1; j < Math.min(i + 6, lines.length); j++) {
         const l = lines[j]!;
-        if (!/^\(?[A-Za-z]/.test(l) || l.trim() === '') break;
-        if (/Warning:|Error:/.test(l)) break;
-        message += ' ' + l.trim();
+        if (!/^\([A-Za-z][^)]*\)\s/.test(l)) break;
+        message += ' ' + l.replace(/^\([^)]*\)\s*/, '').trim();
       }
       const at = /on input line (\d+)/.exec(message);
       out.push({

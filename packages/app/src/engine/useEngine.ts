@@ -24,6 +24,9 @@ function getEngine(): LatexEngine {
     basePath: '/core/busytex',
     collections: ['basic', 'recommended', 'extra'],
   });
+  if (import.meta.env.DEV) {
+    (window as unknown as Record<string, unknown>).bpEngine = engineSingleton;
+  }
   return engineSingleton;
 }
 
@@ -78,7 +81,13 @@ export function useEngine(): {
         target: 'preview',
         capabilities: engine.capabilities,
       });
-      const result = await engine.compile(jobForProject(project, deck));
+      const result = await engine.compile(
+        jobForProject(project, deck, {
+          program: deck.preamble.texProgram ?? 'pdflatex',
+          // XeLaTeX runs a dvipdfmx pass on top of TeX, so it needs more headroom.
+          timeoutMs: deck.preamble.texProgram === 'pdflatex' ? 60_000 : 180_000,
+        }),
+      );
 
       // Map TeX line numbers back to slides and elements via the emitter's source map.
       const { sourceMap } = emitDeck(deck, { target: 'preview' });

@@ -9,10 +9,12 @@ import {
   parseDeck,
   plain,
   richTextEquals,
+  themeNeedsUnicodeEngine,
   type Deck,
   type Element,
   type FrameNode,
   type ParseResult,
+  type TexProgram,
   type RichText,
   type SourceMap,
 } from '@beamerpoint/core';
@@ -85,6 +87,7 @@ interface AppState {
   moveElementToAbsolute(slideId: string, elementId: string, x: number, y: number, w: number): void;
 
   setTheme(name: string): void;
+  setTexProgram(program: TexProgram): void;
   setAspect(aspect: Deck['preamble']['documentClass']['aspectRatio']): void;
 
   editSource(text: string): void;
@@ -362,9 +365,26 @@ export const useStore = create<AppState>()((set, get) => {
     },
 
     setTheme(name) {
+      mutate((deck) => {
+        const preamble = { ...deck.preamble, theme: { name, options: [] } };
+        // Themes built on fontspec only render as designed under a Unicode engine.
+        // Under pdflatex they compile but fall back to Computer Modern, which reads as
+        // "the theme is broken", so switch the engine with the theme.
+        if (themeNeedsUnicodeEngine(name)) {
+          preamble.texProgram = 'xelatex';
+        } else if (deck.preamble.texProgram === 'xelatex'
+          && themeNeedsUnicodeEngine(deck.preamble.theme.name)) {
+          // Leaving the previous theme: drop the engine we set on its behalf.
+          delete preamble.texProgram;
+        }
+        return { ...deck, preamble };
+      });
+    },
+
+    setTexProgram(program) {
       mutate((deck) => ({
         ...deck,
-        preamble: { ...deck.preamble, theme: { name, options: [] } },
+        preamble: { ...deck.preamble, texProgram: program },
       }));
     },
 

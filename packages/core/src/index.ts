@@ -30,7 +30,12 @@ export {
   type PaperGeometry,
 } from './geometry/paper.js';
 
-export { THEMES, THEME_IDS, resolveTheme } from './themes/themes.js';
+export { THEMES, THEME_IDS, resolveTheme, isApproximateTheme } from './themes/themes.js';
+export {
+  THEME_NAMES, THEME_SHAPES, COLOR_THEME_NAMES, FONT_THEME_NAMES,
+  themeNeedsUnicodeEngine, themeShape,
+  type ThemeShape, type HeadlineKind, type FootlineKind,
+} from './themes/catalogue.js';
 export type {
   ThemeSpec, HeadlineSpec, FootlineSpec, FootlineCell, FrametitleSpec, BlockSpec, BlockStyle,
 } from './themes/spec.js';

@@ -344,6 +344,9 @@ export type DocNode = FrameNode | SectionNode | RawDocNode;
 
 export type AspectRatio = '43' | '169' | '1610' | '54' | '32' | '141';
 
+/** The TeX binary a deck should be compiled with. */
+export type TexProgram = 'pdflatex' | 'xelatex' | 'lualatex';
+
 export interface ThemeRef { name: string; options: string[] }
 export interface PackageSpec { name: string; options: string[]; derived?: boolean; comment?: string }
 export interface ColorDef {
@@ -375,6 +378,16 @@ export interface DocumentClassSpec {
 
 export interface Preamble {
   documentClass: DocumentClassSpec;
+  /**
+   * Which TeX binary to compile with.
+   *
+   * Recorded in the file as a `% !TEX program = ...` magic comment, the convention
+   * Overleaf, TeXShop and TeXstudio already understand, so an exported deck keeps
+   * working outside BeamerPoint. Themes built on fontspec (metropolis, moloch) need
+   * xelatex or lualatex: under pdflatex they compile but silently fall back to
+   * Computer Modern, which does not look like the theme.
+   */
+  texProgram?: TexProgram;
   theme: ThemeRef;
   colorTheme?: ThemeRef;
   fontTheme?: ThemeRef;

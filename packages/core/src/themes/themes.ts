@@ -1,25 +1,23 @@
-import type { ThemeSpec } from './spec.js';
+import type { FootlineSpec, HeadlineSpec, ThemeSpec } from './spec.js';
+import {
+  THEME_NAMES,
+  THEME_SHAPES,
+  themeShape,
+  type ThemeShape,
+} from './catalogue.js';
 
 /**
- * Shipped theme approximations.
+ * Canvas approximations for Beamer themes.
  *
- * Values were taken from each theme's beamer colour/outer theme definitions. They are
- * close enough to recognise the theme at a glance, which is what the canvas is for;
- * the compile button is what exactness is for.
+ * Specs are DERIVED from each theme's declared shape rather than hand-written one by
+ * one, so adding a theme is a single line in the catalogue. A handful of the most-used
+ * themes then get hand-tuned overrides on top.
+ *
+ * None of this affects compilation: the theme reaches the document as `\usetheme{Name}`
+ * regardless, so a theme with a rough approximation still produces a correct PDF.
  */
 
-const BEAMER_BLUE = '#3b4f81';
-const BEAMER_BLUE_LIGHT = '#5b6ea6';
-
-function mix(hex: string, withHex: string, pct: number): string {
-  const a = parseHex(hex);
-  const b = parseHex(withHex);
-  const f = pct / 100;
-  const c = a.map((v, i) => Math.round(v * f + b[i]! * (1 - f)));
-  return `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
-}
-
-function parseHex(hex: string): number[] {
+function parseHex(hex: string): [number, number, number] {
   const h = hex.replace('#', '');
   return [
     parseInt(h.slice(0, 2), 16),
@@ -28,7 +26,15 @@ function parseHex(hex: string): number[] {
   ];
 }
 
-/** Build the standard beamer block styling derived from a structure colour. */
+/** xcolor-style `a!pct!b` mixing, used to derive the beamer palette from structure. */
+function mix(hex: string, withHex: string, pct: number): string {
+  const a = parseHex(hex);
+  const b = parseHex(withHex);
+  const f = pct / 100;
+  const c = a.map((v, i) => Math.round(v * f + b[i]! * (1 - f)));
+  return `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
 function blocksFor(structure: string): ThemeSpec['block'] {
   return {
     shape: 'rounded',
@@ -39,169 +45,142 @@ function blocksFor(structure: string): ThemeSpec['block'] {
     bodyBg: mix(structure, '#ffffff', 12),
     bodyFg: '#000000',
     alert: {
-      titleBg: '#9b2c2c',
-      titleFg: '#ffffff',
-      bodyBg: mix('#9b2c2c', '#ffffff', 12),
-      bodyFg: '#000000',
+      titleBg: '#9b2c2c', titleFg: '#ffffff',
+      bodyBg: mix('#9b2c2c', '#ffffff', 12), bodyFg: '#000000',
     },
     example: {
-      titleBg: '#2f6b4f',
-      titleFg: '#ffffff',
-      bodyBg: mix('#2f6b4f', '#ffffff', 12),
-      bodyFg: '#000000',
+      titleBg: '#2f6b4f', titleFg: '#ffffff',
+      bodyBg: mix('#2f6b4f', '#ffffff', 12), bodyFg: '#000000',
     },
   };
 }
 
-function base(id: string, label: string, structure: string): ThemeSpec {
+function headlineFor(shape: ThemeShape): HeadlineSpec {
+  const bg = mix(shape.structure, '#000000', 78);
+  switch (shape.headline) {
+    case 'miniframes':
+    case 'tree':
+      return { kind: 'miniframes', heightMm: 6, bg, fg: '#ffffff', content: 'sections' };
+    case 'sidebar':
+      // A real sidebar is vertical; approximate it as a slim top band so the canvas at
+      // least reflects that the usable area is smaller.
+      return { kind: 'bar', heightMm: 4, bg, fg: '#ffffff', content: 'empty' };
+    case 'none':
+      return { kind: 'none', heightMm: 0, bg, fg: '#ffffff', content: 'empty' };
+  }
+}
+
+function footlineFor(shape: ThemeShape): FootlineSpec {
+  const s = shape.structure;
+  switch (shape.footline) {
+    case 'split':
+      return {
+        heightMm: 5,
+        cells: [
+          { flex: 2, bg: mix(s, '#000000', 70), fg: '#ffffff', content: 'author' },
+          { flex: 3, bg: mix(s, '#ffffff', 85), fg: '#ffffff', content: 'title' },
+          { flex: 2, bg: mix(s, '#ffffff', 70), fg: '#ffffff', content: 'date' },
+          { flex: 1, bg: mix(s, '#ffffff', 70), fg: '#ffffff', content: 'framenumber' },
+        ],
+      };
+    case 'minimal':
+      return {
+        heightMm: 4,
+        cells: [{ flex: 1, bg: 'transparent', fg: s, content: 'framenumber' }],
+      };
+    case 'none':
+      return { heightMm: 0, cells: [] };
+  }
+}
+
+/** Build a canvas approximation from a theme's declared shape. */
+function specFromShape(id: string, shape: ThemeShape): ThemeSpec {
+  const headline = headlineFor(shape);
+  const footline = footlineFor(shape);
+  const background = shape.dark ? '#2e3440' : '#ffffff';
+  const foreground = shape.dark ? '#eceff4' : '#000000';
+
   return {
     id,
-    label,
-    structure,
-    background: '#ffffff',
-    foreground: '#000000',
+    label: id,
+    structure: shape.structure,
+    background,
+    foreground,
     fontFamily: 'sans',
-    headline: { kind: 'none', heightMm: 0, bg: structure, fg: '#ffffff', content: 'empty' },
-    footline: { heightMm: 0, cells: [] },
+    headline,
+    footline,
     frametitle: {
       align: 'left',
       fontSize: 'large',
       bold: true,
-      fg: structure,
-      paddingMm: { x: 0, y: 1 },
+      fg: shape.filledFrametitle ? '#ffffff' : shape.structure,
+      ...(shape.filledFrametitle ? { bg: shape.structure } : {}),
+      paddingMm: shape.filledFrametitle ? { x: 3, y: 2 } : { x: 0, y: 1 },
     },
-    block: blocksFor(structure),
+    block: blocksFor(shape.structure),
     itemMarkers: ['▸', '–', '•'],
-    margins: { hMm: 10, topMm: 4, bottomMm: 4 },
+    margins: {
+      hMm: 10,
+      topMm: headline.heightMm > 0 ? headline.heightMm + 2 : 3,
+      bottomMm: footline.heightMm > 0 ? footline.heightMm + 2 : 4,
+    },
   };
 }
 
-const defaultTheme: ThemeSpec = base('default', 'default', BEAMER_BLUE);
-
-const madrid: ThemeSpec = {
-  ...base('Madrid', 'Madrid', BEAMER_BLUE),
-  headline: {
-    kind: 'bar', heightMm: 0, bg: BEAMER_BLUE, fg: '#ffffff', content: 'empty',
-  },
-  frametitle: {
-    align: 'left',
-    fontSize: 'large',
-    bold: true,
-    fg: '#ffffff',
-    bg: BEAMER_BLUE,
-    paddingMm: { x: 3, y: 2 },
-  },
-  footline: {
-    heightMm: 5,
-    cells: [
-      { flex: 2, bg: mix(BEAMER_BLUE, '#000000', 70), fg: '#ffffff', content: 'author' },
-      { flex: 3, bg: mix(BEAMER_BLUE, '#ffffff', 85), fg: '#ffffff', content: 'title' },
-      { flex: 2, bg: BEAMER_BLUE_LIGHT, fg: '#ffffff', content: 'date' },
-      { flex: 1, bg: BEAMER_BLUE_LIGHT, fg: '#ffffff', content: 'framenumber' },
-    ],
-  },
-  margins: { hMm: 10, topMm: 2, bottomMm: 7 },
+/**
+ * Hand-tuned corrections, applied over the derived spec.
+ *
+ * Only for themes where the generic derivation is visibly wrong. Measured by eye
+ * against real compiled output.
+ */
+const OVERRIDES: Readonly<Record<string, (s: ThemeSpec) => ThemeSpec>> = {
+  metropolis: (s) => ({
+    ...s,
+    background: '#fafafa',
+    block: {
+      ...s.block,
+      shape: 'plain',
+      radiusMm: 0,
+      titleBg: 'transparent',
+      titleFg: '#23373b',
+      bodyBg: '#eaeaea',
+    },
+    itemMarkers: ['•', '–', '•'],
+    margins: { hMm: 12, topMm: 3, bottomMm: 6 },
+  }),
+  moloch: (s) => OVERRIDES['metropolis']!(s),
+  Boadilla: (s) => ({
+    ...s,
+    footline: {
+      heightMm: 5,
+      cells: [
+        { flex: 2, bg: '#ffffff', fg: s.structure, content: 'author' },
+        { flex: 3, bg: '#ffffff', fg: s.structure, content: 'title' },
+        { flex: 2, bg: '#ffffff', fg: s.structure, content: 'date' },
+      ],
+    },
+  }),
+  default: (s) => ({ ...s, margins: { hMm: 10, topMm: 4, bottomMm: 4 } }),
 };
 
-const warsaw: ThemeSpec = {
-  ...madrid,
-  id: 'Warsaw',
-  label: 'Warsaw',
-  headline: {
-    kind: 'miniframes', heightMm: 6, bg: mix(BEAMER_BLUE, '#000000', 75),
-    fg: '#ffffff', content: 'sections',
-  },
-  margins: { hMm: 10, topMm: 8, bottomMm: 7 },
-};
+function build(id: string): ThemeSpec {
+  const shape = THEME_SHAPES[id]!;
+  const base = specFromShape(id, shape);
+  const override = OVERRIDES[id];
+  return override === undefined ? base : override(base);
+}
 
-const berlin: ThemeSpec = { ...warsaw, id: 'Berlin', label: 'Berlin' };
+export const THEMES: Readonly<Record<string, ThemeSpec>> = Object.fromEntries(
+  THEME_NAMES.map((id) => [id, build(id)]),
+);
 
-const copenhagen: ThemeSpec = {
-  ...warsaw,
-  id: 'Copenhagen',
-  label: 'Copenhagen',
-  frametitle: {
-    align: 'left', fontSize: 'large', bold: true,
-    fg: '#ffffff', bg: BEAMER_BLUE_LIGHT,
-    paddingMm: { x: 3, y: 2 },
-  },
-};
-
-const singapore: ThemeSpec = {
-  ...base('Singapore', 'Singapore', BEAMER_BLUE),
-  headline: {
-    kind: 'miniframes', heightMm: 6,
-    bg: mix(BEAMER_BLUE, '#ffffff', 40), fg: '#ffffff', content: 'sections',
-  },
-  margins: { hMm: 10, topMm: 8, bottomMm: 4 },
-};
-
-const boadilla: ThemeSpec = {
-  ...base('Boadilla', 'Boadilla', BEAMER_BLUE),
-  footline: {
-    heightMm: 5,
-    cells: [
-      { flex: 2, bg: '#ffffff', fg: BEAMER_BLUE, content: 'author' },
-      { flex: 3, bg: '#ffffff', fg: BEAMER_BLUE, content: 'title' },
-      { flex: 2, bg: '#ffffff', fg: BEAMER_BLUE, content: 'date' },
-    ],
-  },
-  margins: { hMm: 10, topMm: 4, bottomMm: 7 },
-};
-
-const metropolis: ThemeSpec = {
-  ...base('metropolis', 'Metropolis', '#23373b'),
-  background: '#fafafa',
-  frametitle: {
-    align: 'left',
-    fontSize: 'large',
-    bold: true,
-    fg: '#fafafa',
-    bg: '#23373b',
-    paddingMm: { x: 3, y: 2.5 },
-  },
-  block: {
-    ...blocksFor('#23373b'),
-    shape: 'plain',
-    radiusMm: 0,
-    titleBg: 'transparent',
-    titleFg: '#23373b',
-    bodyBg: '#eaeaea',
-  },
-  itemMarkers: ['•', '–', '•'],
-  footline: {
-    heightMm: 4,
-    cells: [{ flex: 1, bg: 'transparent', fg: '#23373b', content: 'framenumber' }],
-  },
-  margins: { hMm: 12, topMm: 3, bottomMm: 6 },
-};
-
-const cambridgeUS: ThemeSpec = {
-  ...madrid,
-  id: 'CambridgeUS',
-  label: 'CambridgeUS',
-  structure: '#6b1414',
-  frametitle: {
-    align: 'left', fontSize: 'large', bold: true,
-    fg: '#ffffff', bg: '#6b1414', paddingMm: { x: 3, y: 2 },
-  },
-  block: blocksFor('#6b1414'),
-};
-
-export const THEMES: Readonly<Record<string, ThemeSpec>> = {
-  default: defaultTheme,
-  Madrid: madrid,
-  Warsaw: warsaw,
-  Berlin: berlin,
-  Copenhagen: copenhagen,
-  Singapore: singapore,
-  Boadilla: boadilla,
-  CambridgeUS: cambridgeUS,
-  metropolis,
-};
-
-export const THEME_IDS: readonly string[] = Object.keys(THEMES);
+export const THEME_IDS: readonly string[] = THEME_NAMES;
 
 export function resolveTheme(name: string): ThemeSpec {
-  return THEMES[name] ?? defaultTheme;
+  return THEMES[name] ?? THEMES['default']!;
+}
+
+/** True when the canvas has only a generic approximation of this theme. */
+export function isApproximateTheme(name: string): boolean {
+  return themeShape(name) !== undefined && OVERRIDES[name] === undefined;
 }

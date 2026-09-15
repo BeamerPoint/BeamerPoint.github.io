@@ -1,7 +1,15 @@
-import { THEME_IDS, richTextToPlain, type AspectRatio } from '@beamerpoint/core';
+import {
+  THEME_IDS,
+  isApproximateTheme,
+  richTextToPlain,
+  themeNeedsUnicodeEngine,
+  type AspectRatio,
+  type TexProgram,
+} from '@beamerpoint/core';
 import { selectCurrentFrame, useStore } from '../state/store.js';
 
 const ASPECTS: AspectRatio[] = ['169', '43', '1610', '32'];
+const PROGRAMS: TexProgram[] = ['pdflatex', 'xelatex', 'lualatex'];
 
 /** Properties for the current slide and the deck as a whole. */
 export function Inspector(): React.ReactElement {
@@ -11,6 +19,7 @@ export function Inspector(): React.ReactElement {
   const setSlideTitle = useStore((s) => s.setSlideTitle);
   const setTheme = useStore((s) => s.setTheme);
   const setAspect = useStore((s) => s.setAspect);
+  const setTexProgram = useStore((s) => s.setTexProgram);
   const addTextElement = useStore((s) => s.addTextElement);
   const addListElement = useStore((s) => s.addListElement);
   const addBlockElement = useStore((s) => s.addBlockElement);
@@ -92,6 +101,30 @@ export function Inspector(): React.ReactElement {
             {THEME_IDS.map((id) => <option key={id} value={id}>{id}</option>)}
           </select>
         </label>
+        <label>
+          Compile with
+          <select
+            disabled={locked}
+            value={deck.preamble.texProgram ?? 'pdflatex'}
+            onChange={(e) => setTexProgram(e.target.value as TexProgram)}
+          >
+            {PROGRAMS.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </label>
+        {themeNeedsUnicodeEngine(deck.preamble.theme.name)
+          && (deck.preamble.texProgram ?? 'pdflatex') === 'pdflatex' && (
+          <p className="bp-hint bp-hint-warn">
+            {deck.preamble.theme.name} needs XeLaTeX or LuaLaTeX for its fonts. Under
+            pdfLaTeX it compiles, but falls back to Computer Modern and will not look
+            like the theme.
+          </p>
+        )}
+        {isApproximateTheme(deck.preamble.theme.name) && (
+          <p className="bp-hint">
+            The canvas shows a generic approximation of this theme. Compile to see it
+            properly.
+          </p>
+        )}
         <label>
           Aspect ratio
           <select

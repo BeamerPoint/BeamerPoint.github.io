@@ -102,6 +102,25 @@ re-escapes a preserved macro such as `\vspace{2mm}` into `\textbackslash{}vspace
 — which then prints as visible characters in the compiled PDF. That is regression-tested
 in `packages/app/test/inlineEditing.spec.tsx`.
 
+## Themes and the TeX engine
+
+The theme dropdown offers ~39 presentation themes, all of which ship with TeX Live and
+compile as-is — the theme only reaches the document as `\usetheme{Name}`. The canvas
+approximation is a separate concern, derived from a shape declared in
+`themes/catalogue.ts` (headline style, footline style, structure colour), with
+hand-tuned overrides for a few. Adding a theme is one line in the catalogue.
+
+Some themes — metropolis and moloch — are built on `fontspec` and only render as
+designed under **XeLaTeX or LuaLaTeX**. Under pdfLaTeX they still compile, but silently
+fall back to Computer Modern, which does not look like the theme at all and reads as
+"the theme is broken". Selecting one of these switches the engine automatically, and the
+choice is recorded in the file as a `% !TEX program = xelatex` magic comment — the
+convention Overleaf, TeXShop and TeXstudio already understand, so an exported deck keeps
+working outside BeamerPoint.
+
+XeLaTeX is noticeably slower than pdfLaTeX (roughly 18s versus 3s for a small deck),
+because it runs a `dvipdfmx` pass on top of TeX.
+
 ## Canvas fidelity
 
 The canvas targets roughly 80% visual accuracy and says so in the UI. It will diverge from

@@ -148,6 +148,32 @@ describe('round trip fixpoint', () => {
   });
 });
 
+describe('TeX program selection', () => {
+  it('round-trips the "% !TEX program" magic comment', () => {
+    const deck = newDeck({ title: 'T' });
+    deck.preamble.theme = { name: 'metropolis', options: [] };
+    deck.preamble.texProgram = 'xelatex';
+
+    const { round, tex } = expectFixpoint(deck);
+    expect(tex.startsWith('% !TEX program = xelatex')).toBe(true);
+    expect(round.deck.preamble.texProgram).toBe('xelatex');
+  });
+
+  it('does not emit the magic comment when no program is set', () => {
+    const tex = emitDeck(newDeck({ title: 'T' })).tex;
+    expect(tex).not.toContain('!TEX program');
+  });
+
+  it('absorbs the magic comment rather than keeping it as a preamble chunk', () => {
+    // Re-emitting it from a chunk as well would duplicate it on every edit.
+    const deck = newDeck({ title: 'T' });
+    deck.preamble.texProgram = 'lualatex';
+    const parsed = parseDeck(emitDeck(deck).tex, { newId: makeSeededIdFactory('p') });
+    expect(parsed.deck.preamble.custom).toHaveLength(0);
+    expect(emitDeck(parsed.deck).tex.match(/!TEX program/g)).toHaveLength(1);
+  });
+});
+
 describe('degradation: unknown LaTeX is preserved, never lost', () => {
   const parse = (src: string) => parseDeck(src, { newId: makeSeededIdFactory('r') });
 

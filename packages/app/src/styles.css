@@ -251,3 +251,11 @@ button { font: inherit; cursor: pointer; }
   color: var(--bp-danger); background: #fef3f2; padding: 8px;
   border-radius: 4px; white-space: pre-wrap; font-size: 11px;
 }
+
+.bp-hint {
+  margin: -4px 0 10px; font-size: 11px; line-height: 1.35; color: var(--bp-muted);
+}
+.bp-hint-warn {
+  color: var(--bp-warn); background: #fff8ec;
+  border: 1px solid #f0d8a8; border-radius: 4px; padding: 6px 8px;
+}
