@@ -3,6 +3,7 @@ import {
   isApproximateTheme,
   richTextToPlain,
   themeNeedsUnicodeEngine,
+  themeUnavailableReason,
   type AspectRatio,
   type TexProgram,
 } from '@beamerpoint/core';
@@ -233,6 +234,14 @@ export function Inspector(): React.ReactElement {
             {deck.preamble.theme.name} needs XeLaTeX or LuaLaTeX for its fonts. Under
             pdfLaTeX it compiles, but falls back to Computer Modern and will not look
             like the theme.
+          </p>
+        )}
+        {themeUnavailableReason(deck.preamble.theme.name) !== undefined && (
+          <p className="bp-hint bp-hint-warn">
+            This deck uses <strong>{deck.preamble.theme.name}</strong>, which needs{' '}
+            <code>{themeUnavailableReason(deck.preamble.theme.name)}</code> — not part of
+            the bundled TeX Live, so it will not compile here. Pick another theme, or
+            compile this deck elsewhere.
           </p>
         )}
         {isApproximateTheme(deck.preamble.theme.name) && (

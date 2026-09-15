@@ -1,5 +1,6 @@
 import type { FootlineSpec, HeadlineSpec, ThemeSpec } from './spec.js';
 import {
+  ALL_THEME_NAMES,
   THEME_NAMES,
   THEME_SHAPES,
   themeShape,
@@ -174,10 +175,16 @@ function build(id: string): ThemeSpec {
   return override === undefined ? base : override(base);
 }
 
+/**
+ * Canvas approximations for EVERY catalogued theme, including ones that cannot
+ * compile here. Opening someone else's deck must still render something recognisable
+ * rather than silently falling back to the default look.
+ */
 export const THEMES: Readonly<Record<string, ThemeSpec>> = Object.fromEntries(
-  THEME_NAMES.map((id) => [id, build(id)]),
+  ALL_THEME_NAMES.map((id) => [id, build(id)]),
 );
 
+/** The list the picker offers: only themes verified to compile. */
 export const THEME_IDS: readonly string[] = THEME_NAMES;
 
 export function resolveTheme(name: string): ThemeSpec {

@@ -56,6 +56,16 @@ export interface ThemeShape {
   textTopMm?: number;
   /** Bottom of the text area, as an inset from the bottom of the page. */
   textBottomInsetMm?: number;
+  /**
+   * Set when the theme cannot compile with the bundled TeX Live.
+   *
+   * Every theme here was VERIFIED by compiling it; four need font packages that are
+   * not in the basic/recommended/extra collections. They are kept in the catalogue so
+   * that opening a deck which uses one still renders an approximation on the canvas,
+   * but they are excluded from the picker -- offering a theme that cannot compile is
+   * worse than not offering it.
+   */
+  unavailable?: { missingPackage: string };
 }
 
 /** The beamer default, used for themes whose margin has not been measured. */
@@ -120,19 +130,36 @@ export const THEME_SHAPES: Readonly<Record<string, ThemeShape>> = {
     structure: TEAL, headline: 'none', footline: 'minimal',
     filledFrametitle: true, needsUnicodeEngine: true, hMarginMm: DEFAULT_MARGIN,
   },
-  focus: { structure: '#22333b', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  focus: { structure: '#22333b', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN , unavailable: { missingPackage: 'FiraSans.sty' } },
   SimpleDarkBlue: { structure: '#1f3864', headline: 'none', footline: 'minimal', filledFrametitle: false , hMarginMm: 7.69 },
   SimplePlus: { structure: '#2b5797', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: 7.69 },
   Nord: { structure: '#5e81ac', headline: 'none', footline: 'minimal', filledFrametitle: true, dark: true , hMarginMm: DEFAULT_MARGIN },
-  Arguelles: { structure: '#28536b', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
-  CleanEasy: { structure: '#00539c', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  Arguelles: { structure: '#28536b', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN , unavailable: { missingPackage: 'Alegreya.sty' } },
+  CleanEasy: { structure: '#00539c', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN , unavailable: { missingPackage: 'cmbright.sty' } },
   Cuerna: { structure: '#8c1d40', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
-  trigon: { structure: '#3d5a80', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  trigon: { structure: '#3d5a80', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN , unavailable: { missingPackage: 'sourcesanspro.sty' } },
 };
 
-export const THEME_NAMES: readonly string[] = Object.keys(THEME_SHAPES).sort((a, b) =>
+/** Every theme the canvas can approximate, including ones that cannot compile. */
+export const ALL_THEME_NAMES: readonly string[] = Object.keys(THEME_SHAPES).sort((a, b) =>
   a.localeCompare(b),
 );
+
+/**
+ * Themes that actually compile with the bundled TeX Live — the list the picker offers.
+ *
+ * Verified by compiling every one of them, not by reading a directory listing. The
+ * directory listing is what produced four themes that looked available and failed.
+ */
+export const THEME_NAMES: readonly string[] = ALL_THEME_NAMES.filter(
+  (n) => THEME_SHAPES[n]?.unavailable === undefined,
+);
+
+/** Why a theme cannot be used, or `undefined` if it can. */
+export function themeUnavailableReason(name: string): string | undefined {
+  const u = THEME_SHAPES[name]?.unavailable;
+  return u === undefined ? undefined : u.missingPackage;
+}
 
 /** Colour themes shipped with TeX Live, applied on top of a presentation theme. */
 export const COLOR_THEME_NAMES: readonly string[] = [

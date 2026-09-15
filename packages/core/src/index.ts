@@ -32,8 +32,8 @@ export {
 
 export { THEMES, THEME_IDS, resolveTheme, isApproximateTheme } from './themes/themes.js';
 export {
-  THEME_NAMES, THEME_SHAPES, COLOR_THEME_NAMES, FONT_THEME_NAMES,
-  themeNeedsUnicodeEngine, themeShape,
+  THEME_NAMES, ALL_THEME_NAMES, THEME_SHAPES, COLOR_THEME_NAMES, FONT_THEME_NAMES,
+  themeNeedsUnicodeEngine, themeShape, themeUnavailableReason,
   type ThemeShape, type HeadlineKind, type FootlineKind,
 } from './themes/catalogue.js';
 export type {

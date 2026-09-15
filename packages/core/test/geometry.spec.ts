@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { THEME_IDS, THEME_SHAPES, resolveTheme } from '../src/index.js';
+import {
+  ALL_THEME_NAMES, THEME_IDS, THEME_SHAPES, resolveTheme, themeUnavailableReason,
+} from '../src/index.js';
 import { PAPER, PX_PER_MM } from '../src/geometry/paper.js';
 
 /**
@@ -40,6 +42,42 @@ describe('theme text margins', () => {
     const madrid = resolveTheme('Madrid');
     // 160mm paper less 2 x 3.85mm -> the 152.3mm the engine reports.
     expect(PAPER['169'].w - 2 * madrid.margins.hMm).toBeCloseTo(152.3, 1);
+  });
+});
+
+describe('theme availability', () => {
+  /**
+   * VERIFIED by compiling each theme against the bundled TeX Live, not by reading a
+   * directory listing. The listing is what produced four themes that appeared in the
+   * picker and then failed with a missing .sty.
+   */
+  const KNOWN_UNAVAILABLE: Record<string, string> = {
+    Arguelles: 'Alegreya.sty',
+    CleanEasy: 'cmbright.sty',
+    focus: 'FiraSans.sty',
+    trigon: 'sourcesanspro.sty',
+  };
+
+  it('never offers a theme that cannot compile', () => {
+    for (const id of THEME_IDS) {
+      expect(themeUnavailableReason(id), `${id} is offered but cannot compile`)
+        .toBeUndefined();
+    }
+  });
+
+  it('keeps the unavailable themes in the catalogue so foreign decks still render', () => {
+    for (const [id, pkg] of Object.entries(KNOWN_UNAVAILABLE)) {
+      expect(THEME_SHAPES[id], `${id} was dropped from the catalogue`).toBeDefined();
+      expect(themeUnavailableReason(id)).toBe(pkg);
+      // Still resolvable: opening someone else's deck must not blow up.
+      expect(resolveTheme(id).id).toBe(id);
+    }
+  });
+
+  it('offers exactly the verified-working themes', () => {
+    expect(THEME_IDS).toHaveLength(ALL_THEME_NAMES.length - Object.keys(KNOWN_UNAVAILABLE).length);
+    expect(THEME_IDS).not.toContain('focus');
+    expect(ALL_THEME_NAMES).toContain('focus');
   });
 });
 

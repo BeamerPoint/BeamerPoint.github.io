@@ -144,3 +144,41 @@ in `themes/catalogue.ts` were obtained:
 `\typeout{... \the\textwidth ...}` inside a frame reports lengths straight into the log.
 Note `\beamer@leftmargin` needs `\makeatletter`, and without it the run aborts before the
 `\typeout` and you get no output at all rather than an error.
+
+## Verifying that themes actually compile
+
+Do this after adding or renaming any theme. **A theme appearing in the TeX Live directory
+listing does not mean it compiles.** Four of the first 39 offered failed on missing font
+packages — `Alegreya.sty`, `cmbright.sty`, `FiraSans.sty`, `sourcesanspro.sty` — none of
+which are in the bundled basic/recommended/extra collections.
+
+Compile each theme with a deck that exercises the usual furniture (title page, frame
+title, list, block) and record `r.ok` plus any `File '...' not found` from the log:
+
+```js
+const core = await import('/@fs/<REPO>/packages/core/src/index.ts');
+const results = {};
+for (const t of core.THEME_IDS) {
+  const r = await window.bpEngine.compile({
+    jobId: 'sweep-' + t,
+    mainFile: 'main.tex',
+    files: [{ path: 'main.tex', content: deckUsingTheme(t) }],
+    program: 'pdflatex', passes: 1, runBibtex: false, timeoutMs: 45000,
+  });
+  results[t] = { ok: r.ok, missing: (r.log.match(/File `([^']+)' not found/) || [])[1] ?? null };
+}
+console.table(results);
+```
+
+Run it in chunks of about a dozen — a full sweep takes a couple of minutes and the
+console helper times out well before that.
+
+Anything that fails goes into the catalogue as `unavailable: { missingPackage }` rather
+than being deleted: the canvas still needs its shape so that opening a deck which uses it
+renders something recognisable. `THEME_IDS` (what the picker offers) excludes them;
+`ALL_THEME_NAMES` does not.
+
+Sweep the colour and font themes too, applied on top of a known-good presentation theme
+with `\usecolortheme` / `\usefonttheme`. All 17 and 6 respectively passed when last
+checked, as did all 35 offered presentation themes, plus metropolis and moloch under
+XeLaTeX.

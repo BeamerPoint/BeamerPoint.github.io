@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 53 tests
+npm test             # vitest, 56 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -90,6 +90,12 @@ and it centres inside its own text area, not inside whatever is left after the c
 Top-aligning the canvas instead put every element up to 17mm too high. The measured text
 box lives in `themes/catalogue.ts` as `textTopMm`/`textBottomInsetMm`.
 
+**A theme existing in TeX Live does not mean it compiles.** Four of the first 39
+offered failed on missing font packages. Every theme in the picker has now been
+verified by compiling it; the failures stay in the catalogue as `unavailable` so a
+deck that uses one still renders, but are excluded from `THEME_IDS`. Re-sweep after
+touching the list -- the procedure is in `tools/fidelity-audit.md`.
+
 **Theme text margins are MEASURED, not assumed.** Beamer's default is 10mm, but Madrid
 — the app's default theme — is 3.85mm, the sidebar themes are 12.91–15mm, and Bergen is
 22.56mm. Wrong margins make every `\textwidth`-relative width render at the wrong size.
@@ -143,7 +149,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Ten commits on `master`, ~10,400 lines across 63 source files, 53 tests passing.
+Eleven commits on `master`, ~10,500 lines across 63 source files, 56 tests passing.
 
 ### Done
 
@@ -157,7 +163,7 @@ Ten commits on `master`, ~10,400 lines across 63 source files, 53 tests passing.
 - **Math**: display equations (equation/align/gather and their starred forms, plus
   `\[ \]`), body kept verbatim, KaTeX preview on the canvas and in the inspector
 - **Sections and speaker notes**: emitted and parsed (no authoring UI yet)
-- **Themes**: 39 presentation themes with measured margins; XeLaTeX auto-selected for
+- **Themes**: 35 presentation themes, each verified to compile, with measured margins; XeLaTeX auto-selected for
   fontspec themes via a `% !TEX program` magic comment
 - **Engine**: busytex WASM (TeX Live 2026), log parsing with diagnostics mapped back to
   slides and elements, overfull-box fidelity warnings
