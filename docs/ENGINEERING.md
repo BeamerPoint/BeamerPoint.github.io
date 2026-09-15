@@ -85,6 +85,11 @@ Each of these was a real defect. Do not undo them.
 else entirely in the PDF. Use the `--bp-mm` custom property in CSS, or `PX_PER_MM` in
 TSX.
 
+**Beamer centres frame content vertically** unless the frame or class is top-aligned,
+and it centres inside its own text area, not inside whatever is left after the chrome.
+Top-aligning the canvas instead put every element up to 17mm too high. The measured text
+box lives in `themes/catalogue.ts` as `textTopMm`/`textBottomInsetMm`.
+
 **Theme text margins are MEASURED, not assumed.** Beamer's default is 10mm, but Madrid
 — the app's default theme — is 3.85mm, the sidebar themes are 12.91–15mm, and Bergen is
 22.56mm. Wrong margins make every `\textwidth`-relative width render at the wrong size.
@@ -115,6 +120,9 @@ rendering is gated on visibility. A render started while hidden hangs with no er
 **Prefer the Write/Edit tools over shell heredocs for files containing LaTeX.** Multiple
 layers of shell/Python escaping have repeatedly halved backslashes and corrupted
 `\includegraphics` into `includegraphics`.
+
+Run `tools/fidelity-audit.md` after touching canvas layout. It compares canvas and PDF
+positions numerically; the first run found three real bugs, the worst of them 17mm.
 
 ## Verify against the engine, not intuition
 
@@ -170,7 +178,10 @@ Model types, and in several cases the emitter, already exist for all of these �
 ### Known gaps
 
 - The canvas is an approximation and says so; it diverges most in line breaking, since
-  TeX optimises paragraphs globally and browsers do not
+  TeX optimises paragraphs globally and browsers do not. Audited against the PDF at
+  under 2mm horizontally and under 3.1mm vertically for text, lists, blocks and columns;
+  vertical text boxes have been measured for Madrid, default, Warsaw, metropolis and
+  Berkeley only, and other themes fall back to a derived approximation
 - `minted` needs shell escape, which the WASM engine cannot provide; preview falls back
   to `listings` with a warning
 - The file picker, drag-drop and paste paths have not been exercised with a real mouse —

@@ -38,13 +38,24 @@ export interface ThemeShape {
   /**
    * Horizontal text margin in millimetres, per side.
    *
-   * MEASURED against the real engine (	he	extwidth in a frame), not assumed. The
-   * beamer default is 10mm, but several themes differ sharply -- Madrid and friends
-   * use 3.85mm, the sidebar themes 12.91-15mm, Bergen 22.56mm. Getting this wrong
-   * makes every width-as-a-fraction-of-	extwidth render at the wrong size on the
-   * canvas, which is exactly how an image can look right here and wrong in the PDF.
+   * MEASURED against the real engine (`\the\textwidth` inside a frame), not assumed.
+   * The beamer default is 10mm, but several themes differ sharply -- Madrid and
+   * friends use 3.85mm, the sidebar themes 12.91-15mm, Bergen 22.56mm. Getting this
+   * wrong makes every width-as-a-fraction-of-`\textwidth` render at the wrong size on
+   * the canvas, which is exactly how an image looks right here and wrong in the PDF.
    */
   hMarginMm: number;
+  /**
+   * Top of beamer's text area, in millimetres from the top of the page.
+   *
+   * MEASURED by compiling a [t]-aligned frame and reading where the content lands,
+   * then allowing for the ascent. Beamer centres frame content vertically by default,
+   * so the canvas has to centre inside the SAME box or everything sits too high --
+   * top-aligning instead put elements up to 17mm out.
+   */
+  textTopMm?: number;
+  /** Bottom of the text area, as an inset from the bottom of the page. */
+  textBottomInsetMm?: number;
 }
 
 /** The beamer default, used for themes whose margin has not been measured. */
@@ -63,14 +74,14 @@ const MAROON = '#6b1414';
  */
 export const THEME_SHAPES: Readonly<Record<string, ThemeShape>> = {
   // --- minimal -------------------------------------------------------------
-  default: { structure: BLUE, headline: 'none', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
+  default: { structure: BLUE, headline: 'none', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN, textTopMm: 11.3, textBottomInsetMm: 0.2 },
   boxes: { structure: BLUE, headline: 'none', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
   Bergen: { structure: BLUE, headline: 'none', footline: 'none', filledFrametitle: false , hMarginMm: 22.56 },
   Pittsburgh: { structure: BLUE, headline: 'none', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
   Rochester: { structure: BLUE, headline: 'none', footline: 'none', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
 
   // --- split footline ------------------------------------------------------
-  Madrid: { structure: BLUE, headline: 'none', footline: 'split', filledFrametitle: true , hMarginMm: 3.85 },
+  Madrid: { structure: BLUE, headline: 'none', footline: 'split', filledFrametitle: true , hMarginMm: 3.85, textTopMm: 13.9, textBottomInsetMm: 3.3 },
   Boadilla: { structure: BLUE, headline: 'none', footline: 'minimal', filledFrametitle: false , hMarginMm: 3.85 },
   AnnArbor: { structure: '#00274c', headline: 'none', footline: 'split', filledFrametitle: true , hMarginMm: 3.85 },
   CambridgeUS: { structure: MAROON, headline: 'none', footline: 'split', filledFrametitle: true , hMarginMm: 3.85 },
@@ -89,13 +100,13 @@ export const THEME_SHAPES: Readonly<Record<string, ThemeShape>> = {
   Montpellier: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
 
   // --- section tree --------------------------------------------------------
-  Warsaw: { structure: DARKBLUE, headline: 'tree', footline: 'split', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  Warsaw: { structure: DARKBLUE, headline: 'tree', footline: 'split', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN, textTopMm: 10.7, textBottomInsetMm: 3.6 },
   Copenhagen: { structure: BLUE, headline: 'tree', footline: 'split', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
   Luebeck: { structure: BLUE, headline: 'tree', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
   Malmoe: { structure: BLUE, headline: 'tree', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
 
   // --- sidebar (approximated as a top bar on the canvas) -------------------
-  Berkeley: { structure: BLUE, headline: 'sidebar', footline: 'none', filledFrametitle: true , hMarginMm: 12.91 },
+  Berkeley: { structure: BLUE, headline: 'sidebar', footline: 'none', filledFrametitle: true , hMarginMm: 12.91, textTopMm: 19.0, textBottomInsetMm: 0.2 },
   PaloAlto: { structure: BLUE, headline: 'sidebar', footline: 'none', filledFrametitle: true , hMarginMm: 12.91 },
   Goettingen: { structure: BLUE, headline: 'sidebar', footline: 'none', filledFrametitle: false , hMarginMm: 15 },
   Marburg: { structure: BLUE, headline: 'sidebar', footline: 'none', filledFrametitle: false , hMarginMm: 15 },
@@ -104,8 +115,7 @@ export const THEME_SHAPES: Readonly<Record<string, ThemeShape>> = {
   // --- modern / third-party ------------------------------------------------
   metropolis: {
     structure: TEAL, headline: 'none', footline: 'minimal',
-    filledFrametitle: true, needsUnicodeEngine: true, hMarginMm: DEFAULT_MARGIN,
-  },
+    filledFrametitle: true, needsUnicodeEngine: true, hMarginMm: DEFAULT_MARGIN, textTopMm: 15.3, textBottomInsetMm: 8.6 },
   moloch: {
     structure: TEAL, headline: 'none', footline: 'minimal',
     filledFrametitle: true, needsUnicodeEngine: true, hMarginMm: DEFAULT_MARGIN,

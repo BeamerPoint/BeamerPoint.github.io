@@ -135,7 +135,10 @@ body.bp-resizing iframe { pointer-events: none; }
 .bp-headline-section { font-size: 0.72em; opacity: 0.9; }
 .bp-frametitle { flex: none; font-size: 1.33em; line-height: 1.2; }
 .bp-framesubtitle { font-size: 0.62em; font-weight: 400; opacity: 0.85; }
-.bp-body { flex: 1; overflow: hidden; position: relative; }
+.bp-body {
+  flex: 1; overflow: hidden; position: relative;
+  display: flex; flex-direction: column;
+}
 .bp-footline { display: flex; flex: none; font-size: 0.55em; }
 .bp-footcell {
   display: flex; align-items: center; justify-content: center;
@@ -149,14 +152,15 @@ body.bp-resizing iframe { pointer-events: none; }
 .bp-list { list-style: none; margin: 0; padding-left: 0; }
 .bp-list .bp-list { padding-left: calc(var(--bp-mm) * 5); }
 .bp-list li {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: calc(var(--bp-mm) * 1.6); line-height: 1.32;
+  display: flex; flex-wrap: wrap; align-items: baseline;
+  gap: calc(var(--bp-mm) * 2.4); line-height: 1.32;
 }
-.bp-marker { flex: none; font-weight: 700; }
+.bp-marker { flex: none; font-weight: 700; min-width: calc(var(--bp-mm) * 3.2); }
 .bp-item-body { flex: 1; min-width: 0; }
 .bp-list li > .bp-list { flex-basis: 100%; }
 
-.bp-block { overflow: hidden; margin-bottom: calc(var(--bp-mm) * 2); }
-.bp-block-title { padding: calc(var(--bp-mm) * 1) calc(var(--bp-mm) * 2); font-weight: 700; }
+.bp-block { overflow: hidden; }
+.bp-block-title { padding: calc(var(--bp-mm) * 0.4) 0; font-weight: 700; }
 .bp-columns { display: flex; gap: calc(var(--bp-mm) * 4); }
 .bp-column { min-width: 0; }
 
@@ -323,7 +327,7 @@ body.bp-resizing iframe { pointer-events: none; }
 }
 
 /* -------------------------------------------------------------------- images */
-.bp-image { margin: 0 auto calc(var(--bp-mm) * 2); display: block; }
+.bp-image { margin: 0 auto; display: block; }
 .bp-image img { display: block; width: 100%; height: auto; }
 .bp-image-caption {
   margin-top: calc(var(--bp-mm) * 1); font-size: 0.72em; text-align: center; color: #444;

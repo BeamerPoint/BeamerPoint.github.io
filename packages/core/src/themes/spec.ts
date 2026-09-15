@@ -71,4 +71,10 @@ export interface ThemeSpec {
   /** Item markers per nesting level. */
   itemMarkers: [string, string, string];
   margins: { hMm: Mm; topMm: Mm; bottomMm: Mm };
+  /**
+   * Beamer's text area, measured where known: distance from the top of the page, and
+   * inset from the bottom. Frame content is centred inside THIS box, not inside
+   * whatever is left over after the chrome.
+   */
+  textBox?: { topMm: Mm; bottomInsetMm: Mm };
 }

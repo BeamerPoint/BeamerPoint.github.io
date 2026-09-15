@@ -129,10 +129,30 @@ export function SlideCanvas(props: Props): React.ReactElement {
           </div>
         )}
 
+        {/*
+          * Beamer centres frame content vertically unless the frame or the class is
+          * top-aligned. Top-aligning here put every element up to 17mm above where it
+          * lands in the PDF -- nearly a fifth of the slide height.
+          */}
         <div
           className="bp-body"
           style={{
-            padding: `${mm(theme.margins.topMm)} ${mm(theme.margins.hMm)} ${mm(theme.margins.bottomMm)}`,
+            ...(theme.textBox !== undefined
+              ? {
+                  position: 'absolute' as const,
+                  left: 0,
+                  right: 0,
+                  top: mm(theme.textBox.topMm),
+                  bottom: mm(theme.textBox.bottomInsetMm),
+                  padding: `0 ${mm(theme.margins.hMm)}`,
+                }
+              : {
+                  padding: `${mm(theme.margins.topMm)} ${mm(theme.margins.hMm)} ${mm(theme.margins.bottomMm)}`,
+                }),
+            justifyContent:
+              frame.options.vAlign === 't' || deck.preamble.documentClass.t
+                ? 'flex-start'
+                : frame.options.vAlign === 'b' ? 'flex-end' : 'center',
           }}
         >
           {frame.children.filter((el) => el.placement.mode === 'flow').map((el) => (

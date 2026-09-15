@@ -117,6 +117,9 @@ function specFromShape(id: string, shape: ThemeShape): ThemeSpec {
       ...(shape.filledFrametitle ? { bg: shape.structure } : {}),
       paddingMm: shape.filledFrametitle ? { x: 3, y: 2 } : { x: 0, y: 1 },
     },
+    ...(shape.textTopMm !== undefined && shape.textBottomInsetMm !== undefined
+      ? { textBox: { topMm: shape.textTopMm, bottomInsetMm: shape.textBottomInsetMm } }
+      : {}),
     block: blocksFor(shape.structure),
     itemMarkers: ['▸', '–', '•'],
     margins: {

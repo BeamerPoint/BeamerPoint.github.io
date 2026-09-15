@@ -113,7 +113,8 @@ function Body(props: Props): React.ReactElement {
             style={{
               background: style.bodyBg,
               color: style.bodyFg,
-              padding: `${theme.block.paddingMm * PX_PER_MM}px`,
+              // Measured: beamer's block body is flush with the text margin, not inset.
+              padding: `${theme.block.paddingMm * 0.7 * PX_PER_MM}px 0`,
             }}
           >
             {el.children.map((child) => (
