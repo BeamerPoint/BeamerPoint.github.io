@@ -10,6 +10,7 @@ import {
 } from '@beamerpoint/core';
 import { ElementView } from './ElementView.js';
 import { CanvasContext } from './CanvasContext.js';
+import { Gridlines, Guides, Rulers, RULER_PX, type AidSettings } from './CanvasAids.js';
 import type { OverlayMode } from './SelectionOverlay.js';
 import { InlineText } from './InlineText.js';
 
@@ -23,6 +24,10 @@ interface Props {
   onEditContent(elementId: string, content: RichText): void;
   onEditItem(elementId: string, itemId: string, content: RichText): void;
   overlayMode: OverlayMode;
+  aids: AidSettings;
+  onAddGuide(axis: 'v' | 'h', mm: number): void;
+  onMoveGuide(axis: 'v' | 'h', index: number, mm: number): void;
+  onRemoveGuide(axis: 'v' | 'h', index: number): void;
   onResizeImage(elementId: string, deltaMm: number, deltaFraction: number): void;
   onMoveImage(elementId: string, dxMm: number, dyMm: number): void;
   onTrimImage(elementId: string, trim: ImageTrim): void;
@@ -46,20 +51,24 @@ export function SlideCanvas(props: Props): React.ReactElement {
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  // Read inside the observer without making it a dependency.
+  const aidsRef = useRef(props.aids.rulers);
+  aidsRef.current = props.aids.rulers;
 
   useLayoutEffect(() => {
     const node = wrapRef.current;
     if (node === null) return;
     const update = (): void => {
-      const avail = node.clientWidth - 32;
-      const availH = node.clientHeight - 32;
+      const gutter = 32 + (aidsRef.current ? RULER_PX * 2 : 0);
+      const avail = node.clientWidth - gutter;
+      const availH = node.clientHeight - gutter;
       setScale(Math.max(0.1, Math.min(avail / designW, availH / designH)));
     };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(node);
     return () => ro.disconnect();
-  }, [designW, designH]);
+  }, [designW, designH, props.aids.rulers]);
 
   if (frame === undefined) {
     return <div className="bp-canvas-wrap bp-empty">No slide selected</div>;
@@ -94,6 +103,8 @@ export function SlideCanvas(props: Props): React.ReactElement {
         }}
         onMouseDown={() => onSelectElement(null)}
       >
+        <Gridlines aspect={deck.preamble.documentClass.aspectRatio} aids={props.aids} />
+
         {theme.headline.kind === 'miniframes' && !frame.options.plain && (
           <div
             className="bp-headline"
@@ -198,6 +209,17 @@ export function SlideCanvas(props: Props): React.ReactElement {
             />
           ))}
         </div>
+
+        <Guides
+          aids={props.aids}
+          onMoveGuide={props.onMoveGuide}
+          onRemoveGuide={props.onRemoveGuide}
+        />
+        <Rulers
+          aspect={deck.preamble.documentClass.aspectRatio}
+          aids={props.aids}
+          onAddGuide={props.onAddGuide}
+        />
 
         {theme.footline.cells.length > 0 && !frame.options.plain && (
           <div className="bp-footline" style={{ height: mm(theme.footline.heightMm) }}>

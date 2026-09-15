@@ -26,6 +26,12 @@ export function App(): React.ReactElement {
   const nudgeImageWidth = useStore((s) => s.nudgeImageWidth);
   const moveElementBy = useStore((s) => s.moveElementBy);
   const setImageTrim = useStore((s) => s.setImageTrim);
+  const aids = useStore((s) => s.aids);
+  const setAids = useStore((s) => s.setAids);
+  const addGuide = useStore((s) => s.addGuide);
+  const moveGuide = useStore((s) => s.moveGuide);
+  const removeGuide = useStore((s) => s.removeGuide);
+  const addTextBox = useStore((s) => s.addTextBox);
 
   const deck = useStore((s) => s.deck);
   const frame = useStore(selectCurrentFrame);
@@ -171,6 +177,10 @@ export function App(): React.ReactElement {
               }
             }}
             overlayMode={overlayMode}
+            aids={aids}
+            onAddGuide={addGuide}
+            onMoveGuide={moveGuide}
+            onRemoveGuide={removeGuide}
             onResizeImage={(elementId, deltaMm, deltaFraction) => {
               if (selection.slideId !== null) {
                 nudgeImageWidth(selection.slideId, elementId, deltaMm, deltaFraction);
@@ -183,10 +193,61 @@ export function App(): React.ReactElement {
               if (selection.slideId !== null) setImageTrim(selection.slideId, elementId, trim);
             }}
           />
-          <p className="bp-approx-note">
-            This canvas is an approximation of Beamer&rsquo;s output. Use the PDF tab for
-            the exact result.
-          </p>
+          <div className="bp-canvas-bar">
+            <button
+              className={aids.rulers ? 'is-active' : ''}
+              title="Rulers — click one to drop a guide"
+              onClick={() => setAids({ rulers: !aids.rulers })}
+            >
+              Rulers
+            </button>
+            <button
+              className={aids.grid ? 'is-active' : ''}
+              title="Gridlines"
+              onClick={() => setAids({ grid: !aids.grid })}
+            >
+              Grid
+            </button>
+            <select
+              title="Grid spacing"
+              value={aids.gridMm}
+              onChange={(e) => setAids({ gridMm: Number(e.target.value) })}
+            >
+              {[5, 10, 20].map((n) => <option key={n} value={n}>{n}mm</option>)}
+            </select>
+            <button
+              className={aids.guides ? 'is-active' : ''}
+              title="Show guides"
+              onClick={() => setAids({ guides: !aids.guides })}
+            >
+              Guides
+            </button>
+            <button
+              className={aids.snap ? 'is-active' : ''}
+              title="Snap dragged elements to the grid and guides"
+              onClick={() => setAids({ snap: !aids.snap })}
+            >
+              Snap
+            </button>
+            {(aids.vertical.length > 0 || aids.horizontal.length > 0) && (
+              <button
+                title="Remove every guide"
+                onClick={() => setAids({ vertical: [], horizontal: [] })}
+              >
+                Clear guides
+              </button>
+            )}
+            <button
+              disabled={locked || !frame}
+              title="Insert a text box you can position anywhere"
+              onClick={() => frame && addTextBox(frame.id)}
+            >
+              + Text box
+            </button>
+            <span className="bp-approx-note">
+              Approximation — use the PDF tab for the exact result.
+            </span>
+          </div>
         </div>
 
         <Splitter

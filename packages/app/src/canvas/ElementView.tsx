@@ -53,10 +53,12 @@ export function ElementView(props: Props): React.ReactElement {
     >
       {el.overlay !== undefined && <span className="bp-overlay-badge">{el.overlay}</span>}
       <Body {...props} />
-      {selected && el.kind === 'image' && (
+      {selected && (el.kind === 'image' || el.placement.mode === 'absolute') && (
         <SelectionOverlay
           el={el}
-          resource={props.resources.find((r) => r.id === el.resourceId)}
+          resource={el.kind === 'image'
+            ? props.resources.find((r) => r.id === el.resourceId)
+            : undefined}
           mode={props.overlayMode}
           onResize={(deltaPx) => {
             // Convert here, where the text column width is known, and hand the store
@@ -153,7 +155,9 @@ function Body(props: Props): React.ReactElement {
       return (
         <ImageView
           el={el}
-          resource={props.resources.find((r) => r.id === el.resourceId)}
+          resource={el.kind === 'image'
+            ? props.resources.find((r) => r.id === el.resourceId)
+            : undefined}
           showUncropped={props.selected && props.overlayMode === 'crop'}
         />
       );

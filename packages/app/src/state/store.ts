@@ -22,6 +22,7 @@ import {
   type SourceMap,
 } from '@beamerpoint/core';
 import type { CompileResult, EngineStatus } from '@beamerpoint/engine';
+import { DEFAULT_AIDS, snapMm, type AidSettings } from '../canvas/CanvasAids.js';
 
 /**
  * Source-panel state.
@@ -75,6 +76,13 @@ interface AppState {
   overlayMode: 'transform' | 'crop';
   setOverlayMode(mode: 'transform' | 'crop'): void;
 
+  /** Rulers, grid and guides. Canvas only; none of this reaches the document. */
+  aids: AidSettings;
+  setAids(patch: Partial<AidSettings>): void;
+  addGuide(axis: 'v' | 'h', mm: number): void;
+  moveGuide(axis: 'v' | 'h', index: number, mm: number): void;
+  removeGuide(axis: 'v' | 'h', index: number): void;
+
   /* actions */
   loadDeck(deck: Deck): void;
   resetDeck(): void;
@@ -96,6 +104,7 @@ interface AppState {
   addColumnsElement(slideId: string): void;
   addImageElement(slideId: string, ref: ResourceRef): void;
   addMathElement(slideId: string): void;
+  addTextBox(slideId: string): void;
   setMathTex(slideId: string, elementId: string, tex: string): void;
   setMathEnv(slideId: string, elementId: string, env: MathEnv): void;
   setImageWidth(slideId: string, elementId: string, fraction: number): void;
@@ -185,6 +194,24 @@ function healthOf(text: string, appliedDeck: Deck): SourceHealth {
   };
 }
 
+const AIDS_KEY = 'bp:canvas:aids';
+
+/** Aids are a workspace preference, not part of the document. */
+function loadAids(): AidSettings {
+  try {
+    const raw = window.localStorage.getItem(AIDS_KEY);
+    return raw === null ? DEFAULT_AIDS : { ...DEFAULT_AIDS, ...JSON.parse(raw) };
+  } catch {
+    return DEFAULT_AIDS;
+  }
+}
+
+function saveAids(a: AidSettings): void {
+  try {
+    window.localStorage.setItem(AIDS_KEY, JSON.stringify(a));
+  } catch { /* private window; the defaults are fine */ }
+}
+
 const initialDeck = makeDeck({ title: 'Untitled Presentation' });
 const initialSource = regenerate(initialDeck);
 
@@ -233,9 +260,41 @@ export const useStore = create<AppState>()((set, get) => {
     engine: { status: { s: 'uninitialised' }, result: null, compiling: false },
     history: { past: [], future: [] },
     overlayMode: 'transform',
+    aids: loadAids(),
 
     setOverlayMode(mode) {
       set({ overlayMode: mode });
+    },
+
+    setAids(patch) {
+      const next = { ...get().aids, ...patch };
+      saveAids(next);
+      set({ aids: next });
+    },
+
+    addGuide(axis, mm) {
+      const aids = get().aids;
+      const key = axis === 'v' ? 'vertical' : 'horizontal';
+      const next = { ...aids, [key]: [...aids[key], mm] };
+      saveAids(next);
+      set({ aids: next });
+    },
+
+    moveGuide(axis, index, mm) {
+      const aids = get().aids;
+      const key = axis === 'v' ? 'vertical' : 'horizontal';
+      const list = [...aids[key]];
+      list[index] = mm;
+      const next = { ...aids, [key]: list };
+      set({ aids: next });
+    },
+
+    removeGuide(axis, index) {
+      const aids = get().aids;
+      const key = axis === 'v' ? 'vertical' : 'horizontal';
+      const next = { ...aids, [key]: aids[key].filter((_, i) => i !== index) };
+      saveAids(next);
+      set({ aids: next });
     },
 
     loadDeck(deck) {
@@ -410,6 +469,37 @@ export const useStore = create<AppState>()((set, get) => {
       set({ selection: { slideId, elementId: el.id } });
     },
 
+    /**
+     * A free-floating text box.
+     *
+     * This is just a text element created already absolute, which is the PowerPoint
+     * mental model: you place it, then type. New boxes are offset slightly from each
+     * other so a second one does not land exactly on top of the first.
+     */
+    addTextBox(slideId) {
+      const frame = get().deck.nodes.find((n) => n.kind === 'frame' && n.id === slideId);
+      const existing = frame?.kind === 'frame'
+        ? frame.children.filter((c) => c.placement.mode === 'absolute').length
+        : 0;
+      const offset = (existing % 6) * 5;
+
+      const el: Element = {
+        id: newId(),
+        kind: 'text',
+        placement: {
+          mode: 'absolute',
+          x: 25 + offset,
+          y: 30 + offset,
+          w: 70,
+          z: 0,
+          driver: 'textpos',
+        },
+        content: plain('Text box'),
+      };
+      mutate((deck) => mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, el] })));
+      set({ selection: { slideId, elementId: el.id } });
+    },
+
     addMathElement(slideId) {
       const el: Element = {
         id: newId(),
@@ -483,8 +573,10 @@ export const useStore = create<AppState>()((set, get) => {
 
     nudgeImageWidth(slideId, elementId, deltaMm, deltaFraction) {
       const el = findElement(get().deck, slideId, elementId);
-      if (el?.kind !== 'image') return;
+      if (el === undefined) return;
 
+      // Any absolutely-placed element resizes by its box width; only an image in the
+      // flow resizes as a fraction of the text column.
       if (el.placement.mode === 'absolute') {
         // Absolutely placed: the block width IS the image width, in millimetres.
         const next = Math.max(10, Math.round((el.placement.w + deltaMm) * 10) / 10);
@@ -497,6 +589,8 @@ export const useStore = create<AppState>()((set, get) => {
         );
         return;
       }
+
+      if (el.kind !== 'image') return;
 
       // In flow: width is a fraction of the text column.
       const current = el.width?.v ?? 0.6;
@@ -521,6 +615,8 @@ export const useStore = create<AppState>()((set, get) => {
       const el = findElement(get().deck, slideId, elementId);
       if (el === undefined) return;
 
+      const aids = get().aids;
+
       if (el.placement.mode === 'absolute') {
         const p = el.placement;
         mutate((deck) =>
@@ -528,8 +624,8 @@ export const useStore = create<AppState>()((set, get) => {
             ...e,
             placement: {
               ...p,
-              x: Math.round((p.x + dxMm) * 10) / 10,
-              y: Math.round((p.y + dyMm) * 10) / 10,
+              x: snapMm(Math.round((p.x + dxMm) * 10) / 10, aids, 'v'),
+              y: snapMm(Math.round((p.y + dyMm) * 10) / 10, aids, 'h'),
             },
           })),
         );
@@ -543,8 +639,8 @@ export const useStore = create<AppState>()((set, get) => {
           ...e,
           placement: {
             mode: 'absolute',
-            x: Math.round((start.x + dxMm) * 10) / 10,
-            y: Math.round((start.y + dyMm) * 10) / 10,
+            x: snapMm(Math.round((start.x + dxMm) * 10) / 10, aids, 'v'),
+            y: snapMm(Math.round((start.y + dyMm) * 10) / 10, aids, 'h'),
             w: Math.round(start.w * 10) / 10,
             z: 0,
             driver: 'textpos',

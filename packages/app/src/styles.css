@@ -443,3 +443,44 @@ body.bp-dragging { user-select: none; }
   padding: 0 4px; font-family: Consolas, monospace;
 }
 .bp-log-missing p { margin: 6px 0 0; font-size: 12px; }
+
+/* ----------------------------------------------------- rulers, grid, guides */
+.bp-grid { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.bp-guides { position: absolute; inset: 0; z-index: 3; }
+.bp-guide { position: absolute; background: #e11d8f; }
+.bp-guide-v { top: 0; bottom: 0; width: 1px; cursor: ew-resize; }
+.bp-guide-h { left: 0; right: 0; height: 1px; cursor: ns-resize; }
+/* Widen the grab area without widening the visible line. */
+.bp-guide-v::before { content: ''; position: absolute; top: 0; bottom: 0; left: -4px; right: -4px; }
+.bp-guide-h::before { content: ''; position: absolute; left: 0; right: 0; top: -4px; bottom: -4px; }
+.bp-guide:hover { background: #f43f9d; box-shadow: 0 0 0 1px rgba(225, 29, 143, 0.3); }
+
+.bp-ruler {
+  position: absolute; background: #f4f5f7; border: 1px solid var(--bp-border);
+  font-size: 9px; color: var(--bp-muted); cursor: crosshair; z-index: 3;
+}
+.bp-ruler-top { left: 0; right: 0; }
+.bp-ruler-left { top: 0; bottom: 0; }
+.bp-tick { position: absolute; }
+.bp-ruler-top .bp-tick { top: 2px; transform: translateX(1px); border-left: 1px solid #b9bec6; padding-left: 2px; }
+.bp-ruler-left .bp-tick { left: 2px; transform: translateY(1px); border-top: 1px solid #b9bec6; padding-top: 1px; }
+
+.bp-canvas-bar {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  padding: 4px 8px; background: var(--bp-panel);
+  border-top: 1px solid var(--bp-border);
+}
+.bp-canvas-bar button {
+  padding: 3px 8px; border: 1px solid var(--bp-border);
+  background: #fff; border-radius: 4px; font-size: 11px;
+}
+.bp-canvas-bar button.is-active {
+  background: var(--bp-accent); color: #fff; border-color: var(--bp-accent);
+}
+.bp-canvas-bar select {
+  font-size: 11px; padding: 2px 4px; border: 1px solid var(--bp-border);
+  border-radius: 4px; color: var(--bp-text);
+}
+.bp-canvas-bar .bp-approx-note {
+  margin-left: auto; padding: 0; background: none; border: none;
+}

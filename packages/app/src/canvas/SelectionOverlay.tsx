@@ -1,11 +1,12 @@
 import { useCallback, useRef } from 'react';
-import type { ImageElement, ImageTrim, ResourceRef } from '@beamerpoint/core';
+import type { Element, ImageElement, ImageTrim, ResourceRef } from '@beamerpoint/core';
 import { screenPxToMm, useCanvasGeometry } from './CanvasContext.js';
 
 export type OverlayMode = 'transform' | 'crop';
 
 interface Props {
-  el: ImageElement;
+  /** Any element can be moved and resized; only an image can be cropped. */
+  el: Element;
   resource: ResourceRef | undefined;
   mode: OverlayMode;
   /** Resize by a fraction-of-text-width delta (flow) or millimetres (absolute). */
@@ -56,7 +57,7 @@ export function SelectionOverlay(props: Props): React.ReactElement {
 
   /* ------------------------------------------------------------------ crop */
 
-  if (mode === 'crop') {
+  if (mode === 'crop' && el.kind === 'image') {
     const intrinsic = resource?.intrinsic;
     if (intrinsic === undefined) {
       return (
@@ -66,7 +67,7 @@ export function SelectionOverlay(props: Props): React.ReactElement {
       );
     }
 
-    const trim = el.trim ?? { left: 0, bottom: 0, right: 0, top: 0 };
+    const trim = (el as ImageElement).trim ?? { left: 0, bottom: 0, right: 0, top: 0 };
     // The element box shows the CROPPED image, so a pixel of drag corresponds to
     // (visible image pixels / box pixels) of trim.
     const visibleW = Math.max(1, intrinsic.w - trim.left - trim.right);
@@ -162,7 +163,9 @@ export function SelectionOverlay(props: Props): React.ReactElement {
       <span className="bp-overlay-label">
         {el.placement.mode === 'absolute'
           ? `${Math.round(el.placement.x)}, ${Math.round(el.placement.y)} mm`
-          : `${Math.round((el.width?.v ?? 0.6) * 100)}%`}
+          : el.kind === 'image'
+            ? `${Math.round((el.width?.v ?? 0.6) * 100)}%`
+            : 'drag to place'}
       </span>
     </div>
   );
