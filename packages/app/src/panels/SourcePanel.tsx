@@ -2,7 +2,9 @@ import { useEffect, useRef } from 'react';
 import { EditorState } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers, highlightActiveLine } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import { bracketMatching, syntaxHighlighting } from '@codemirror/language';
 import { latex } from 'codemirror-lang-latex';
+import { latexEditorTheme, latexHighlightStyle } from './latexHighlight.js';
 import { useStore } from '../state/store.js';
 
 /**
@@ -42,6 +44,11 @@ export function SourcePanel(): React.ReactElement {
           history(),
           keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
           latex(),
+          // The language pack supplies the parser; without a highlight style on top
+          // CodeMirror renders every token in the default colour.
+          syntaxHighlighting(latexHighlightStyle),
+          latexEditorTheme,
+          bracketMatching(),
           EditorView.lineWrapping,
           EditorView.updateListener.of((u) => {
             if (!u.docChanged) return;
