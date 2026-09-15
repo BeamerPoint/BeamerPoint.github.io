@@ -118,9 +118,11 @@ export function tokensEqual(a: string[], b: string[]): boolean {
 
 /* ------------------------------------------------------------- verification */
 
-function emitElementToString(el: Element): string {
+type PathLookup = (id: string) => string | undefined;
+
+function emitElementToString(el: Element, resourcePath: PathLookup): string {
   const w = new TexWriter({ collectSourceMap: false });
-  const ctx: EmitContext = { warn: () => undefined };
+  const ctx: EmitContext = { warn: () => undefined, resourcePath };
   emitElement(w, el, ctx);
   return w.finish().tex;
 }
@@ -130,11 +132,11 @@ function emitElementToString(el: Element): string {
  *
  * Returns `null` when it round-trips, or the source bytes when it does not.
  */
-function checkElement(el: Element, source: string): string | null {
+function checkElement(el: Element, source: string, resourcePath: PathLookup): string | null {
   if (el.src === undefined) return null;
   const original = source.slice(el.src.start, el.src.end);
   const expected = significantTokens(original);
-  const actual = significantTokens(emitElementToString(el));
+  const actual = significantTokens(emitElementToString(el, resourcePath));
   return tokensEqual(expected, actual) ? null : original;
 }
 
@@ -161,17 +163,18 @@ function guardElements(
   els: Element[],
   source: string,
   mismatches: GuardMismatch[],
+  resourcePath: PathLookup,
 ): { elements: Element[]; demoted: number } {
   let demoted = 0;
   const out: Element[] = els.map((el) => {
     // Recurse into containers first.
     if (el.kind === 'block') {
-      const r = guardElements(el.children, source, mismatches);
+      const r = guardElements(el.children, source, mismatches, resourcePath);
       demoted += r.demoted;
       el = { ...el, children: r.elements };
     } else if (el.kind === 'columns') {
       const cols = el.columns.map((c) => {
-        const r = guardElements(c.children, source, mismatches);
+        const r = guardElements(c.children, source, mismatches, resourcePath);
         demoted += r.demoted;
         return { ...c, children: r.elements };
       });
@@ -180,14 +183,14 @@ function guardElements(
 
     if (el.kind === 'raw') return el;
 
-    const failed = checkElement(el, source);
+    const failed = checkElement(el, source, resourcePath);
     if (failed === null) return el;
 
     mismatches.push({
       nodeId: el.id,
       kind: el.kind,
       expected: failed.slice(0, 200),
-      actual: emitElementToString(el).slice(0, 200),
+      actual: emitElementToString(el, resourcePath).slice(0, 200),
     });
     demoted += 1;
     return demote(el, failed);
@@ -205,11 +208,13 @@ function guardElements(
 export function guardDeck(deck: Deck, source: string): { deck: Deck; report: GuardReport } {
   const mismatches: GuardMismatch[] = [];
   let demoted = 0;
+  const byId = new Map(deck.resources.map((r) => [r.id, r.path]));
+  const resourcePath: PathLookup = (id) => byId.get(id);
 
   const nodes: DocNode[] = deck.nodes.map((node) => {
     if (node.kind !== 'frame') return node;
 
-    const r = guardElements(node.children, source, mismatches);
+    const r = guardElements(node.children, source, mismatches, resourcePath);
     demoted += r.demoted;
     const frame: FrameNode = { ...node, children: r.elements };
 
@@ -219,13 +224,13 @@ export function guardDeck(deck: Deck, source: string): { deck: Deck; report: Gua
     if (frame.src !== undefined) {
       const original = source.slice(frame.src.start, frame.src.end);
       const expected = significantTokens(original);
-      const actual = significantTokens(emitFrameStandalone(frame));
+      const actual = significantTokens(emitFrameStandalone(frame, resourcePath));
       if (!tokensEqual(expected, actual)) {
         mismatches.push({
           nodeId: frame.id,
           kind: 'frame',
           expected: original.slice(0, 200),
-          actual: emitFrameStandalone(frame).slice(0, 200),
+          actual: emitFrameStandalone(frame, resourcePath).slice(0, 200),
         });
         demoted += 1;
         return {

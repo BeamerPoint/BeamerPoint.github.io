@@ -43,7 +43,9 @@ export function parseDeck(source: string, opts: ParseOptions = {}): ParseResult 
   const { root, diagnostics } = buildCst(source);
 
   const deckId = opts.previous?.id ?? idFactory();
-  const { deck: rawDeck } = toModel(root, source, idFactory, deckId);
+  const { deck: rawDeck } = toModel(root, source, idFactory, deckId, {
+    ...(opts.previous !== undefined ? { previous: opts.previous } : {}),
+  });
   const { deck: guarded, report } = guardDeck(rawDeck, source);
 
   const deck = opts.previous === undefined

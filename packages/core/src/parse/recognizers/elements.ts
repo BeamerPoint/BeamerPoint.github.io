@@ -4,6 +4,7 @@ import type {
   ColumnsElement,
   Element,
   Id,
+  ImageElement,
   Length,
   ListElement,
   ListItem,
@@ -17,6 +18,11 @@ import { parseInline, trimRichText } from '../inline.js';
 export interface RecognizeCtx {
   src: string;
   newId(): Id;
+  /**
+   * Map an image path found in the source onto a resource id, registering it if this
+   * is the first time it has been seen. The deck stores ids; the .tex stores paths.
+   */
+  resolveResource?(path: string): Id;
 }
 
 const LIST_ENVS: ReadonlySet<string> = new Set(['itemize', 'enumerate', 'description']);
@@ -199,6 +205,16 @@ function recognizeBlockLevel(node: CstNode, ctx: RecognizeCtx): Element {
       const cols = recognizeColumns(node, ctx);
       if (cols !== null) return cols;
     }
+
+    if (node.name === 'figure') {
+      const fig = recognizeFigure(node, ctx);
+      if (fig !== null) return fig;
+    }
+  }
+
+  if (node.n === 'cmd' && node.name === 'includegraphics') {
+    const img = recognizeIncludegraphics(node, ctx);
+    if (img !== null) return img;
   }
 
   return makeRaw(ctx, rawSlice(ctx, node), 'unrecognised', labelFor(node));
@@ -376,6 +392,139 @@ function recognizeColumns(
     columns,
     src: node.span,
   };
+}
+
+/* -------------------------------------------------------------------- images */
+
+/** Bare `\includegraphics[...]{path}`. */
+function recognizeIncludegraphics(
+  node: Extract<CstNode, { n: 'cmd' }>,
+  ctx: RecognizeCtx,
+): ImageElement | null {
+  if (ctx.resolveResource === undefined) return null;
+  if (node.args.length !== 1 || node.opts.length > 1) return null;
+
+  const path = ctx.src.slice(node.args[0]!.span.start + 1, node.args[0]!.span.end - 1).trim();
+  if (path === '') return null;
+
+  const parsed = parseGraphicsOptions(
+    node.opts.length === 1
+      ? ctx.src.slice(node.opts[0]!.span.start + 1, node.opts[0]!.span.end - 1)
+      : '',
+  );
+  if (parsed === null) return null;
+
+  return {
+    id: ctx.newId(),
+    kind: 'image',
+    placement: { mode: 'flow' },
+    resourceId: ctx.resolveResource(path),
+    ...(parsed.width !== undefined ? { width: parsed.width } : {}),
+    ...(parsed.height !== undefined ? { height: parsed.height } : {}),
+    ...(parsed.rotate !== undefined ? { rotate: parsed.rotate } : {}),
+    ...(parsed.rest !== '' ? { altGraphicsOptions: parsed.rest } : {}),
+    keepAspect: parsed.keepAspect,
+    src: node.span,
+  };
+}
+
+/**
+ * A `figure` environment wrapping a single graphic, which is how a captioned image is
+ * emitted. Anything more elaborate declines and stays raw.
+ */
+function recognizeFigure(
+  node: Extract<CstNode, { n: 'env' }>,
+  ctx: RecognizeCtx,
+): ImageElement | null {
+  let graphic: ImageElement | null = null;
+  let caption: CstGroup | undefined;
+
+  for (const child of node.children) {
+    if (child.n === 'text' && child.value.trim() === '') continue;
+    if (child.n === 'parbreak') continue;
+
+    if (child.n === 'cmd' && child.name === 'centering' && child.args.length === 0) continue;
+
+    if (child.n === 'cmd' && child.name === 'includegraphics') {
+      if (graphic !== null) return null;
+      graphic = recognizeIncludegraphics(child, ctx);
+      if (graphic === null) return null;
+      continue;
+    }
+
+    if (child.n === 'cmd' && child.name === 'caption' && child.args.length === 1) {
+      if (caption !== undefined) return null;
+      caption = child.args[0]!;
+      continue;
+    }
+
+    // Anything else in the figure has no representation; keep the whole thing raw.
+    return null;
+  }
+
+  if (graphic === null) return null;
+  return {
+    ...graphic,
+    ...(caption !== undefined
+      ? { caption: trimRichText(parseInline(caption.children, ctx.src)) }
+      : {}),
+    src: node.span,
+  };
+}
+
+interface GraphicsOptions {
+  width?: Length;
+  height?: Length;
+  rotate?: number;
+  keepAspect: boolean;
+  /** Options we understood well enough to keep, but not to model. */
+  rest: string;
+}
+
+/** Parse the `\includegraphics` option list, preserving anything unrecognised. */
+function parseGraphicsOptions(raw: string): GraphicsOptions | null {
+  const out: GraphicsOptions = { keepAspect: false, rest: '' };
+  const rest: string[] = [];
+
+  for (const part of splitTopLevel(raw)) {
+    const opt = part.trim();
+    if (opt === '') continue;
+
+    if (opt === 'keepaspectratio') { out.keepAspect = true; continue; }
+
+    const kv = /^([A-Za-z]+)\s*=\s*(.+)$/.exec(opt);
+    if (kv === null) { rest.push(opt); continue; }
+
+    const [, key, value] = kv as unknown as [string, string, string];
+    if (key === 'width' || key === 'height') {
+      const len = parseLength(value);
+      if (len === null) { rest.push(opt); continue; }
+      if (key === 'width') out.width = len; else out.height = len;
+      continue;
+    }
+    if (key === 'angle') {
+      const n = Number.parseFloat(value);
+      if (Number.isFinite(n)) { out.rotate = n; continue; }
+    }
+    rest.push(opt);
+  }
+
+  out.rest = rest.join(',');
+  return out;
+}
+
+function splitTopLevel(s: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]!;
+    if (c === '{' || c === '[') depth += 1;
+    else if (c === '}' || c === ']') depth -= 1;
+    else if (c === ',' && depth === 0) { out.push(s.slice(start, i)); start = i + 1; }
+  }
+  out.push(s.slice(start));
+  return out;
 }
 
 const LENGTH_RE = /^\s*(-?[\d.]+)\s*(?:\\(textwidth|linewidth|textheight|paperwidth|paperheight)|(mm|cm|pt|ex|em))\s*$/;

@@ -148,6 +148,85 @@ describe('round trip fixpoint', () => {
   });
 });
 
+describe('images', () => {
+  const imageDeck = (extra: Record<string, unknown> = {}): Deck => {
+    const deck = newDeck({ title: 'T' });
+    deck.resources = [{
+      id: 'res1', path: 'images/plot.png', kind: 'image', mime: 'image/png',
+      bytes: 1234, sha256: 'abc', originalName: 'plot.png',
+    }];
+    deck.nodes = [newFrame('Figure', [{
+      id: 'img1', kind: 'image', placement: { mode: 'flow' },
+      resourceId: 'res1', keepAspect: true,
+      width: { v: 0.6, u: 'textwidth' },
+      ...extra,
+    } as never])];
+    return deck;
+  };
+
+  it('round-trips a plain image', () => {
+    const { round, tex } = expectFixpoint(imageDeck());
+    expect(tex).toContain('\\includegraphics[width=0.6\\textwidth]{images/plot.png}');
+    expect(tex).toContain('\\usepackage{graphicx}');
+    expect(round.guard.ok).toBe(true);
+  });
+
+  it('round-trips a captioned image as a figure', () => {
+    const { round, tex } = expectFixpoint(imageDeck({ caption: plain('Results over time') }));
+    expect(tex).toContain('\\begin{figure}');
+    expect(tex).toContain('\\caption{Results over time}');
+    expect(round.guard.ok).toBe(true);
+  });
+
+  it('keeps the resource id stable across a reparse, so stored bytes are not orphaned', () => {
+    const deck = imageDeck();
+    const first = parseDeck(emitDeck(deck).tex, { newId: makeSeededIdFactory('a') }).deck;
+    const second = parseDeck(emitDeck(first).tex, {
+      previous: first, newId: makeSeededIdFactory('b'),
+    }).deck;
+    expect(second.resources[0]?.id).toBe(first.resources[0]?.id);
+    expect(second.resources[0]?.path).toBe('images/plot.png');
+  });
+
+  it('preserves graphics options it cannot model', () => {
+    const src = [
+      '\\documentclass[aspectratio=169,11pt]{beamer}',
+      '\\usetheme{Madrid}',
+      '\\begin{document}',
+      '\\begin{frame}',
+      '  \\includegraphics[width=5cm,trim=1 2 3 4,clip]{a.png}',
+      '\\end{frame}',
+      '\\end{document}',
+    ].join('\n');
+    const r = parseDeck(src, { newId: makeSeededIdFactory('r') });
+    const out = emitDeck(r.deck).tex;
+    expect(out).toContain('trim=1 2 3 4');
+    expect(out).toContain('clip');
+    expect(out).toContain('width=5cm');
+  });
+
+  it('declines a figure containing anything it cannot model, keeping it raw', () => {
+    const src = [
+      '\\documentclass[aspectratio=169,11pt]{beamer}',
+      '\\usetheme{Madrid}',
+      '\\begin{document}',
+      '\\begin{frame}',
+      '  \\begin{figure}',
+      '    \\includegraphics{a.png}',
+      '    \\begin{tikzpicture}\\draw (0,0);\\end{tikzpicture}',
+      '  \\end{figure}',
+      '\\end{frame}',
+      '\\end{document}',
+    ].join('\n');
+    const r = parseDeck(src, { newId: makeSeededIdFactory('r') });
+    const frame = r.deck.nodes.find((n) => n.kind === 'frame');
+    if (frame?.kind !== 'frame') throw new Error('expected frame');
+    expect(frame.children[0]?.kind).toBe('raw');
+    expect(emitDeck(r.deck).tex).toContain('tikzpicture');
+  });
+});
+
+
 describe('TeX program selection', () => {
   it('round-trips the "% !TEX program" magic comment', () => {
     const deck = newDeck({ title: 'T' });

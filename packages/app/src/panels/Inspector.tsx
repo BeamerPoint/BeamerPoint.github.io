@@ -7,6 +7,7 @@ import {
   type TexProgram,
 } from '@beamerpoint/core';
 import { selectCurrentFrame, useStore } from '../state/store.js';
+import { useImageImport } from '../ui/useImageImport.js';
 
 const ASPECTS: AspectRatio[] = ['169', '43', '1610', '32'];
 const PROGRAMS: TexProgram[] = ['pdflatex', 'xelatex', 'lualatex'];
@@ -26,6 +27,12 @@ export function Inspector(): React.ReactElement {
   const addColumnsElement = useStore((s) => s.addColumnsElement);
   const deleteElement = useStore((s) => s.deleteElement);
   const selection = useStore((s) => s.selection);
+  const setImageWidth = useStore((s) => s.setImageWidth);
+  const setImageCaption = useStore((s) => s.setImageCaption);
+  const images = useImageImport();
+
+  const selected = frame?.children.find((e) => e.id === selection.elementId);
+  const selectedImage = selected?.kind === 'image' ? selected : undefined;
 
   return (
     <aside className="bp-inspector">
@@ -67,6 +74,13 @@ export function Inspector(): React.ReactElement {
         <div className="bp-btn-row">
           <button
             disabled={locked || !frame}
+            title="Insert a picture. You can also drag one onto the slide, or paste it."
+            onClick={images.choose}
+          >
+            + Image
+          </button>
+          <button
+            disabled={locked || !frame}
             onClick={() => frame && addBlockElement(frame.id, 'alertblock')}
           >
             + Alert
@@ -78,6 +92,43 @@ export function Inspector(): React.ReactElement {
             + Example
           </button>
         </div>
+        {images.notice !== null && (
+          <p className="bp-hint bp-hint-warn" onClick={images.dismissNotice}>
+            {images.notice}
+          </p>
+        )}
+
+        {selectedImage !== undefined && frame !== undefined && (
+          <div className="bp-image-props">
+            <label>
+              Width ({Math.round((selectedImage.width?.v ?? 0.6) * 100)}% of text width)
+              <input
+                type="range"
+                min={5}
+                max={100}
+                step={5}
+                disabled={locked}
+                value={Math.round((selectedImage.width?.v ?? 0.6) * 100)}
+                onChange={(e) =>
+                  setImageWidth(frame.id, selectedImage.id, Number(e.target.value) / 100)
+                }
+              />
+            </label>
+            <label>
+              Caption
+              <input
+                type="text"
+                placeholder="none"
+                disabled={locked}
+                value={selectedImage.caption ? richTextToPlain(selectedImage.caption) : ''}
+                onChange={(e) =>
+                  setImageCaption(frame.id, selectedImage.id, e.target.value || null)
+                }
+              />
+            </label>
+          </div>
+        )}
+
         {selection.elementId !== null && frame !== undefined && (
           <button
             className="bp-danger"

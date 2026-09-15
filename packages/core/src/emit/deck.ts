@@ -29,7 +29,11 @@ export interface EmitResult {
 
 export function emitDeck(deck: Deck, opts: EmitOptions = {}): EmitResult {
   const warnings: EmitWarning[] = [];
-  const ctx: EmitContext = { warn: (w) => warnings.push(w) };
+  const byId = new Map(deck.resources.map((r) => [r.id, r.path]));
+  const ctx: EmitContext = {
+    warn: (w) => warnings.push(w),
+    resourcePath: (id) => byId.get(id),
+  };
   const w = new TexWriter({
     indent: opts.indent ?? '  ',
     collectSourceMap: opts.collectSourceMap ?? true,
@@ -282,9 +286,12 @@ export function frameNeedsFragile(frame: FrameNode): boolean {
  * The round-trip guard compares against this, so it must never be a reimplementation:
  * a second copy of the frame emitter would drift and make the guard lie.
  */
-export function emitFrameStandalone(frame: FrameNode): string {
+export function emitFrameStandalone(
+  frame: FrameNode,
+  resourcePath: (id: string) => string | undefined = () => undefined,
+): string {
   const w = new TexWriter({ collectSourceMap: false });
-  const ctx: EmitContext = { warn: () => undefined };
+  const ctx: EmitContext = { warn: () => undefined, resourcePath };
   emitFrame(w, frame, ctx);
   return w.finish().tex;
 }

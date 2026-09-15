@@ -1,4 +1,4 @@
-import type { Element, ListElement, ListItem, Placement, TexString } from '../model/types.js';
+import type { Element, Length, ListElement, ListItem, Placement, TexString } from '../model/types.js';
 import { roundMm } from '../geometry/paper.js';
 import { emitInline, isBlankRichText } from './inline.js';
 import type { TexWriter } from './writer.js';
@@ -11,6 +11,13 @@ export interface EmitWarning {
 
 export interface EmitContext {
   warn(w: EmitWarning): void;
+  /**
+   * Resolve a resource id to its path inside the project.
+   *
+   * Elements hold ids, not paths, so that renaming a file touches one place. The
+   * emitter needs the path, and only the deck knows the mapping.
+   */
+  resourcePath(id: string): string | undefined;
 }
 
 /**
@@ -95,6 +102,34 @@ function emitElementBody(w: TexWriter, el: Element, ctx: EmitContext): void {
       emitList(w, el, ctx);
       return;
 
+    case 'image': {
+      const path = ctx.resourcePath(el.resourceId);
+      if (path === undefined) {
+        ctx.warn({
+          code: 'emit.missing-resource',
+          message: `Image element references a resource that is not in the deck`,
+          nodeId: el.id,
+        });
+        return;
+      }
+      const opts = graphicsOptions(el);
+      const optPart = opts === '' ? '' : `[${opts}]`;
+      const graphic = `\\includegraphics${optPart}{${path}}`;
+
+      if (el.caption === undefined) {
+        w.line_(graphic);
+        return;
+      }
+      w.line_('\\begin{figure}');
+      w.indented(() => {
+        w.line_('\\centering');
+        w.line_(graphic);
+        w.line_(`\\caption{${emitInline(el.caption!)}}`);
+      });
+      w.line_('\\end{figure}');
+      return;
+    }
+
     case 'block': {
       const title = el.title === undefined ? '' : emitInline(el.title);
       w.line_(`\\begin{${el.variant}}{${title}}`);
@@ -112,11 +147,7 @@ function emitElementBody(w: TexWriter, el: Element, ctx: EmitContext): void {
         for (const col of el.columns) {
           w.span(col.id, 'column', () => {
             const valign = col.valign === undefined ? '' : `[${col.valign}]`;
-            const width =
-              col.width.u === 'textwidth' || col.width.u === 'linewidth'
-                ? `${col.width.v}\\${col.width.u}`
-                : `${col.width.v}${col.width.u}`;
-            w.line_(`\\begin{column}${valign}{${width}}`);
+            w.line_(`\\begin{column}${valign}{${lengthToTex(col.width)}}`);
             w.indented(() => {
               for (const child of col.children) emitElement(w, child, ctx);
             });
@@ -137,6 +168,29 @@ function emitElementBody(w: TexWriter, el: Element, ctx: EmitContext): void {
       });
       return;
   }
+}
+
+/** Build the `\includegraphics[...]` option list, in a stable order. */
+function graphicsOptions(el: Extract<Element, { kind: 'image' }>): string {
+  const parts: string[] = [];
+  if (el.width !== undefined) parts.push(`width=${lengthToTex(el.width)}`);
+  if (el.height !== undefined) parts.push(`height=${lengthToTex(el.height)}`);
+  if (el.keepAspect && el.width !== undefined && el.height !== undefined) {
+    parts.push('keepaspectratio');
+  }
+  if (el.rotate) parts.push(`angle=${roundMm(el.rotate)}`);
+  if (el.altGraphicsOptions !== undefined && el.altGraphicsOptions !== '') {
+    parts.push(el.altGraphicsOptions);
+  }
+  return parts.join(',');
+}
+
+/** Render a length, expanding the LaTeX-relative units to their control sequences. */
+export function lengthToTex(l: Length): string {
+  const relative =
+    l.u === 'textwidth' || l.u === 'linewidth' || l.u === 'textheight'
+    || l.u === 'paperwidth' || l.u === 'paperheight';
+  return relative ? `${l.v}\\${l.u}` : `${l.v}${l.u}`;
 }
 
 function wrapAlignment(body: TexString, align: string | undefined): TexString {

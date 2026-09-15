@@ -124,6 +124,7 @@ export function SlideCanvas(props: Props): React.ReactElement {
               key={el.id}
               el={el}
               theme={theme}
+              resources={deck.resources}
               locked={locked}
               selected={el.id === selectedElementId}
               onSelect={onSelectElement}

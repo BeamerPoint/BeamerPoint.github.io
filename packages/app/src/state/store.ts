@@ -15,6 +15,7 @@ import {
   type FrameNode,
   type ParseResult,
   type TexProgram,
+  type ResourceRef,
   type RichText,
   type SourceMap,
 } from '@beamerpoint/core';
@@ -84,6 +85,9 @@ interface AppState {
   setListItemContent(slideId: string, elementId: string, itemId: string, content: RichText): void;
   addBlockElement(slideId: string, variant: 'block' | 'alertblock' | 'exampleblock'): void;
   addColumnsElement(slideId: string): void;
+  addImageElement(slideId: string, ref: ResourceRef): void;
+  setImageWidth(slideId: string, elementId: string, fraction: number): void;
+  setImageCaption(slideId: string, elementId: string, caption: string | null): void;
   moveElementToAbsolute(slideId: string, elementId: string, x: number, y: number, w: number): void;
 
   setTheme(name: string): void;
@@ -353,6 +357,49 @@ export const useStore = create<AppState>()((set, get) => {
       };
       mutate((deck) => mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, el] })));
       set({ selection: { slideId, elementId: el.id } });
+    },
+
+    addImageElement(slideId, ref) {
+      const el: Element = {
+        id: newId(),
+        kind: 'image',
+        placement: { mode: 'flow' },
+        resourceId: ref.id,
+        keepAspect: true,
+        width: { v: 0.6, u: 'textwidth' },
+      };
+      mutate((deck) => {
+        const withResource = deck.resources.some((r) => r.id === ref.id)
+          ? deck
+          : { ...deck, resources: [...deck.resources, ref] };
+        return mapFrame(withResource, slideId, (f) => ({
+          ...f,
+          children: [...f.children, el],
+        }));
+      });
+      set({ selection: { slideId, elementId: el.id } });
+    },
+
+    setImageWidth(slideId, elementId, fraction) {
+      const clamped = Math.min(1, Math.max(0.05, Math.round(fraction * 100) / 100));
+      mutate((deck) =>
+        mapElement(deck, slideId, elementId, (el) =>
+          el.kind === 'image' ? { ...el, width: { v: clamped, u: 'textwidth' } } : el,
+        ),
+      );
+    },
+
+    setImageCaption(slideId, elementId, caption) {
+      mutate((deck) =>
+        mapElement(deck, slideId, elementId, (el) => {
+          if (el.kind !== 'image') return el;
+          if (caption === null || caption === '') {
+            const { caption: _drop, ...rest } = el;
+            return rest;
+          }
+          return { ...el, caption: plain(caption) };
+        }),
+      );
     },
 
     moveElementToAbsolute(slideId, elementId, x, y, w) {

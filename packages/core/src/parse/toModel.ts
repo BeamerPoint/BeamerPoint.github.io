@@ -11,6 +11,7 @@ import type {
   PackageSpec,
   Preamble,
   PreambleSlot,
+  ResourceRef,
   RichText,
   SectionNode,
   ThemeRef,
@@ -48,8 +49,48 @@ const SECTION_LEVELS: Readonly<Record<string, SectionNode['level']>> = {
   subsubsection: 'subsubsection',
 };
 
-export function toModel(root: CstNode[], src: string, newId: () => Id, deckId: Id): ToModelResult {
-  const ctx: RecognizeCtx = { src, newId };
+export interface ToModelOptions {
+  /** Previous deck, so a known image path keeps its resource id and stored bytes. */
+  previous?: Deck;
+}
+
+export function toModel(
+  root: CstNode[],
+  src: string,
+  newId: () => Id,
+  deckId: Id,
+  opts: ToModelOptions = {},
+): ToModelResult {
+  // Image paths in the source resolve to resource ids. Reusing the previous deck's
+  // ids matters: a resource id is the key to the bytes held in browser storage, so
+  // minting a fresh one on every reparse would orphan every uploaded image.
+  const byPath = new Map<string, ResourceRef>(
+    (opts.previous?.resources ?? []).map((r) => [r.path, r]),
+  );
+  const used = new Map<string, ResourceRef>();
+
+  const resolveResource = (path: string): Id => {
+    const existing = used.get(path) ?? byPath.get(path);
+    if (existing !== undefined) {
+      used.set(path, existing);
+      return existing.id;
+    }
+    // A path we have never seen: referenced by the document but with no bytes stored
+    // locally. Recorded so it round-trips; the compile will report it missing.
+    const ref: ResourceRef = {
+      id: newId(),
+      path,
+      kind: 'image',
+      mime: mimeForPath(path),
+      bytes: 0,
+      sha256: '',
+      originalName: path.split('/').pop() ?? path,
+    };
+    used.set(path, ref);
+    return ref.id;
+  };
+
+  const ctx: RecognizeCtx = { src, newId, resolveResource };
 
   const docIdx = root.findIndex((n) => n.n === 'env' && n.name === 'document');
   const preambleNodes = docIdx === -1 ? root : root.slice(0, docIdx);
@@ -70,7 +111,7 @@ export function toModel(root: CstNode[], src: string, newId: () => Id, deckId: I
       meta,
       preamble,
       nodes,
-      resources: [],
+      resources: [...used.values()],
     },
     unknownPreambleChunks: unknownChunks,
   };
@@ -457,6 +498,16 @@ function parseFrameOptions(opts: CstGroup | undefined, src: string): FrameOption
 }
 
 /* ------------------------------------------------------------------- helpers */
+
+const MIME_BY_EXT: Readonly<Record<string, string>> = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  pdf: 'application/pdf', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+};
+
+function mimeForPath(path: string): string {
+  const ext = path.split('.').pop()?.toLowerCase() ?? '';
+  return MIME_BY_EXT[ext] ?? 'application/octet-stream';
+}
 
 function slice(src: string, node: CstNode): string {
   return src.slice(node.span.start, node.span.end);

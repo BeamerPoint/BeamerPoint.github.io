@@ -11,13 +11,17 @@ import { loadSavedDeck, readEmergencyTex, startAutosave } from './state/persist.
 import { useColumnLayout } from './ui/useColumnLayout.js';
 import { Splitter } from './ui/Splitter.js';
 import { SaveIndicator } from './ui/SaveIndicator.js';
+import { useImageImport } from './ui/useImageImport.js';
+import { exportDeck } from './io/exportProject.js';
 
 type Tab = 'source' | 'pdf' | 'log';
 
 export function App(): React.ReactElement {
   const [tab, setTab] = useState<Tab>('source');
   const layout = useColumnLayout();
+  const images = useImageImport();
   const [recovery, setRecovery] = useState<{ at: number; tex: string } | null>(null);
+  const [exportNote, setExportNote] = useState<string | null>(null);
 
   const deck = useStore((s) => s.deck);
   const frame = useStore(selectCurrentFrame);
@@ -61,15 +65,17 @@ export function App(): React.ReactElement {
 
   const frameNumber = frames.findIndex((f) => f.id === selection.slideId) + 1;
 
-  const exportTex = (): void => {
-    const { tex } = emitDeck(deck, { target: 'export' });
-    const blob = new Blob([tex], { type: 'text/x-tex' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'presentation.tex';
-    a.click();
-    URL.revokeObjectURL(url);
+  const onExport = (): void => {
+    void (async () => {
+      const result = await exportDeck(deck);
+      if (result.missing.length > 0) {
+        setExportNote(
+          `Exported ${result.filename}, but ${result.missing.length} referenced ` +
+          `file${result.missing.length === 1 ? ' is' : 's are'} not stored here. ` +
+          'See MISSING-FILES.txt in the archive.',
+        );
+      }
+    })();
   };
 
   return (
@@ -78,7 +84,14 @@ export function App(): React.ReactElement {
         <span className="bp-brand">BeamerPoint</span>
         <div className="bp-ribbon-group">
           <button onClick={resetDeck}>New</button>
-          <button onClick={exportTex}>Export .tex</button>
+          <button
+            onClick={onExport}
+            title={deck.resources.length > 0
+              ? 'Export a zip with the source and every image it uses'
+              : 'Export the LaTeX source'}
+          >
+            {deck.resources.length > 0 ? 'Export project' : 'Export .tex'}
+          </button>
         </div>
         <div className="bp-ribbon-group">
           <button onClick={undo} title="Undo (Ctrl+Z)">Undo</button>
@@ -91,6 +104,13 @@ export function App(): React.ReactElement {
           </span>
         )}
       </header>
+
+      {exportNote !== null && (
+        <div className="bp-recovery">
+          <span>{exportNote}</span>
+          <button onClick={() => setExportNote(null)}>Dismiss</button>
+        </div>
+      )}
 
       {recovery !== null && (
         <div className="bp-recovery">
@@ -122,7 +142,13 @@ export function App(): React.ReactElement {
           onReset={() => layout.reset('slides')}
         />
 
-        <div className="bp-center">
+        <div
+          className={`bp-center${images.dragging ? ' is-dropping' : ''}`}
+          {...images.dropHandlers}
+        >
+          {images.dragging && (
+            <div className="bp-drop-overlay">Drop to add the image to this slide</div>
+          )}
           <SlideCanvas
             deck={deck}
             frame={frame}

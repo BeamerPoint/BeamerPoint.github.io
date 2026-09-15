@@ -1,10 +1,12 @@
-import type { Element, ListElement, RichText, ThemeSpec } from '@beamerpoint/core';
+import type { Element, ListElement, ResourceRef, RichText, ThemeSpec } from '@beamerpoint/core';
 import { InlineText, MathView } from './InlineText.js';
 import { readInlineFromDom } from './domInline.js';
+import { ImageView } from './ImageView.js';
 
 interface Props {
   el: Element;
   theme: ThemeSpec;
+  resources: readonly ResourceRef[];
   selected: boolean;
   locked: boolean;
   onSelect(id: string): void;
@@ -119,6 +121,9 @@ function Body(props: Props): React.ReactElement {
           ))}
         </div>
       );
+
+    case 'image':
+      return <ImageView el={el} resource={props.resources.find((r) => r.id === el.resourceId)} />;
 
     case 'math':
       return <MathView tex={el.tex} display />;

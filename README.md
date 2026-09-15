@@ -121,6 +121,28 @@ working outside BeamerPoint.
 XeLaTeX is noticeably slower than pdfLaTeX (roughly 18s versus 3s for a small deck),
 because it runs a `dvipdfmx` pass on top of TeX.
 
+## Images
+
+Insert with the **+ Image** button, by dragging a file onto the slide, or by pasting.
+Bytes are stored in IndexedDB keyed by resource id; the document holds the id and the
+project-relative path, so renaming a file touches one place.
+
+Two things happen at import time rather than at compile time, because that is where
+they can still be explained:
+
+- **Formats pdfLaTeX cannot embed are rasterised.** It accepts PNG, JPEG and PDF and
+  nothing else, so an SVG or WebP would otherwise fail with "Unknown graphics
+  extension" and no indication why. They are converted to PNG and the UI says so.
+- **Filenames are sanitised.** Spaces and punctuation are legal in a filename and a
+  reliable way to break `\includegraphics`.
+
+A deck with images exports as a **zip** containing `main.tex` and every file it
+references — a bare `.tex` pointing at `images/plot.png` is not self-contained. Decks
+with no images still export as a plain `.tex`. If a referenced file was never stored
+here (common after pasting someone else's source) the archive includes a
+`MISSING-FILES.txt` listing what to add, rather than silently producing a project that
+will not build.
+
 ## Saving
 
 Three layers, because each fails differently:
