@@ -11,7 +11,8 @@ import type {
 import { newId } from './ids.js';
 
 export function plain(s: string): RichText {
-  return s === '' ? [] : [{ t: 'text', s }];
+  const str = typeof s === 'string' ? s : String(s ?? '');
+  return str === '' ? [] : [{ t: 'text', s: str }];
 }
 
 export function defaultPreamble(): Preamble {

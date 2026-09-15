@@ -1,5 +1,6 @@
-import type { Element, ListElement, ThemeSpec } from '@beamerpoint/core';
+import type { Element, ListElement, RichText, ThemeSpec } from '@beamerpoint/core';
 import { InlineText, MathView } from './InlineText.js';
+import { readInlineFromDom } from './domInline.js';
 
 interface Props {
   el: Element;
@@ -7,8 +8,8 @@ interface Props {
   selected: boolean;
   locked: boolean;
   onSelect(id: string): void;
-  onEditText(elementId: string, text: string): void;
-  onEditItem(elementId: string, itemId: string, text: string): void;
+  onEditContent(elementId: string, content: RichText): void;
+  onEditItem(elementId: string, itemId: string, content: RichText): void;
 }
 
 /**
@@ -46,7 +47,7 @@ export function ElementView(props: Props): React.ReactElement {
 }
 
 function Body(props: Props): React.ReactElement {
-  const { el, theme, locked, onEditText, onEditItem } = props;
+  const { el, theme, locked, onEditContent, onEditItem } = props;
 
   switch (el.kind) {
     case 'text':
@@ -56,7 +57,7 @@ function Body(props: Props): React.ReactElement {
           style={{ textAlign: el.align === 'justify' ? 'justify' : el.align }}
           contentEditable={!locked}
           suppressContentEditableWarning
-          onBlur={(e) => onEditText(el.id, e.currentTarget.textContent ?? '')}
+          onBlur={(e) => onEditContent(el.id, readInlineFromDom(e.currentTarget, el.content))}
         >
           <InlineText content={el.content} />
         </div>
@@ -145,7 +146,7 @@ function ListView({
   el: ListElement;
   theme: ThemeSpec;
   locked: boolean;
-  onEditItem(elementId: string, itemId: string, text: string): void;
+  onEditItem(elementId: string, itemId: string, content: RichText): void;
   depth: number;
 }): React.ReactElement {
   const marker = theme.itemMarkers[Math.min(depth, 2) as 0 | 1 | 2];
@@ -161,7 +162,7 @@ function ListView({
             className="bp-item-body"
             contentEditable={!locked}
             suppressContentEditableWarning
-            onBlur={(e) => onEditItem(el.id, item.id, e.currentTarget.textContent ?? '')}
+            onBlur={(e) => onEditItem(el.id, item.id, readInlineFromDom(e.currentTarget, item.content))}
           >
             <InlineText content={item.content} />
           </span>

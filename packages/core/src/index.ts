@@ -1,6 +1,9 @@
 export * from './model/types.js';
 export { newId, makeSeededIdFactory } from './model/ids.js';
 export {
+  normalizeRichText, trimRichText, richTextEquals,
+} from './model/richtext.js';
+export {
   newDeck, newFrame, newTitleFrame, newTextElement, newListElement, newListItem,
   defaultPreamble, plain,
 } from './model/factory.js';

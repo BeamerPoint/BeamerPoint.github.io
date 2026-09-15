@@ -4,13 +4,16 @@ import {
   newDeck as makeDeck,
   newFrame,
   newListElement,
+  newId,
   newTextElement,
   parseDeck,
   plain,
+  richTextEquals,
   type Deck,
   type Element,
   type FrameNode,
   type ParseResult,
+  type RichText,
   type SourceMap,
 } from '@beamerpoint/core';
 import type { CompileResult, EngineStatus } from '@beamerpoint/engine';
@@ -75,8 +78,10 @@ interface AppState {
   addTextElement(slideId: string): void;
   addListElement(slideId: string): void;
   deleteElement(slideId: string, elementId: string): void;
-  setElementText(slideId: string, elementId: string, text: string): void;
-  setListItemText(slideId: string, elementId: string, itemId: string, text: string): void;
+  setElementContent(slideId: string, elementId: string, content: RichText): void;
+  setListItemContent(slideId: string, elementId: string, itemId: string, content: RichText): void;
+  addBlockElement(slideId: string, variant: 'block' | 'alertblock' | 'exampleblock'): void;
+  addColumnsElement(slideId: string): void;
   moveElementToAbsolute(slideId: string, elementId: string, x: number, y: number, w: number): void;
 
   setTheme(name: string): void;
@@ -113,6 +118,13 @@ function frames(deck: Deck): FrameNode[] {
   const result = deck.nodes.filter((n): n is FrameNode => n.kind === 'frame');
   framesCache = { deck, frames: result };
   return result;
+}
+
+/** Find a top-level element of a frame, for comparing an edit against current state. */
+function findElement(deck: Deck, slideId: string, elementId: string): Element | undefined {
+  const frame = deck.nodes.find((n) => n.kind === 'frame' && n.id === slideId);
+  if (frame === undefined || frame.kind !== 'frame') return undefined;
+  return frame.children.find((el) => el.id === elementId);
 }
 
 function countRaw(deck: Deck): number {
@@ -276,25 +288,68 @@ export const useStore = create<AppState>()((set, get) => {
       set({ selection: { slideId, elementId: null } });
     },
 
-    setElementText(slideId, elementId, text) {
+    setElementContent(slideId, elementId, content) {
+      const el = findElement(get().deck, slideId, elementId);
+      // Focusing and blurring without typing must not create an undo entry.
+      if (el?.kind === 'text' && richTextEquals(el.content, content)) return;
       mutate((deck) =>
-        mapElement(deck, slideId, elementId, (el) =>
-          el.kind === 'text' ? { ...el, content: plain(text) } : el,
+        mapElement(deck, slideId, elementId, (e) =>
+          e.kind === 'text' ? { ...e, content } : e,
         ),
       );
     },
 
-    setListItemText(slideId, elementId, itemId, text) {
+    setListItemContent(slideId, elementId, itemId, content) {
+      const el = findElement(get().deck, slideId, elementId);
+      if (el?.kind === 'list') {
+        const item = el.items.find((i) => i.id === itemId);
+        if (item !== undefined && richTextEquals(item.content, content)) return;
+      }
       mutate((deck) =>
-        mapElement(deck, slideId, elementId, (el) =>
-          el.kind === 'list'
-            ? {
-                ...el,
-                items: el.items.map((i) => (i.id === itemId ? { ...i, content: plain(text) } : i)),
-              }
-            : el,
+        mapElement(deck, slideId, elementId, (e) =>
+          e.kind === 'list'
+            ? { ...e, items: e.items.map((i) => (i.id === itemId ? { ...i, content } : i)) }
+            : e,
         ),
       );
+    },
+
+    addBlockElement(slideId, variant) {
+      const el: Element = {
+        id: newId(),
+        kind: 'block',
+        placement: { mode: 'flow' },
+        variant,
+        title: plain(variant === 'alertblock' ? 'Important'
+          : variant === 'exampleblock' ? 'Example' : 'Block title'),
+        children: [newTextElement('Block content.')],
+      };
+      mutate((deck) => mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, el] })));
+      set({ selection: { slideId, elementId: el.id } });
+    },
+
+    addColumnsElement(slideId) {
+      const el: Element = {
+        id: newId(),
+        kind: 'columns',
+        placement: { mode: 'flow' },
+        columns: [
+          {
+            id: newId(),
+            width: { v: 0.48, u: 'textwidth' },
+            valign: 't',
+            children: [newTextElement('Left column.')],
+          },
+          {
+            id: newId(),
+            width: { v: 0.48, u: 'textwidth' },
+            valign: 't',
+            children: [newTextElement('Right column.')],
+          },
+        ],
+      };
+      mutate((deck) => mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, el] })));
+      set({ selection: { slideId, elementId: el.id } });
     },
 
     moveElementToAbsolute(slideId, elementId, x, y, w) {

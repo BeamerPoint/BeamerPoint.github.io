@@ -1,69 +1,89 @@
 import { useMemo } from 'react';
 import katex from 'katex';
-import type { Inline, RichText } from '@beamerpoint/core';
+import type { Color, Inline, RichText } from '@beamerpoint/core';
+import { INLINE_INDEX_ATTR, isAtomicInline } from './domInline.js';
 
 /**
  * Render rich text on the canvas.
  *
- * Raw islands are shown as inert chips rather than being hidden: the user can see
- * that something LaTeX-y lives there, and that BeamerPoint is preserving rather than
- * understanding it.
+ * Every node carries its index as a data attribute so `readInlineFromDom` can map the
+ * edited DOM back onto the model. Nodes that render as something other than their own
+ * source — math, symbols, citations, preserved raw LaTeX — are additionally marked
+ * non-editable, so a caret cannot get inside and corrupt them.
  */
 export function InlineText({ content }: { content: RichText }): React.ReactElement {
-  return <>{content.map((node, i) => <InlineNode key={i} node={node} />)}</>;
+  return (
+    <>
+      {content.map((node, i) => (
+        <InlineNode key={i} node={node} index={i} />
+      ))}
+    </>
+  );
 }
 
-function InlineNode({ node }: { node: Inline }): React.ReactElement {
+function InlineNode({ node, index }: { node: Inline; index: number }): React.ReactElement {
+  // Spread onto every rendered node: the index the reader resolves against, and
+  // atomicity so the browser treats the node as one object.
+  const tag = {
+    [INLINE_INDEX_ATTR]: index,
+    ...(isAtomicInline(node) ? { contentEditable: false } : {}),
+  } as Record<string, unknown>;
+
   switch (node.t) {
     case 'text':
+      // Bare text needs no wrapper: a DOM text node maps back to itself.
       return <>{node.s}</>;
 
     case 'break':
-      return <br />;
+      return <br {...tag} />;
 
     case 'math':
-      return <MathView tex={node.tex} display={false} />;
-
-    case 'sym':
-      return <span className="bp-sym">{symbolFor(node.name)}</span>;
-
-    case 'ref':
-      return <span className="bp-ref">[{node.target}]</span>;
-
-    case 'cite':
-      return <span className="bp-cite">[{node.keys.join(', ')}]</span>;
-
-    case 'link':
       return (
-        <span className="bp-link">
-          <InlineText content={node.children} />
+        <span {...tag}>
+          <MathView tex={node.tex} display={false} />
         </span>
       );
 
+    case 'sym':
+      return <span {...tag} className="bp-sym">{symbolFor(node.name)}</span>;
+
+    case 'ref':
+      return <span {...tag} className="bp-ref">[{node.target}]</span>;
+
+    case 'cite':
+      return <span {...tag} className="bp-cite">[{node.keys.join(', ')}]</span>;
+
     case 'raw':
       return (
-        <span className="bp-raw-inline" title={`Preserved LaTeX: ${node.tex}`}>
+        <span {...tag} className="bp-raw-inline" title={`Preserved LaTeX: ${node.tex}`}>
           {node.tex}
+        </span>
+      );
+
+    case 'link':
+      return (
+        <span {...tag} className="bp-link">
+          <InlineText content={node.children} />
         </span>
       );
 
     case 'style': {
       const inner = <InlineText content={node.children} />;
       switch (node.style) {
-        case 'bf': return <strong>{inner}</strong>;
-        case 'it': return <em>{inner}</em>;
-        case 'emph': return <em>{inner}</em>;
-        case 'ul': return <u>{inner}</u>;
-        case 'tt': return <code className="bp-tt">{inner}</code>;
-        case 'sc': return <span style={{ fontVariant: 'small-caps' }}>{inner}</span>;
-        case 'alert': return <span className="bp-alert">{inner}</span>;
-        case 'structure': return <span className="bp-structure">{inner}</span>;
+        case 'bf': return <strong {...tag}>{inner}</strong>;
+        case 'it': return <em {...tag}>{inner}</em>;
+        case 'emph': return <em {...tag}>{inner}</em>;
+        case 'ul': return <u {...tag}>{inner}</u>;
+        case 'tt': return <code {...tag} className="bp-tt">{inner}</code>;
+        case 'sc': return <span {...tag} style={{ fontVariant: 'small-caps' }}>{inner}</span>;
+        case 'alert': return <span {...tag} className="bp-alert">{inner}</span>;
+        case 'structure': return <span {...tag} className="bp-structure">{inner}</span>;
         case 'color':
-          return (
-            <span style={{ color: cssColor(node.color) }}>{inner}</span>
-          );
+          return <span {...tag} style={{ color: cssColor(node.color) }}>{inner}</span>;
         case 'size':
-          return <span className={`bp-size-${node.size ?? 'normalsize'}`}>{inner}</span>;
+          return (
+            <span {...tag} className={`bp-size-${node.size ?? 'normalsize'}`}>{inner}</span>
+          );
       }
     }
   }
@@ -90,13 +110,14 @@ export function MathView({ tex, display }: { tex: string; display: boolean }): R
   );
 }
 
-function cssColor(c: { k: string; name?: string; expr?: string } | undefined): string {
+function cssColor(c: Color | undefined): string {
   if (c === undefined) return 'inherit';
-  if (c.k === 'named' && c.name !== undefined) return c.name;
-  if (c.k === 'mix' && c.expr !== undefined) {
-    // `blue!20!white` and friends: take the base colour as a rough approximation.
-    const base = c.expr.split('!')[0]!;
-    return base;
+  if (c.k === 'named') return c.name;
+  // `blue!20!white` and friends: the base colour is a rough but useful approximation.
+  if (c.k === 'mix') return c.expr.split('!')[0] ?? 'inherit';
+  if (c.k === 'rgb') {
+    const to255 = (v: number) => Math.round(Math.min(1, Math.max(0, v)) * 255);
+    return `rgb(${to255(c.r)}, ${to255(c.g)}, ${to255(c.b)})`;
   }
   return 'inherit';
 }
@@ -104,8 +125,8 @@ function cssColor(c: { k: string; name?: string; expr?: string } | undefined): s
 const SYMBOLS: Readonly<Record<string, string>> = {
   ldots: '…', dots: '…', textellipsis: '…',
   LaTeX: 'LaTeX', TeX: 'TeX',
-  today: new Date().toLocaleDateString(undefined, { dateStyle: 'long' }),
   quad: ' ', qquad: '  ',
+  today: new Date().toLocaleDateString(undefined, { dateStyle: 'long' }),
 };
 
 function symbolFor(name: string): string {

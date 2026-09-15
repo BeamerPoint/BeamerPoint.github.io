@@ -13,6 +13,8 @@ export function Inspector(): React.ReactElement {
   const setAspect = useStore((s) => s.setAspect);
   const addTextElement = useStore((s) => s.addTextElement);
   const addListElement = useStore((s) => s.addListElement);
+  const addBlockElement = useStore((s) => s.addBlockElement);
+  const addColumnsElement = useStore((s) => s.addColumnsElement);
   const deleteElement = useStore((s) => s.deleteElement);
   const selection = useStore((s) => s.selection);
 
@@ -35,6 +37,36 @@ export function Inspector(): React.ReactElement {
           </button>
           <button disabled={locked || !frame} onClick={() => frame && addListElement(frame.id)}>
             + Bullets
+          </button>
+        </div>
+        <div className="bp-btn-row">
+          <button
+            disabled={locked || !frame}
+            title="A highlighted box, the most recognisable Beamer element"
+            onClick={() => frame && addBlockElement(frame.id, 'block')}
+          >
+            + Block
+          </button>
+          <button
+            disabled={locked || !frame}
+            title="Two side-by-side columns"
+            onClick={() => frame && addColumnsElement(frame.id)}
+          >
+            + Columns
+          </button>
+        </div>
+        <div className="bp-btn-row">
+          <button
+            disabled={locked || !frame}
+            onClick={() => frame && addBlockElement(frame.id, 'alertblock')}
+          >
+            + Alert
+          </button>
+          <button
+            disabled={locked || !frame}
+            onClick={() => frame && addBlockElement(frame.id, 'exampleblock')}
+          >
+            + Example
           </button>
         </div>
         {selection.elementId !== null && frame !== undefined && (

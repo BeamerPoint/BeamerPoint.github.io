@@ -20,8 +20,8 @@ export function App(): React.ReactElement {
   const selection = useStore((s) => s.selection);
   const locked = useStore(selectCanvasLocked);
   const selectElement = useStore((s) => s.selectElement);
-  const setElementText = useStore((s) => s.setElementText);
-  const setListItemText = useStore((s) => s.setListItemText);
+  const setElementContent = useStore((s) => s.setElementContent);
+  const setListItemContent = useStore((s) => s.setListItemContent);
   const loadDeck = useStore((s) => s.loadDeck);
   const resetDeck = useStore((s) => s.resetDeck);
   const undo = useStore((s) => s.undo);
@@ -89,12 +89,16 @@ export function App(): React.ReactElement {
             selectedElementId={selection.elementId}
             locked={locked}
             onSelectElement={(id) => selection.slideId && selectElement(selection.slideId, id)}
-            onEditText={(elementId, text) =>
-              selection.slideId && setElementText(selection.slideId, elementId, text)
-            }
-            onEditItem={(elementId, itemId, text) =>
-              selection.slideId && setListItemText(selection.slideId, elementId, itemId, text)
-            }
+            onEditContent={(elementId, content) => {
+              if (selection.slideId !== null) {
+                setElementContent(selection.slideId, elementId, content);
+              }
+            }}
+            onEditItem={(elementId, itemId, content) => {
+              if (selection.slideId !== null) {
+                setListItemContent(selection.slideId, elementId, itemId, content);
+              }
+            }}
           />
           <p className="bp-approx-note">
             This canvas is an approximation of Beamer&rsquo;s output. Use the PDF tab for

@@ -87,6 +87,21 @@ Auto-apply fires after 800 ms idle, but only when the text is structurally healt
 balanced groups and environments, no parse errors, and no increase in raw blocks. A
 half-typed `\begin{` therefore never flips the deck to raw.
 
+## Editing on the canvas
+
+Text is edited in place with `contentEditable`, but the content is **not** read back as
+plain text. Every inline node is tagged with its index when rendered, and
+`readInlineFromDom` walks the DOM to reassemble the model, carrying untouched nodes over
+by reference. Nodes that render as something other than their own source — inline math,
+symbols, citations, preserved raw LaTeX — are marked `contenteditable="false"` so a caret
+cannot get inside them; they can be deleted wholesale but not corrupted halfway.
+
+This matters more than it sounds. Reading `textContent` and rebuilding with a single
+plain run silently removes bold, replaces inline math with its rendered glyphs, and
+re-escapes a preserved macro such as `\vspace{2mm}` into `\textbackslash{}vspace\{2mm\}`
+— which then prints as visible characters in the compiled PDF. That is regression-tested
+in `packages/app/test/inlineEditing.spec.tsx`.
+
 ## Canvas fidelity
 
 The canvas targets roughly 80% visual accuracy and says so in the UI. It will diverge from
@@ -113,6 +128,9 @@ any input string must be covered by exactly one top-level node.
 M1 (the end-to-end vertical slice) is complete: create a deck, edit text and lists on the
 canvas, see the generated `.tex`, hand-edit that `.tex`, have it parse back to the canvas,
 and compile to a real Beamer PDF.
+
+Authorable element types: text, bullet and numbered lists, Beamer blocks
+(`block` / `alertblock` / `exampleblock`), and two-column layouts.
 
 Not yet implemented: tables, images, math elements, code blocks, TikZ shapes, pgfplots
 charts, citations, and drag-to-position. The model, emitter and type system already

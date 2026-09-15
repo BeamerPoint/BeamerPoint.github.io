@@ -34,8 +34,11 @@ const SIMPLE_CHARS = new Set(['{', '}', '#', '$', '%', '&', '_']);
  * `unescapeText(escapeText(s)) === s` holds for all `s` (property-tested).
  */
 export function escapeText(s: PlainText): TexString {
+  // Defensive coercion. The emitter runs on every keystroke, so a non-string slipping
+  // in from a DOM read or a hand-edited deck must not throw and blank the editor.
+  const input = typeof s === 'string' ? s : String(s ?? '');
   let out = '';
-  for (const ch of s) {
+  for (const ch of input) {
     switch (ch) {
       case '\\': out += '\\textbackslash{}'; break;
       case '~': out += '\\textasciitilde{}'; break;

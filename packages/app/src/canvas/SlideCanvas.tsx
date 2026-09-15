@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
+import type { RichText } from '@beamerpoint/core';
 import {
   PAPER,
   PX_PER_MM,
@@ -17,8 +18,8 @@ interface Props {
   selectedElementId: string | null;
   locked: boolean;
   onSelectElement(id: string | null): void;
-  onEditText(elementId: string, text: string): void;
-  onEditItem(elementId: string, itemId: string, text: string): void;
+  onEditContent(elementId: string, content: RichText): void;
+  onEditItem(elementId: string, itemId: string, content: RichText): void;
 }
 
 /**
@@ -126,7 +127,7 @@ export function SlideCanvas(props: Props): React.ReactElement {
               locked={locked}
               selected={el.id === selectedElementId}
               onSelect={onSelectElement}
-              onEditText={props.onEditText}
+              onEditContent={props.onEditContent}
               onEditItem={props.onEditItem}
             />
           ))}

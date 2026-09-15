@@ -1,5 +1,6 @@
 import type { BeamerFontSize, Inline, RichText } from '../model/types.js';
 import type { CstGroup, CstNode } from './cst.js';
+import { normalizeRichText, trimRichText } from '../model/richtext.js';
 
 /**
  * Stage 2 for inline content: CST nodes to rich text.
@@ -39,7 +40,7 @@ const REF_KINDS: ReadonlySet<string> = new Set(['ref', 'pageref', 'nameref', 'eq
 export function parseInline(nodes: CstNode[], src: string): RichText {
   const out: RichText = [];
   for (const node of nodes) push(out, convert(node, src));
-  return merge(out);
+  return normalizeRichText(out);
 }
 
 function groupToInline(g: CstGroup, src: string): RichText {
@@ -171,34 +172,4 @@ function push(out: Inline[], v: Inline | Inline[]): void {
   else out.push(v);
 }
 
-/** Merge adjacent text nodes so the model is canonical. */
-function merge(rt: RichText): RichText {
-  const out: RichText = [];
-  for (const node of rt) {
-    const prev = out[out.length - 1];
-    if (node.t === 'text' && prev !== undefined && prev.t === 'text') {
-      out[out.length - 1] = { t: 'text', s: prev.s + node.s };
-      continue;
-    }
-    if (node.t === 'raw' && prev !== undefined && prev.t === 'raw') {
-      out[out.length - 1] = { t: 'raw', tex: prev.tex + node.tex };
-      continue;
-    }
-    out.push(node);
-  }
-  return out;
-}
-
-/** Trim leading and trailing whitespace from the outermost text nodes. */
-export function trimRichText(rt: RichText): RichText {
-  const out = rt.map((n) => ({ ...n }));
-  const first = out[0];
-  if (first !== undefined && first.t === 'text') {
-    first.s = first.s.replace(/^\s+/, '');
-  }
-  const last = out[out.length - 1];
-  if (last !== undefined && last.t === 'text') {
-    last.s = last.s.replace(/\s+$/, '');
-  }
-  return out.filter((n) => !(n.t === 'text' && n.s === ''));
-}
+export { trimRichText };
