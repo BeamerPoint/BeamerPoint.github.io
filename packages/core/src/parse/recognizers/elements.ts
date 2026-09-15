@@ -638,7 +638,11 @@ function recognizeTextblock(
   // right string rather than against absolute offsets into the full document.
   const remainder = body.slice(pm[0].length);
   const sub = buildCst(remainder);
-  const inner = recognizeElements(sub.root, { src: remainder, newId: ctx.newId });
+  const inner = recognizeElements(sub.root, {
+    src: remainder,
+    newId: ctx.newId,
+    ...(ctx.resolveResource !== undefined ? { resolveResource: ctx.resolveResource } : {}),
+  });
   if (inner.length !== 1) return null;
 
   const placement: Placement = {
@@ -650,5 +654,22 @@ function recognizeTextblock(
     driver: 'textpos',
   };
 
-  return { ...inner[0]!, placement, src: node.span };
+  const only = inner[0]!;
+
+  // An absolutely-placed image is emitted with `width=\linewidth` so it fills the
+  // block. That is implied by the placement, so drop it here rather than carrying it
+  // as an unmodelled option and emitting it twice.
+  if (only.kind === 'image') {
+    const opts = (only.altGraphicsOptions ?? '')
+      .split(',')
+      .map((o) => o.trim())
+      .filter((o) => o !== '' && o !== 'width=\linewidth');
+    const image = { ...only, placement, src: node.span } as typeof only;
+    delete image.width;
+    if (opts.length > 0) image.altGraphicsOptions = opts.join(',');
+    else delete image.altGraphicsOptions;
+    return image;
+  }
+
+  return { ...only, placement, src: node.span };
 }

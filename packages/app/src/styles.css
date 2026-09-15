@@ -113,6 +113,13 @@ body.bp-resizing iframe { pointer-events: none; }
 }
 .bp-canvas-wrap.bp-empty { color: var(--bp-muted); }
 .bp-paper {
+  /*
+   * One design millimetre. CSS `mm` is a PHYSICAL unit (~3.78px at 96dpi), but the
+   * slide is drawn on a 10px-per-mm grid, so using `mm` here rendered everything at
+   * 0.38x and put absolutely-placed elements nowhere near where LaTeX puts them.
+   * Every canvas measurement goes through this instead.
+   */
+  --bp-mm: 10px;
   transform-origin: center center;
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.22);
   position: relative; display: flex; flex-direction: column;
@@ -124,7 +131,7 @@ body.bp-resizing iframe { pointer-events: none; }
   background: var(--bp-panel); border-top: 1px solid var(--bp-border);
 }
 
-.bp-headline { display: flex; align-items: center; gap: 14px; padding: 0 4mm; flex: none; }
+.bp-headline { display: flex; align-items: center; gap: 14px; padding: 0 calc(var(--bp-mm) * 4); flex: none; }
 .bp-headline-section { font-size: 0.72em; opacity: 0.9; }
 .bp-frametitle { flex: none; font-size: 1.33em; line-height: 1.2; }
 .bp-framesubtitle { font-size: 0.62em; font-weight: 400; opacity: 0.85; }
@@ -132,25 +139,25 @@ body.bp-resizing iframe { pointer-events: none; }
 .bp-footline { display: flex; flex: none; font-size: 0.55em; }
 .bp-footcell {
   display: flex; align-items: center; justify-content: center;
-  padding: 0 2mm; overflow: hidden; white-space: nowrap;
+  padding: 0 calc(var(--bp-mm) * 2); overflow: hidden; white-space: nowrap;
 }
 
-.bp-el { position: relative; margin-bottom: 2mm; outline: 1px solid transparent; }
+.bp-el { position: relative; margin-bottom: calc(var(--bp-mm) * 2); outline: 1px solid transparent; }
 .bp-el.is-selected { outline: 1.5px solid var(--bp-accent); outline-offset: 2px; }
 .bp-el [contenteditable]:focus { outline: 1px dashed var(--bp-accent); }
 .bp-text { line-height: 1.32; }
 .bp-list { list-style: none; margin: 0; padding-left: 0; }
-.bp-list .bp-list { padding-left: 5mm; }
+.bp-list .bp-list { padding-left: calc(var(--bp-mm) * 5); }
 .bp-list li {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 1.6mm; line-height: 1.32;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: calc(var(--bp-mm) * 1.6); line-height: 1.32;
 }
 .bp-marker { flex: none; font-weight: 700; }
 .bp-item-body { flex: 1; min-width: 0; }
 .bp-list li > .bp-list { flex-basis: 100%; }
 
-.bp-block { overflow: hidden; margin-bottom: 2mm; }
-.bp-block-title { padding: 1mm 2mm; font-weight: 700; }
-.bp-columns { display: flex; gap: 4mm; }
+.bp-block { overflow: hidden; margin-bottom: calc(var(--bp-mm) * 2); }
+.bp-block-title { padding: calc(var(--bp-mm) * 1) calc(var(--bp-mm) * 2); font-weight: 700; }
+.bp-columns { display: flex; gap: calc(var(--bp-mm) * 4); }
 .bp-column { min-width: 0; }
 
 .bp-alert { color: #b42318; }
@@ -160,7 +167,7 @@ body.bp-resizing iframe { pointer-events: none; }
 .bp-math-error { color: var(--bp-danger); font-family: monospace; }
 
 .bp-raw {
-  border: 1px dashed #b0b6c0; background: #fbfbfc; padding: 1mm 2mm; border-radius: 2px;
+  border: 1px dashed #b0b6c0; background: #fbfbfc; padding: calc(var(--bp-mm) * 1) calc(var(--bp-mm) * 2); border-radius: 2px;
 }
 .bp-raw-label { font-size: 0.6em; color: var(--bp-muted); text-transform: uppercase; }
 .bp-raw pre { margin: 0; font-size: 0.7em; white-space: pre-wrap; word-break: break-word; }
@@ -316,14 +323,14 @@ body.bp-resizing iframe { pointer-events: none; }
 }
 
 /* -------------------------------------------------------------------- images */
-.bp-image { margin: 0 auto 2mm; display: block; }
+.bp-image { margin: 0 auto calc(var(--bp-mm) * 2); display: block; }
 .bp-image img { display: block; width: 100%; height: auto; }
 .bp-image-caption {
-  margin-top: 1mm; font-size: 0.72em; text-align: center; color: #444;
+  margin-top: calc(var(--bp-mm) * 1); font-size: 0.72em; text-align: center; color: #444;
 }
 .bp-image-missing {
   border: 1px dashed #b0b6c0; background: #fbfbfc;
-  padding: 3mm 2mm; text-align: center; border-radius: 2px;
+  padding: calc(var(--bp-mm) * 3) calc(var(--bp-mm) * 2); text-align: center; border-radius: 2px;
 }
 .bp-image-missing-icon { font-size: 1.6em; opacity: 0.5; }
 .bp-image-missing-path {
@@ -393,3 +400,10 @@ body.bp-dragging { user-select: none; }
 .bp-btn-row button.is-active {
   background: var(--bp-accent); color: #fff; border-color: var(--bp-accent);
 }
+
+/*
+ * Absolutely-placed elements live here, over the whole page, because textpos
+ * measures from the page corner rather than from the text column.
+ */
+.bp-abs-layer { position: absolute; inset: 0; pointer-events: none; }
+.bp-abs-layer > .bp-el { pointer-events: auto; margin-bottom: 0; }

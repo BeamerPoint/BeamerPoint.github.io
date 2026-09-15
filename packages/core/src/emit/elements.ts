@@ -182,7 +182,16 @@ function emitElementBody(w: TexWriter, el: Element, ctx: EmitContext): void {
 /** Build the `\includegraphics[...]` option list, in a stable order. */
 function graphicsOptions(el: Extract<Element, { kind: 'image' }>): string {
   const parts: string[] = [];
-  if (el.width !== undefined) parts.push(`width=${lengthToTex(el.width)}`);
+
+  if (el.placement.mode === 'absolute') {
+    // Inside a textblock*, textpos sets \linewidth and \textwidth to the block width
+    // (verified: a 60mm block reports 170.7pt for both). So a fractional width would
+    // render the image at a fraction of the box the user sized, not filling it.
+    // The placement width IS the image width here.
+    parts.push('width=\\linewidth');
+  } else if (el.width !== undefined) {
+    parts.push(`width=${lengthToTex(el.width)}`);
+  }
   if (el.height !== undefined) parts.push(`height=${lengthToTex(el.height)}`);
   if (el.keepAspect && el.width !== undefined && el.height !== undefined) {
     parts.push('keepaspectratio');

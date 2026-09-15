@@ -95,7 +95,7 @@ interface AppState {
   setImageCaption(slideId: string, elementId: string, caption: string | null): void;
   setImageAlign(slideId: string, elementId: string, align: 'left' | 'center' | 'right'): void;
   setImageTrim(slideId: string, elementId: string, trim: ImageTrim | null): void;
-  nudgeImageWidth(slideId: string, elementId: string, deltaPx: number, bodyPx: number): void;
+  nudgeImageWidth(slideId: string, elementId: string, deltaMm: number, deltaFraction: number): void;
   moveElementBy(slideId: string, elementId: string, dxMm: number, dyMm: number): void;
   returnElementToFlow(slideId: string, elementId: string): void;
   moveElementToAbsolute(slideId: string, elementId: string, x: number, y: number, w: number): void;
@@ -446,15 +446,12 @@ export const useStore = create<AppState>()((set, get) => {
       );
     },
 
-    nudgeImageWidth(slideId, elementId, deltaPx, bodyPx) {
+    nudgeImageWidth(slideId, elementId, deltaMm, deltaFraction) {
       const el = findElement(get().deck, slideId, elementId);
       if (el?.kind !== 'image') return;
 
       if (el.placement.mode === 'absolute') {
-        // Absolutely placed: width is a real length, so resize in millimetres.
-        const g = get();
-        const mmPerPx = g.deck.preamble.documentClass.aspectRatio === '43' ? 128 : 160;
-        const deltaMm = (deltaPx / bodyPx) * mmPerPx;
+        // Absolutely placed: the block width IS the image width, in millimetres.
         const next = Math.max(10, Math.round((el.placement.w + deltaMm) * 10) / 10);
         mutate((deck) =>
           mapElement(deck, slideId, elementId, (e) =>
@@ -466,9 +463,9 @@ export const useStore = create<AppState>()((set, get) => {
         return;
       }
 
-      // In flow: width is a fraction of 	extwidth.
+      // In flow: width is a fraction of the text column.
       const current = el.width?.v ?? 0.6;
-      const next = Math.min(1, Math.max(0.05, current + deltaPx / bodyPx));
+      const next = Math.min(1, Math.max(0.05, current + deltaFraction));
       mutate((deck) =>
         mapElement(deck, slideId, elementId, (e) =>
           e.kind === 'image'

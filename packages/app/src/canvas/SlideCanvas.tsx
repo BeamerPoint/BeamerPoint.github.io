@@ -23,7 +23,7 @@ interface Props {
   onEditContent(elementId: string, content: RichText): void;
   onEditItem(elementId: string, itemId: string, content: RichText): void;
   overlayMode: OverlayMode;
-  onResizeImage(elementId: string, deltaPx: number, boxPx: number): void;
+  onResizeImage(elementId: string, deltaMm: number, deltaFraction: number): void;
   onMoveImage(elementId: string, dxMm: number, dyMm: number): void;
   onTrimImage(elementId: string, trim: ImageTrim): void;
 }
@@ -67,6 +67,9 @@ export function SlideCanvas(props: Props): React.ReactElement {
 
   const hasFrametitle = frame.title !== undefined && !frame.options.plain;
 
+  /** Design millimetres: the canvas grid, not CSS physical millimetres. */
+  const mm = (n: number): string => `${n * PX_PER_MM}px`;
+
   const geometry = {
     scale,
     pxPerMm: PX_PER_MM,
@@ -95,7 +98,7 @@ export function SlideCanvas(props: Props): React.ReactElement {
           <div
             className="bp-headline"
             style={{
-              height: `${theme.headline.heightMm}mm`,
+              height: mm(theme.headline.heightMm),
               background: theme.headline.bg,
               color: theme.headline.fg,
             }}
@@ -112,7 +115,7 @@ export function SlideCanvas(props: Props): React.ReactElement {
             style={{
               color: theme.frametitle.fg,
               background: theme.frametitle.bg ?? 'transparent',
-              padding: `${theme.frametitle.paddingMm.y}mm ${theme.frametitle.paddingMm.x || theme.margins.hMm}mm`,
+              padding: `${mm(theme.frametitle.paddingMm.y)} ${mm(theme.frametitle.paddingMm.x || theme.margins.hMm)}`,
               fontWeight: theme.frametitle.bold ? 700 : 400,
               textAlign: theme.frametitle.align,
             }}
@@ -129,10 +132,35 @@ export function SlideCanvas(props: Props): React.ReactElement {
         <div
           className="bp-body"
           style={{
-            padding: `${theme.margins.topMm}mm ${theme.margins.hMm}mm ${theme.margins.bottomMm}mm`,
+            padding: `${mm(theme.margins.topMm)} ${mm(theme.margins.hMm)} ${mm(theme.margins.bottomMm)}`,
           }}
         >
-          {frame.children.map((el) => (
+          {frame.children.filter((el) => el.placement.mode === 'flow').map((el) => (
+            <ElementView
+              key={el.id}
+              el={el}
+              theme={theme}
+              resources={deck.resources}
+              locked={locked}
+              selected={el.id === selectedElementId}
+              onSelect={onSelectElement}
+              onEditContent={props.onEditContent}
+              onEditItem={props.onEditItem}
+              overlayMode={props.overlayMode}
+              onResizeImage={props.onResizeImage}
+              onMoveImage={props.onMoveImage}
+              onTrimImage={props.onTrimImage}
+            />
+          ))}
+        </div>
+
+        {/*
+          * Absolutely-placed elements are positioned from the page corner, matching
+          * textpos with 	extblockorigin{0mm}{0mm}. They cannot live inside .bp-body,
+          * which is inset by the margins, sits below the frame title, and clips.
+          */}
+        <div className="bp-abs-layer">
+          {frame.children.filter((el) => el.placement.mode === 'absolute').map((el) => (
             <ElementView
               key={el.id}
               el={el}
@@ -152,7 +180,7 @@ export function SlideCanvas(props: Props): React.ReactElement {
         </div>
 
         {theme.footline.cells.length > 0 && !frame.options.plain && (
-          <div className="bp-footline" style={{ height: `${theme.footline.heightMm}mm` }}>
+          <div className="bp-footline" style={{ height: mm(theme.footline.heightMm) }}>
             {theme.footline.cells.map((cell, i) => (
               <div
                 key={i}

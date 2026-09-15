@@ -1,8 +1,9 @@
-import type { Element, ListElement, ResourceRef, RichText, ThemeSpec } from '@beamerpoint/core';
+import { PX_PER_MM, type Element, type ListElement, type ResourceRef, type RichText, type ThemeSpec } from '@beamerpoint/core';
 import { InlineText, MathView } from './InlineText.js';
 import { readInlineFromDom } from './domInline.js';
 import { ImageView } from './ImageView.js';
 import { SelectionOverlay, type OverlayMode } from './SelectionOverlay.js';
+import { useCanvasGeometry } from './CanvasContext.js';
 
 interface Props {
   el: Element;
@@ -14,7 +15,7 @@ interface Props {
   onEditContent(elementId: string, content: RichText): void;
   onEditItem(elementId: string, itemId: string, content: RichText): void;
   overlayMode: OverlayMode;
-  onResizeImage(elementId: string, deltaPx: number, boxPx: number): void;
+  onResizeImage(elementId: string, deltaMm: number, deltaFraction: number): void;
   onMoveImage(elementId: string, dxMm: number, dyMm: number): void;
   onTrimImage(elementId: string, trim: import('@beamerpoint/core').ImageTrim): void;
 }
@@ -27,14 +28,16 @@ interface Props {
  */
 export function ElementView(props: Props): React.ReactElement {
   const { el, selected, onSelect } = props;
+  const { bodyWidthMm } = useCanvasGeometry();
 
   const absolute = el.placement.mode === 'absolute' ? el.placement : null;
   const style: React.CSSProperties = absolute
     ? {
         position: 'absolute',
-        left: `${absolute.x}mm`,
-        top: `${absolute.y}mm`,
-        width: `${absolute.w}mm`,
+        // Design millimetres, not CSS physical millimetres.
+        left: `${absolute.x * PX_PER_MM}px`,
+        top: `${absolute.y * PX_PER_MM}px`,
+        width: `${absolute.w * PX_PER_MM}px`,
         zIndex: absolute.z,
         ...(absolute.rotate ? { transform: `rotate(${absolute.rotate}deg)` } : {}),
       }
@@ -55,10 +58,12 @@ export function ElementView(props: Props): React.ReactElement {
           resource={props.resources.find((r) => r.id === el.resourceId)}
           mode={props.overlayMode}
           onResize={(deltaPx) => {
-            // Resize is expressed against the text column, which is the element's
-            // own parent here.
-            const box = document.querySelector('.bp-body')?.getBoundingClientRect();
-            props.onResizeImage(el.id, deltaPx, box?.width ?? 1);
+            // Convert here, where the text column width is known, and hand the store
+            // document units. The store should never see screen pixels.
+            const bodyPx =
+              document.querySelector('.bp-body')?.getBoundingClientRect().width ?? 1;
+            const fraction = deltaPx / bodyPx;
+            props.onResizeImage(el.id, fraction * bodyWidthMm, fraction);
           }}
           onMove={(dx, dy) => props.onMoveImage(el.id, dx, dy)}
           onTrim={(t) => props.onTrimImage(el.id, t)}
@@ -94,7 +99,7 @@ function Body(props: Props): React.ReactElement {
         : el.variant === 'exampleblock' ? theme.block.example
         : theme.block;
       return (
-        <div className="bp-block" style={{ borderRadius: `${theme.block.radiusMm}mm` }}>
+        <div className="bp-block" style={{ borderRadius: `${theme.block.radiusMm * PX_PER_MM}px` }}>
           {el.title !== undefined && (
             <div
               className="bp-block-title"
@@ -108,7 +113,7 @@ function Body(props: Props): React.ReactElement {
             style={{
               background: style.bodyBg,
               color: style.bodyFg,
-              padding: `${theme.block.paddingMm}mm`,
+              padding: `${theme.block.paddingMm * PX_PER_MM}px`,
             }}
           >
             {el.children.map((child) => (

@@ -120,7 +120,7 @@ function specFromShape(id: string, shape: ThemeShape): ThemeSpec {
     block: blocksFor(shape.structure),
     itemMarkers: ['▸', '–', '•'],
     margins: {
-      hMm: 10,
+      hMm: shape.hMarginMm,
       topMm: headline.heightMm > 0 ? headline.heightMm + 2 : 3,
       bottomMm: footline.heightMm > 0 ? footline.heightMm + 2 : 4,
     },
@@ -146,7 +146,8 @@ const OVERRIDES: Readonly<Record<string, (s: ThemeSpec) => ThemeSpec>> = {
       bodyBg: '#eaeaea',
     },
     itemMarkers: ['•', '–', '•'],
-    margins: { hMm: 12, topMm: 3, bottomMm: 6 },
+    // Keep the measured horizontal margin; only the vertical padding is tuned.
+    margins: { ...s.margins, topMm: 3, bottomMm: 6 },
   }),
   moloch: (s) => OVERRIDES['metropolis']!(s),
   Boadilla: (s) => ({
@@ -160,7 +161,7 @@ const OVERRIDES: Readonly<Record<string, (s: ThemeSpec) => ThemeSpec>> = {
       ],
     },
   }),
-  default: (s) => ({ ...s, margins: { hMm: 10, topMm: 4, bottomMm: 4 } }),
+  default: (s) => ({ ...s, margins: { ...s.margins, topMm: 4, bottomMm: 4 } }),
 };
 
 function build(id: string): ThemeSpec {

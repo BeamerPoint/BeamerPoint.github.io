@@ -182,6 +182,25 @@ Saves are debounced 800ms, and flushed on `pagehide` and on the tab being hidden
 A stored file handle does not keep write permission across a reload, so the indicator
 offers to reconnect.
 
+## Canvas geometry
+
+Two rules the canvas must not break, because breaking either makes it silently
+disagree with the compiled PDF:
+
+**Never use CSS `mm`.** It is a physical unit (~3.78px at 96dpi), while the slide is
+drawn on a 10-design-pixel-per-millimetre grid. Mixing them rendered everything at
+0.38x, so an element the model placed at 40mm appeared at 15mm and landed somewhere
+else entirely in the PDF. Use the `--bp-mm` custom property, or `PX_PER_MM` in TSX.
+
+**Absolutely-placed elements belong on the page layer.** `textpos` measures from the
+page corner, so they cannot live inside the text column, which is inset by the
+margins and sits below the frame title.
+
+Theme text margins are MEASURED against the engine, not assumed. The beamer default
+is 10mm but several themes differ sharply -- Madrid, the app's default, uses 3.85mm,
+the sidebar themes 12.91-15mm, Bergen 22.56mm. They look like round numbers waiting
+to be tidied; `packages/core/test/geometry.spec.ts` exists to stop that.
+
 ## Canvas fidelity
 
 The canvas targets roughly 80% visual accuracy and says so in the UI. It will diverge from

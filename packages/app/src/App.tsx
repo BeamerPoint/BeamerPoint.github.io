@@ -171,9 +171,9 @@ export function App(): React.ReactElement {
               }
             }}
             overlayMode={overlayMode}
-            onResizeImage={(elementId, deltaPx, boxPx) => {
+            onResizeImage={(elementId, deltaMm, deltaFraction) => {
               if (selection.slideId !== null) {
-                nudgeImageWidth(selection.slideId, elementId, deltaPx, boxPx);
+                nudgeImageWidth(selection.slideId, elementId, deltaMm, deltaFraction);
               }
             }}
             onMoveImage={(elementId, dx, dy) => {

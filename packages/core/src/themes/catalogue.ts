@@ -35,7 +35,20 @@ export interface ThemeShape {
   needsUnicodeEngine?: boolean;
   /** Dark background themes. */
   dark?: boolean;
+  /**
+   * Horizontal text margin in millimetres, per side.
+   *
+   * MEASURED against the real engine (	he	extwidth in a frame), not assumed. The
+   * beamer default is 10mm, but several themes differ sharply -- Madrid and friends
+   * use 3.85mm, the sidebar themes 12.91-15mm, Bergen 22.56mm. Getting this wrong
+   * makes every width-as-a-fraction-of-	extwidth render at the wrong size on the
+   * canvas, which is exactly how an image can look right here and wrong in the PDF.
+   */
+  hMarginMm: number;
 }
+
+/** The beamer default, used for themes whose margin has not been measured. */
+const DEFAULT_MARGIN = 10;
 
 const BLUE = '#3b4f81';
 const DARKBLUE = '#2b3a5e';
@@ -50,61 +63,61 @@ const MAROON = '#6b1414';
  */
 export const THEME_SHAPES: Readonly<Record<string, ThemeShape>> = {
   // --- minimal -------------------------------------------------------------
-  default: { structure: BLUE, headline: 'none', footline: 'none', filledFrametitle: false },
-  boxes: { structure: BLUE, headline: 'none', footline: 'none', filledFrametitle: false },
-  Bergen: { structure: BLUE, headline: 'none', footline: 'none', filledFrametitle: false },
-  Pittsburgh: { structure: BLUE, headline: 'none', footline: 'none', filledFrametitle: false },
-  Rochester: { structure: BLUE, headline: 'none', footline: 'none', filledFrametitle: true },
+  default: { structure: BLUE, headline: 'none', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
+  boxes: { structure: BLUE, headline: 'none', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
+  Bergen: { structure: BLUE, headline: 'none', footline: 'none', filledFrametitle: false , hMarginMm: 22.56 },
+  Pittsburgh: { structure: BLUE, headline: 'none', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
+  Rochester: { structure: BLUE, headline: 'none', footline: 'none', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
 
   // --- split footline ------------------------------------------------------
-  Madrid: { structure: BLUE, headline: 'none', footline: 'split', filledFrametitle: true },
-  Boadilla: { structure: BLUE, headline: 'none', footline: 'minimal', filledFrametitle: false },
-  AnnArbor: { structure: '#00274c', headline: 'none', footline: 'split', filledFrametitle: true },
-  CambridgeUS: { structure: MAROON, headline: 'none', footline: 'split', filledFrametitle: true },
-  EastLansing: { structure: '#18453b', headline: 'none', footline: 'minimal', filledFrametitle: false },
+  Madrid: { structure: BLUE, headline: 'none', footline: 'split', filledFrametitle: true , hMarginMm: 3.85 },
+  Boadilla: { structure: BLUE, headline: 'none', footline: 'minimal', filledFrametitle: false , hMarginMm: 3.85 },
+  AnnArbor: { structure: '#00274c', headline: 'none', footline: 'split', filledFrametitle: true , hMarginMm: 3.85 },
+  CambridgeUS: { structure: MAROON, headline: 'none', footline: 'split', filledFrametitle: true , hMarginMm: 3.85 },
+  EastLansing: { structure: '#18453b', headline: 'none', footline: 'minimal', filledFrametitle: false , hMarginMm: 3.85 },
 
   // --- miniframes navigation ----------------------------------------------
-  Berlin: { structure: BLUE, headline: 'miniframes', footline: 'split', filledFrametitle: true },
-  Frankfurt: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: true },
-  Darmstadt: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: true },
-  Ilmenau: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: true },
-  Dresden: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: true },
-  Singapore: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: false },
-  Szeged: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: true },
-  Antibes: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: true },
-  JuanLesPins: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: false },
-  Montpellier: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: false },
+  Berlin: { structure: BLUE, headline: 'miniframes', footline: 'split', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  Frankfurt: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  Darmstadt: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  Ilmenau: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  Dresden: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  Singapore: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
+  Szeged: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  Antibes: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  JuanLesPins: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
+  Montpellier: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
 
   // --- section tree --------------------------------------------------------
-  Warsaw: { structure: DARKBLUE, headline: 'tree', footline: 'split', filledFrametitle: true },
-  Copenhagen: { structure: BLUE, headline: 'tree', footline: 'split', filledFrametitle: true },
-  Luebeck: { structure: BLUE, headline: 'tree', footline: 'none', filledFrametitle: false },
-  Malmoe: { structure: BLUE, headline: 'tree', footline: 'none', filledFrametitle: false },
+  Warsaw: { structure: DARKBLUE, headline: 'tree', footline: 'split', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  Copenhagen: { structure: BLUE, headline: 'tree', footline: 'split', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  Luebeck: { structure: BLUE, headline: 'tree', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
+  Malmoe: { structure: BLUE, headline: 'tree', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
 
   // --- sidebar (approximated as a top bar on the canvas) -------------------
-  Berkeley: { structure: BLUE, headline: 'sidebar', footline: 'none', filledFrametitle: true },
-  PaloAlto: { structure: BLUE, headline: 'sidebar', footline: 'none', filledFrametitle: true },
-  Goettingen: { structure: BLUE, headline: 'sidebar', footline: 'none', filledFrametitle: false },
-  Marburg: { structure: BLUE, headline: 'sidebar', footline: 'none', filledFrametitle: false },
-  Hannover: { structure: BLUE, headline: 'sidebar', footline: 'none', filledFrametitle: false },
+  Berkeley: { structure: BLUE, headline: 'sidebar', footline: 'none', filledFrametitle: true , hMarginMm: 12.91 },
+  PaloAlto: { structure: BLUE, headline: 'sidebar', footline: 'none', filledFrametitle: true , hMarginMm: 12.91 },
+  Goettingen: { structure: BLUE, headline: 'sidebar', footline: 'none', filledFrametitle: false , hMarginMm: 15 },
+  Marburg: { structure: BLUE, headline: 'sidebar', footline: 'none', filledFrametitle: false , hMarginMm: 15 },
+  Hannover: { structure: BLUE, headline: 'sidebar', footline: 'none', filledFrametitle: false , hMarginMm: 12.91 },
 
   // --- modern / third-party ------------------------------------------------
   metropolis: {
     structure: TEAL, headline: 'none', footline: 'minimal',
-    filledFrametitle: true, needsUnicodeEngine: true,
+    filledFrametitle: true, needsUnicodeEngine: true, hMarginMm: DEFAULT_MARGIN,
   },
   moloch: {
     structure: TEAL, headline: 'none', footline: 'minimal',
-    filledFrametitle: true, needsUnicodeEngine: true,
+    filledFrametitle: true, needsUnicodeEngine: true, hMarginMm: DEFAULT_MARGIN,
   },
-  focus: { structure: '#22333b', headline: 'none', footline: 'minimal', filledFrametitle: true },
-  SimpleDarkBlue: { structure: '#1f3864', headline: 'none', footline: 'minimal', filledFrametitle: false },
-  SimplePlus: { structure: '#2b5797', headline: 'none', footline: 'minimal', filledFrametitle: true },
-  Nord: { structure: '#5e81ac', headline: 'none', footline: 'minimal', filledFrametitle: true, dark: true },
-  Arguelles: { structure: '#28536b', headline: 'none', footline: 'minimal', filledFrametitle: true },
-  CleanEasy: { structure: '#00539c', headline: 'none', footline: 'minimal', filledFrametitle: true },
-  Cuerna: { structure: '#8c1d40', headline: 'none', footline: 'minimal', filledFrametitle: true },
-  trigon: { structure: '#3d5a80', headline: 'none', footline: 'minimal', filledFrametitle: true },
+  focus: { structure: '#22333b', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  SimpleDarkBlue: { structure: '#1f3864', headline: 'none', footline: 'minimal', filledFrametitle: false , hMarginMm: 7.69 },
+  SimplePlus: { structure: '#2b5797', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: 7.69 },
+  Nord: { structure: '#5e81ac', headline: 'none', footline: 'minimal', filledFrametitle: true, dark: true , hMarginMm: DEFAULT_MARGIN },
+  Arguelles: { structure: '#28536b', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  CleanEasy: { structure: '#00539c', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  Cuerna: { structure: '#8c1d40', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  trigon: { structure: '#3d5a80', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
 };
 
 export const THEME_NAMES: readonly string[] = Object.keys(THEME_SHAPES).sort((a, b) =>
