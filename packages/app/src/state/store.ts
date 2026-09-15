@@ -1,0 +1,435 @@
+import { create } from 'zustand';
+import {
+  emitDeck,
+  newDeck as makeDeck,
+  newFrame,
+  newListElement,
+  newTextElement,
+  parseDeck,
+  plain,
+  type Deck,
+  type Element,
+  type FrameNode,
+  type ParseResult,
+  type SourceMap,
+} from '@beamerpoint/core';
+import type { CompileResult, EngineStatus } from '@beamerpoint/engine';
+
+/**
+ * Source-panel state.
+ *
+ * The invariant that protects the user's work: the canvas and the source editor are
+ * never both writable. Typing in the editor moves us to `dirty`, which makes the
+ * canvas read-only until the edit is applied or reverted. There is no merge path,
+ * because a merge is exactly where hand-written LaTeX gets silently clobbered.
+ */
+export type SourceStatus = 'synced' | 'dirty' | 'error';
+
+export interface SourceHealth {
+  balanced: boolean;
+  parseErrors: number;
+  /** New raw elements compared with the applied deck. Negative or zero is safe. */
+  rawDelta: number;
+}
+
+export interface Selection {
+  slideId: string | null;
+  elementId: string | null;
+}
+
+interface AppState {
+  deck: Deck;
+  sourceMap: SourceMap;
+
+  selection: Selection;
+
+  source: {
+    status: SourceStatus;
+    text: string;
+    /** Text as of the last successful sync, for Revert. */
+    baseText: string;
+    health: SourceHealth | null;
+    lastParse: ParseResult | null;
+  };
+
+  engine: {
+    status: EngineStatus;
+    result: CompileResult | null;
+    compiling: boolean;
+  };
+
+  history: { past: Deck[]; future: Deck[] };
+
+  /* actions */
+  loadDeck(deck: Deck): void;
+  resetDeck(): void;
+
+  selectSlide(slideId: string): void;
+  selectElement(slideId: string, elementId: string | null): void;
+
+  addSlide(): void;
+  deleteSlide(slideId: string): void;
+  moveSlide(slideId: string, delta: number): void;
+  setSlideTitle(slideId: string, title: string): void;
+
+  addTextElement(slideId: string): void;
+  addListElement(slideId: string): void;
+  deleteElement(slideId: string, elementId: string): void;
+  setElementText(slideId: string, elementId: string, text: string): void;
+  setListItemText(slideId: string, elementId: string, itemId: string, text: string): void;
+  moveElementToAbsolute(slideId: string, elementId: string, x: number, y: number, w: number): void;
+
+  setTheme(name: string): void;
+  setAspect(aspect: Deck['preamble']['documentClass']['aspectRatio']): void;
+
+  editSource(text: string): void;
+  applySource(): void;
+  revertSource(): void;
+
+  setEngineStatus(s: EngineStatus): void;
+  setCompiling(v: boolean): void;
+  setCompileResult(r: CompileResult | null): void;
+
+  undo(): void;
+  redo(): void;
+}
+
+function regenerate(deck: Deck): { text: string; sourceMap: SourceMap } {
+  const { tex, sourceMap } = emitDeck(deck);
+  return { text: tex, sourceMap };
+}
+
+/**
+ * Frames of a deck, memoised on deck identity.
+ *
+ * Zustand compares selector results by reference, so returning a fresh array here
+ * would re-render forever. The deck is replaced wholesale on every mutation, so
+ * identity is a sound cache key.
+ */
+let framesCache: { deck: Deck; frames: FrameNode[] } | null = null;
+
+function frames(deck: Deck): FrameNode[] {
+  if (framesCache !== null && framesCache.deck === deck) return framesCache.frames;
+  const result = deck.nodes.filter((n): n is FrameNode => n.kind === 'frame');
+  framesCache = { deck, frames: result };
+  return result;
+}
+
+function countRaw(deck: Deck): number {
+  let n = 0;
+  const visit = (els: Element[]): void => {
+    for (const el of els) {
+      if (el.kind === 'raw') n += 1;
+      else if (el.kind === 'block') visit(el.children);
+      else if (el.kind === 'columns') el.columns.forEach((c) => visit(c.children));
+    }
+  };
+  for (const node of deck.nodes) {
+    if (node.kind === 'rawdoc') n += 1;
+    else if (node.kind === 'frame') visit(node.children);
+  }
+  return n;
+}
+
+/** Quick structural health check, used to decide whether auto-apply is safe. */
+function healthOf(text: string, appliedDeck: Deck): SourceHealth {
+  const parsed = parseDeck(text);
+  return {
+    balanced: parsed.health.parseErrors === 0,
+    parseErrors: parsed.health.parseErrors,
+    rawDelta: countRaw(parsed.deck) - countRaw(appliedDeck),
+  };
+}
+
+const initialDeck = makeDeck({ title: 'Untitled Presentation' });
+const initialSource = regenerate(initialDeck);
+
+export const useStore = create<AppState>()((set, get) => {
+  /** Apply a deck mutation, push undo, and keep the source panel in sync. */
+  const mutate = (fn: (deck: Deck) => Deck): void => {
+    const state = get();
+    if (state.source.status !== 'synced') return; // canvas is locked
+    const next = fn(state.deck);
+    const regen = regenerate(next);
+    set({
+      deck: next,
+      sourceMap: regen.sourceMap,
+      source: { ...state.source, text: regen.text, baseText: regen.text },
+      history: { past: [...state.history.past, state.deck].slice(-100), future: [] },
+    });
+  };
+
+  const mapFrame = (deck: Deck, slideId: string, fn: (f: FrameNode) => FrameNode): Deck => ({
+    ...deck,
+    nodes: deck.nodes.map((n) => (n.kind === 'frame' && n.id === slideId ? fn(n) : n)),
+  });
+
+  const mapElement = (
+    deck: Deck,
+    slideId: string,
+    elementId: string,
+    fn: (el: Element) => Element,
+  ): Deck =>
+    mapFrame(deck, slideId, (f) => ({
+      ...f,
+      children: f.children.map((el) => (el.id === elementId ? fn(el) : el)),
+    }));
+
+  return {
+    deck: initialDeck,
+    sourceMap: initialSource.sourceMap,
+    selection: { slideId: frames(initialDeck)[0]?.id ?? null, elementId: null },
+    source: {
+      status: 'synced',
+      text: initialSource.text,
+      baseText: initialSource.text,
+      health: null,
+      lastParse: null,
+    },
+    engine: { status: { s: 'uninitialised' }, result: null, compiling: false },
+    history: { past: [], future: [] },
+
+    loadDeck(deck) {
+      const regen = regenerate(deck);
+      set({
+        deck,
+        sourceMap: regen.sourceMap,
+        selection: { slideId: frames(deck)[0]?.id ?? null, elementId: null },
+        source: {
+          status: 'synced', text: regen.text, baseText: regen.text,
+          health: null, lastParse: null,
+        },
+        history: { past: [], future: [] },
+      });
+    },
+
+    resetDeck() {
+      get().loadDeck(makeDeck({ title: 'Untitled Presentation' }));
+    },
+
+    selectSlide(slideId) {
+      set({ selection: { slideId, elementId: null } });
+    },
+
+    selectElement(slideId, elementId) {
+      set({ selection: { slideId, elementId } });
+    },
+
+    addSlide() {
+      const frame = newFrame('New slide', [newTextElement('')]);
+      mutate((deck) => {
+        const idx = deck.nodes.findIndex((n) => n.id === get().selection.slideId);
+        const nodes = [...deck.nodes];
+        nodes.splice(idx === -1 ? nodes.length : idx + 1, 0, frame);
+        return { ...deck, nodes };
+      });
+      set({ selection: { slideId: frame.id, elementId: null } });
+    },
+
+    deleteSlide(slideId) {
+      const remaining = frames(get().deck).filter((f) => f.id !== slideId);
+      if (remaining.length === 0) return;
+      mutate((deck) => ({ ...deck, nodes: deck.nodes.filter((n) => n.id !== slideId) }));
+      set({ selection: { slideId: remaining[0]!.id, elementId: null } });
+    },
+
+    moveSlide(slideId, delta) {
+      mutate((deck) => {
+        const idx = deck.nodes.findIndex((n) => n.id === slideId);
+        const target = idx + delta;
+        if (idx === -1 || target < 0 || target >= deck.nodes.length) return deck;
+        const nodes = [...deck.nodes];
+        const [node] = nodes.splice(idx, 1);
+        nodes.splice(target, 0, node!);
+        return { ...deck, nodes };
+      });
+    },
+
+    setSlideTitle(slideId, title) {
+      mutate((deck) =>
+        mapFrame(deck, slideId, (f) => ({
+          ...f,
+          ...(title === '' ? { title: undefined } : { title: plain(title) }),
+        })),
+      );
+    },
+
+    addTextElement(slideId) {
+      const el = newTextElement('New text');
+      mutate((deck) => mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, el] })));
+      set({ selection: { slideId, elementId: el.id } });
+    },
+
+    addListElement(slideId) {
+      const el = newListElement(['First point', 'Second point']);
+      mutate((deck) => mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, el] })));
+      set({ selection: { slideId, elementId: el.id } });
+    },
+
+    deleteElement(slideId, elementId) {
+      mutate((deck) =>
+        mapFrame(deck, slideId, (f) => ({
+          ...f,
+          children: f.children.filter((el) => el.id !== elementId),
+        })),
+      );
+      set({ selection: { slideId, elementId: null } });
+    },
+
+    setElementText(slideId, elementId, text) {
+      mutate((deck) =>
+        mapElement(deck, slideId, elementId, (el) =>
+          el.kind === 'text' ? { ...el, content: plain(text) } : el,
+        ),
+      );
+    },
+
+    setListItemText(slideId, elementId, itemId, text) {
+      mutate((deck) =>
+        mapElement(deck, slideId, elementId, (el) =>
+          el.kind === 'list'
+            ? {
+                ...el,
+                items: el.items.map((i) => (i.id === itemId ? { ...i, content: plain(text) } : i)),
+              }
+            : el,
+        ),
+      );
+    },
+
+    moveElementToAbsolute(slideId, elementId, x, y, w) {
+      mutate((deck) =>
+        mapElement(deck, slideId, elementId, (el) => ({
+          ...el,
+          placement: { mode: 'absolute', x, y, w, z: 0, driver: 'textpos' },
+        })),
+      );
+    },
+
+    setTheme(name) {
+      mutate((deck) => ({
+        ...deck,
+        preamble: { ...deck.preamble, theme: { name, options: [] } },
+      }));
+    },
+
+    setAspect(aspect) {
+      mutate((deck) => ({
+        ...deck,
+        preamble: {
+          ...deck.preamble,
+          documentClass: { ...deck.preamble.documentClass, aspectRatio: aspect },
+        },
+      }));
+    },
+
+    editSource(text) {
+      const state = get();
+      if (text === state.source.baseText) {
+        set({ source: { ...state.source, status: 'synced', text, health: null } });
+        return;
+      }
+      set({
+        source: {
+          ...state.source,
+          status: 'dirty',
+          text,
+          health: healthOf(text, state.deck),
+        },
+      });
+    },
+
+    applySource() {
+      const state = get();
+      const result = parseDeck(state.source.text, { previous: state.deck });
+
+      // Re-emit so the editor shows canonical formatting and the two views agree.
+      const regen = regenerate(result.deck);
+      const stillSelected = frames(result.deck).some((f) => f.id === state.selection.slideId);
+
+      set({
+        deck: result.deck,
+        sourceMap: regen.sourceMap,
+        selection: stillSelected
+          ? { ...state.selection, elementId: null }
+          : { slideId: frames(result.deck)[0]?.id ?? null, elementId: null },
+        source: {
+          status: 'synced',
+          text: regen.text,
+          baseText: regen.text,
+          health: null,
+          lastParse: result,
+        },
+        history: { past: [...state.history.past, state.deck].slice(-100), future: [] },
+      });
+    },
+
+    revertSource() {
+      const state = get();
+      set({
+        source: {
+          ...state.source,
+          status: 'synced',
+          text: state.source.baseText,
+          health: null,
+        },
+      });
+    },
+
+    setEngineStatus(s) {
+      set({ engine: { ...get().engine, status: s } });
+    },
+    setCompiling(v) {
+      set({ engine: { ...get().engine, compiling: v } });
+    },
+    setCompileResult(r) {
+      set({ engine: { ...get().engine, result: r } });
+    },
+
+    undo() {
+      const state = get();
+      const prev = state.history.past[state.history.past.length - 1];
+      if (prev === undefined) return;
+      const regen = regenerate(prev);
+      set({
+        deck: prev,
+        sourceMap: regen.sourceMap,
+        source: {
+          status: 'synced', text: regen.text, baseText: regen.text,
+          health: null, lastParse: null,
+        },
+        history: {
+          past: state.history.past.slice(0, -1),
+          future: [state.deck, ...state.history.future].slice(0, 100),
+        },
+      });
+    },
+
+    redo() {
+      const state = get();
+      const next = state.history.future[0];
+      if (next === undefined) return;
+      const regen = regenerate(next);
+      set({
+        deck: next,
+        sourceMap: regen.sourceMap,
+        source: {
+          status: 'synced', text: regen.text, baseText: regen.text,
+          health: null, lastParse: null,
+        },
+        history: {
+          past: [...state.history.past, state.deck],
+          future: state.history.future.slice(1),
+        },
+      });
+    },
+  };
+});
+
+export const selectFrames = (s: AppState): FrameNode[] => frames(s.deck);
+
+export const selectCurrentFrame = (s: AppState): FrameNode | undefined =>
+  frames(s.deck).find((f) => f.id === s.selection.slideId);
+
+/** True when the canvas must refuse edits because the source editor owns the document. */
+export const selectCanvasLocked = (s: AppState): boolean => s.source.status !== 'synced';

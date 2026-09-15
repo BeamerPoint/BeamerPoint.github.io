@@ -1,0 +1,429 @@
+import type {
+  BeamerBlockElement,
+  ColumnSpec,
+  ColumnsElement,
+  Element,
+  Id,
+  Length,
+  ListElement,
+  ListItem,
+  Placement,
+  RawElement,
+} from '../../model/types.js';
+import type { CstGroup, CstNode } from '../cst.js';
+import { buildCst } from '../lexer.js';
+import { parseInline, trimRichText } from '../inline.js';
+
+export interface RecognizeCtx {
+  src: string;
+  newId(): Id;
+}
+
+const LIST_ENVS: ReadonlySet<string> = new Set(['itemize', 'enumerate', 'description']);
+
+const BLOCK_ENVS: Readonly<Record<string, BeamerBlockElement['variant']>> = {
+  block: 'block',
+  alertblock: 'alertblock',
+  exampleblock: 'exampleblock',
+  theorem: 'theorem',
+  definition: 'definition',
+  lemma: 'lemma',
+  corollary: 'corollary',
+  proof: 'proof',
+  example: 'example',
+};
+
+/**
+ * Commands that terminate a prose run and become their own element.
+ *
+ * Everything else is treated as inline and folded into the surrounding text element,
+ * where `parseInline` will preserve it as a raw island if it is not understood.
+ */
+const BLOCK_COMMANDS: ReadonlySet<string> = new Set([
+  'titlepage', 'maketitle', 'tableofcontents',
+  'includegraphics', 'bibliography', 'bibliographystyle', 'printbibliography',
+]);
+
+/** Commands handled by the frame recognizer, never emitted as elements. */
+export const FRAME_META_COMMANDS: ReadonlySet<string> = new Set([
+  'frametitle', 'framesubtitle', 'note',
+]);
+
+function rawSlice(ctx: RecognizeCtx, from: CstNode, to: CstNode = from): string {
+  return ctx.src.slice(from.span.start, to.span.end);
+}
+
+function makeRaw(
+  ctx: RecognizeCtx,
+  tex: string,
+  reason: RawElement['reason'],
+  label?: string,
+): RawElement {
+  return {
+    id: ctx.newId(),
+    kind: 'raw',
+    placement: { mode: 'flow' },
+    tex,
+    reason,
+    ...(label !== undefined ? { label } : {}),
+  };
+}
+
+/**
+ * Turn a run of CST nodes (a frame body, a block body, a column body) into elements.
+ *
+ * Prose is accumulated until something block-level appears, then flushed as a single
+ * text element. Comments attach to the element that follows them so they survive a
+ * round trip in the right place.
+ */
+export function recognizeElements(nodes: CstNode[], ctx: RecognizeCtx): Element[] {
+  const out: Element[] = [];
+  let buffer: CstNode[] = [];
+  let comments: string[] = [];
+
+  const attach = (el: Element): void => {
+    if (comments.length > 0) {
+      el.leadingComments = comments;
+      comments = [];
+    }
+    out.push(el);
+  };
+
+  const isBlank = (n: CstNode): boolean => n.n === 'text' && n.value.trim() === '';
+
+  const flushProse = (): void => {
+    if (buffer.length === 0) return;
+    const nodes = buffer;
+    buffer = [];
+
+    const content = trimRichText(parseInline(nodes, ctx.src));
+    if (content.length === 0) {
+      comments = [];
+      return;
+    }
+
+    // The span must cover the significant nodes only. Trailing whitespace can sit
+    // where a command was lifted out of the body (a \note, say), and including it
+    // would make the span overlap content this element does not own — which the
+    // round-trip guard would then see as a mismatch.
+    const first = nodes.find((n) => !isBlank(n)) ?? nodes[0]!;
+    let last = nodes[nodes.length - 1]!;
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      if (!isBlank(nodes[i]!)) { last = nodes[i]!; break; }
+    }
+
+    attach({
+      id: ctx.newId(),
+      kind: 'text',
+      placement: { mode: 'flow' },
+      content,
+      src: { start: first.span.start, end: last.span.end, line: first.span.line },
+    });
+  };
+
+  for (const node of nodes) {
+    if (node.n === 'comment') {
+      flushProse();
+      comments.push(node.value);
+      continue;
+    }
+
+    if (node.n === 'parbreak') {
+      flushProse();
+      continue;
+    }
+
+    if (node.n === 'text' && node.value.trim() === '') {
+      if (buffer.length > 0) buffer.push(node);
+      continue;
+    }
+
+    if (isBlockLevel(node)) {
+      flushProse();
+      attach(recognizeBlockLevel(node, ctx));
+      continue;
+    }
+
+    buffer.push(node);
+  }
+
+  flushProse();
+
+  // Trailing comments with nothing to attach to must still survive.
+  if (comments.length > 0) {
+    out.push(makeRaw(ctx, comments.map((c) => `%${c}`).join('\n'), 'unrecognised', 'comment'));
+  }
+
+  return out;
+}
+
+function isBlockLevel(node: CstNode): boolean {
+  switch (node.n) {
+    case 'env':
+    case 'verb':
+    case 'error':
+      return true;
+    case 'math':
+      return node.display;
+    case 'cmd':
+      return BLOCK_COMMANDS.has(node.name);
+    default:
+      return false;
+  }
+}
+
+/**
+ * Recognize one block-level node.
+ *
+ * Every branch is all-or-nothing: a recognizer that meets something it cannot model
+ * falls through to `makeRaw` with the exact source bytes rather than returning a
+ * partially-populated element.
+ */
+function recognizeBlockLevel(node: CstNode, ctx: RecognizeCtx): Element {
+  if (node.n === 'env') {
+    const placed = recognizeTextblock(node, ctx);
+    if (placed !== null) return placed;
+
+    if (LIST_ENVS.has(node.name)) {
+      const list = recognizeList(node, ctx);
+      if (list !== null) return list;
+    }
+
+    const variant = BLOCK_ENVS[node.name];
+    if (variant !== undefined) {
+      const block = recognizeBlock(node, variant, ctx);
+      if (block !== null) return block;
+    }
+
+    if (node.name === 'columns') {
+      const cols = recognizeColumns(node, ctx);
+      if (cols !== null) return cols;
+    }
+  }
+
+  return makeRaw(ctx, rawSlice(ctx, node), 'unrecognised', labelFor(node));
+}
+
+function labelFor(node: CstNode): string | undefined {
+  if (node.n === 'env') return `\\begin{${node.name}}`;
+  if (node.n === 'cmd') return `\\${node.name}`;
+  if (node.n === 'verb') return `\\begin{${node.name}}`;
+  if (node.n === 'math') return 'display math';
+  return undefined;
+}
+
+/* --------------------------------------------------------------------- lists */
+
+function recognizeList(
+  node: Extract<CstNode, { n: 'env' }>,
+  ctx: RecognizeCtx,
+): ListElement | null {
+  const items = splitItems(node.children, ctx);
+  if (items === null) return null;
+
+  const envOptions = node.opts.length > 0
+    ? ctx.src.slice(node.opts[0]!.span.start, node.opts[node.opts.length - 1]!.span.end)
+    : undefined;
+
+  return {
+    id: ctx.newId(),
+    kind: 'list',
+    placement: { mode: 'flow' },
+    listType: node.name as ListElement['listType'],
+    ...(envOptions !== undefined ? { envOptions } : {}),
+    items,
+    src: node.span,
+  };
+}
+
+/**
+ * Split an itemize body into items.
+ *
+ * Returns `null` when content appears before the first `\item`, because that content
+ * has no representation in the model and silently dropping it is exactly the failure
+ * this architecture exists to prevent.
+ */
+function splitItems(children: CstNode[], ctx: RecognizeCtx): ListItem[] | null {
+  interface Pending { label?: CstGroup; nodes: CstNode[] }
+  const items: ListItem[] = [];
+  let current: Pending | null = null;
+
+  /** Convert the pending item. Returns false to decline the whole environment. */
+  const flush = (): boolean => {
+    if (current === null) return true;
+    const pending: Pending = current;
+    current = null;
+
+    const sublistIdx = pending.nodes.findIndex((n) => n.n === 'env' && LIST_ENVS.has(n.name));
+    const inlineNodes = sublistIdx === -1 ? pending.nodes : pending.nodes.slice(0, sublistIdx);
+    const tail = sublistIdx === -1 ? [] : pending.nodes.slice(sublistIdx);
+
+    let sublist: ListElement | undefined;
+    if (tail.length > 0) {
+      const envNode = tail[0]!;
+      if (envNode.n !== 'env') return false;
+      const nested = recognizeList(envNode, ctx);
+      if (nested === null) return false;
+      sublist = nested;
+      // Content after a nested list has no representation; refuse rather than drop it.
+      const rest = tail.slice(1);
+      const significant = rest.some(
+        (n) => !(n.n === 'parbreak' || (n.n === 'text' && n.value.trim() === '')),
+      );
+      if (significant) return false;
+    }
+
+    const item: ListItem = {
+      id: ctx.newId(),
+      content: trimRichText(parseInline(inlineNodes, ctx.src)),
+    };
+    if (pending.label !== undefined) {
+      item.label = trimRichText(parseInline(pending.label.children, ctx.src));
+    }
+    if (sublist !== undefined) item.sublist = sublist;
+    items.push(item);
+    return true;
+  };
+
+  for (const node of children) {
+    if (node.n === 'cmd' && node.name === 'item') {
+      if (!flush()) return null;
+      if (node.opts.length > 1) return null;
+      const label = node.opts.length === 1 ? node.opts[0]! : undefined;
+      current = { nodes: [], ...(label !== undefined ? { label } : {}) };
+      continue;
+    }
+
+    if (current === null) {
+      // Whitespace before the first \item is tolerable; anything else would be lost,
+      // so decline the whole environment rather than dropping it.
+      if (node.n === 'text' && node.value.trim() === '') continue;
+      if (node.n === 'parbreak') continue;
+      return null;
+    }
+
+    current.nodes.push(node);
+  }
+
+  if (!flush()) return null;
+  return items.length > 0 ? items : null;
+}
+
+/* -------------------------------------------------------------------- blocks */
+
+function recognizeBlock(
+  node: Extract<CstNode, { n: 'env' }>,
+  variant: BeamerBlockElement['variant'],
+  ctx: RecognizeCtx,
+): BeamerBlockElement | null {
+  if (node.args.length > 1) return null;
+  const title = node.args.length === 1
+    ? trimRichText(parseInline(node.args[0]!.children, ctx.src))
+    : undefined;
+
+  return {
+    id: ctx.newId(),
+    kind: 'block',
+    placement: { mode: 'flow' },
+    variant,
+    ...(title !== undefined ? { title } : {}),
+    children: recognizeElements(node.children, ctx),
+    src: node.span,
+  };
+}
+
+/* ------------------------------------------------------------------- columns */
+
+function recognizeColumns(
+  node: Extract<CstNode, { n: 'env' }>,
+  ctx: RecognizeCtx,
+): ColumnsElement | null {
+  const columns: ColumnSpec[] = [];
+
+  for (const child of node.children) {
+    if (child.n === 'text' && child.value.trim() === '') continue;
+    if (child.n === 'parbreak') continue;
+    if (child.n !== 'env' || child.name !== 'column') return null;
+    if (child.args.length !== 1) return null;
+
+    const width = parseLength(ctx.src.slice(child.args[0]!.span.start + 1, child.args[0]!.span.end - 1));
+    if (width === null) return null;
+
+    const valign = child.opts.length === 1
+      ? ctx.src.slice(child.opts[0]!.span.start + 1, child.opts[0]!.span.end - 1).trim()
+      : undefined;
+    if (valign !== undefined && !['t', 'c', 'b'].includes(valign)) return null;
+
+    columns.push({
+      id: ctx.newId(),
+      width,
+      ...(valign !== undefined ? { valign: valign as 't' | 'c' | 'b' } : {}),
+      children: recognizeElements(child.children, ctx),
+    });
+  }
+
+  if (columns.length === 0) return null;
+
+  const envOptions = node.opts.length > 0
+    ? ctx.src.slice(node.opts[0]!.span.start, node.opts[node.opts.length - 1]!.span.end)
+    : undefined;
+
+  return {
+    id: ctx.newId(),
+    kind: 'columns',
+    placement: { mode: 'flow' },
+    ...(envOptions !== undefined ? { envOptions } : {}),
+    columns,
+    src: node.span,
+  };
+}
+
+const LENGTH_RE = /^\s*(-?[\d.]+)\s*(?:\\(textwidth|linewidth|textheight|paperwidth|paperheight)|(mm|cm|pt|ex|em))\s*$/;
+
+export function parseLength(s: string): Length | null {
+  const m = LENGTH_RE.exec(s);
+  if (m === null) return null;
+  const v = Number.parseFloat(m[1]!);
+  if (!Number.isFinite(v)) return null;
+  const u = (m[2] ?? m[3]) as Length['u'];
+  return { v, u };
+}
+
+/* ---------------------------------------------------- absolute placement */
+
+/** `\begin{textblock*}{W}(X,Y)` produced by dragging an element on the canvas. */
+function recognizeTextblock(
+  node: Extract<CstNode, { n: 'env' }>,
+  ctx: RecognizeCtx,
+): Element | null {
+  if (node.name !== 'textblock*') return null;
+  if (node.args.length !== 1) return null;
+
+  const widthText = ctx.src.slice(node.args[0]!.span.start + 1, node.args[0]!.span.end - 1);
+  const wm = /^\s*(-?[\d.]+)\s*mm\s*$/.exec(widthText);
+  if (wm === null) return null;
+
+  // The (x,y) pair is ordinary text at the START of the body: argument collection
+  // stops at the closing brace of {W}, so the coordinates are inside bodySpan.
+  const body = ctx.src.slice(node.bodySpan.start, node.bodySpan.end);
+  const pm = /^\s*\(\s*(-?[\d.]+)\s*mm\s*,\s*(-?[\d.]+)\s*mm\s*\)/.exec(body);
+  if (pm === null) return null;
+
+  // Re-lex the remainder on its own, so raw slices inside it resolve against the
+  // right string rather than against absolute offsets into the full document.
+  const remainder = body.slice(pm[0].length);
+  const sub = buildCst(remainder);
+  const inner = recognizeElements(sub.root, { src: remainder, newId: ctx.newId });
+  if (inner.length !== 1) return null;
+
+  const placement: Placement = {
+    mode: 'absolute',
+    x: Number.parseFloat(pm[1]!),
+    y: Number.parseFloat(pm[2]!),
+    w: Number.parseFloat(wm[1]!),
+    z: 0,
+    driver: 'textpos',
+  };
+
+  return { ...inner[0]!, placement, src: node.span };
+}

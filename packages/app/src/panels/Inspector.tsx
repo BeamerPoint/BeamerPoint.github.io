@@ -1,0 +1,80 @@
+import { THEME_IDS, richTextToPlain, type AspectRatio } from '@beamerpoint/core';
+import { selectCurrentFrame, useStore } from '../state/store.js';
+
+const ASPECTS: AspectRatio[] = ['169', '43', '1610', '32'];
+
+/** Properties for the current slide and the deck as a whole. */
+export function Inspector(): React.ReactElement {
+  const deck = useStore((s) => s.deck);
+  const frame = useStore(selectCurrentFrame);
+  const locked = useStore((s) => s.source.status !== 'synced');
+  const setSlideTitle = useStore((s) => s.setSlideTitle);
+  const setTheme = useStore((s) => s.setTheme);
+  const setAspect = useStore((s) => s.setAspect);
+  const addTextElement = useStore((s) => s.addTextElement);
+  const addListElement = useStore((s) => s.addListElement);
+  const deleteElement = useStore((s) => s.deleteElement);
+  const selection = useStore((s) => s.selection);
+
+  return (
+    <aside className="bp-inspector">
+      <section>
+        <h4>Slide</h4>
+        <label>
+          Title
+          <input
+            type="text"
+            disabled={locked || frame === undefined}
+            value={frame?.title ? richTextToPlain(frame.title) : ''}
+            onChange={(e) => frame && setSlideTitle(frame.id, e.target.value)}
+          />
+        </label>
+        <div className="bp-btn-row">
+          <button disabled={locked || !frame} onClick={() => frame && addTextElement(frame.id)}>
+            + Text
+          </button>
+          <button disabled={locked || !frame} onClick={() => frame && addListElement(frame.id)}>
+            + Bullets
+          </button>
+        </div>
+        {selection.elementId !== null && frame !== undefined && (
+          <button
+            className="bp-danger"
+            disabled={locked}
+            onClick={() => deleteElement(frame.id, selection.elementId!)}
+          >
+            Delete selected element
+          </button>
+        )}
+      </section>
+
+      <section>
+        <h4>Presentation</h4>
+        <label>
+          Theme
+          <select
+            disabled={locked}
+            value={deck.preamble.theme.name}
+            onChange={(e) => setTheme(e.target.value)}
+          >
+            {THEME_IDS.map((id) => <option key={id} value={id}>{id}</option>)}
+          </select>
+        </label>
+        <label>
+          Aspect ratio
+          <select
+            disabled={locked}
+            value={deck.preamble.documentClass.aspectRatio}
+            onChange={(e) => setAspect(e.target.value as AspectRatio)}
+          >
+            {ASPECTS.map((a) => (
+              <option key={a} value={a}>
+                {a === '169' ? '16:9' : a === '43' ? '4:3' : a === '1610' ? '16:10' : '3:2'}
+              </option>
+            ))}
+          </select>
+        </label>
+      </section>
+    </aside>
+  );
+}

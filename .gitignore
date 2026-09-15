@@ -1,0 +1,5 @@
+node_modules/
+dist/
+*.tsbuildinfo
+packages/app/public/core/busytex/
+.vite/
