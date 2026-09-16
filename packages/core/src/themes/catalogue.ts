@@ -92,19 +92,19 @@ export const THEME_SHAPES: Readonly<Record<string, ThemeShape>> = {
 
   // --- split footline ------------------------------------------------------
   Madrid: { structure: BLUE, headline: 'none', footline: 'split', filledFrametitle: true , hMarginMm: 3.85, textTopMm: 13.9, textBottomInsetMm: 3.3 },
-  Boadilla: { structure: BLUE, headline: 'none', footline: 'minimal', filledFrametitle: false , hMarginMm: 3.85 },
+  Boadilla: { structure: BLUE, headline: 'none', footline: 'split', filledFrametitle: false , hMarginMm: 3.85 },
   AnnArbor: { structure: '#00274c', headline: 'none', footline: 'split', filledFrametitle: true , hMarginMm: 3.85 },
   CambridgeUS: { structure: MAROON, headline: 'none', footline: 'split', filledFrametitle: true , hMarginMm: 3.85 },
-  EastLansing: { structure: '#18453b', headline: 'none', footline: 'minimal', filledFrametitle: false , hMarginMm: 3.85 },
+  EastLansing: { structure: '#18453b', headline: 'none', footline: 'split', filledFrametitle: false , hMarginMm: 3.85 },
 
   // --- miniframes navigation ----------------------------------------------
   Berlin: { structure: BLUE, headline: 'miniframes', footline: 'split', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
   Frankfurt: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
   Darmstadt: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
-  Ilmenau: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
-  Dresden: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  Ilmenau: { structure: BLUE, headline: 'miniframes', footline: 'split', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  Dresden: { structure: BLUE, headline: 'miniframes', footline: 'split', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
   Singapore: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
-  Szeged: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  Szeged: { structure: BLUE, headline: 'miniframes', footline: 'split', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
   Antibes: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
   JuanLesPins: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
   Montpellier: { structure: BLUE, headline: 'miniframes', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
@@ -112,8 +112,8 @@ export const THEME_SHAPES: Readonly<Record<string, ThemeShape>> = {
   // --- section tree --------------------------------------------------------
   Warsaw: { structure: DARKBLUE, headline: 'tree', footline: 'split', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN, textTopMm: 10.7, textBottomInsetMm: 3.6 },
   Copenhagen: { structure: BLUE, headline: 'tree', footline: 'split', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
-  Luebeck: { structure: BLUE, headline: 'tree', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
-  Malmoe: { structure: BLUE, headline: 'tree', footline: 'none', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
+  Luebeck: { structure: BLUE, headline: 'tree', footline: 'split', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
+  Malmoe: { structure: BLUE, headline: 'tree', footline: 'split', filledFrametitle: false , hMarginMm: DEFAULT_MARGIN },
 
   // --- sidebar (approximated as a top bar on the canvas) -------------------
   Berkeley: { structure: BLUE, headline: 'sidebar', footline: 'none', filledFrametitle: true , hMarginMm: 12.91, textTopMm: 19.0, textBottomInsetMm: 0.2 },
@@ -136,7 +136,7 @@ export const THEME_SHAPES: Readonly<Record<string, ThemeShape>> = {
   Nord: { structure: '#5e81ac', headline: 'none', footline: 'minimal', filledFrametitle: true, dark: true , hMarginMm: DEFAULT_MARGIN },
   Arguelles: { structure: '#28536b', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN , unavailable: { missingPackage: 'Alegreya.sty' } },
   CleanEasy: { structure: '#00539c', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN , unavailable: { missingPackage: 'cmbright.sty' } },
-  Cuerna: { structure: '#8c1d40', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
+  Cuerna: { structure: '#8c1d40', headline: 'none', footline: 'none', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN },
   trigon: { structure: '#3d5a80', headline: 'none', footline: 'minimal', filledFrametitle: true , hMarginMm: DEFAULT_MARGIN , unavailable: { missingPackage: 'sourcesanspro.sty' } },
 };
 

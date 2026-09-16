@@ -56,4 +56,6 @@ export {
 } from './themes/catalogue.js';
 export type {
   ThemeSpec, HeadlineSpec, FootlineSpec, FootlineCell, FrametitleSpec, BlockSpec, BlockStyle,
+  TitlePageSpec,
 } from './themes/spec.js';
+export { MEASURED, hasMeasuredColors, type MeasuredTheme } from './themes/measured.js';

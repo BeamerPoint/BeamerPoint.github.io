@@ -903,3 +903,29 @@ body.bp-dragging { user-select: none; }
   background: var(--bp-hover);
 }
 .bp-smart-live .bp-smart-preview { height: 104px; }
+
+/* ---------------------------------------------------------------- sidebar */
+/*
+ * Sidebar themes (Berkeley, PaloAlto, Goettingen, Marburg, Hannover) reserve real
+ * horizontal space. The width is the theme's MEASURED text margin, so the body sits
+ * where beamer puts it rather than beside a decorative strip.
+ */
+.bp-sidebar {
+  position: absolute; left: 0; top: 0; bottom: 0; z-index: 1;
+  display: flex; flex-direction: column; gap: calc(var(--bp-mm) * 1.6);
+  padding: calc(var(--bp-mm) * 3) calc(var(--bp-mm) * 1);
+  overflow: hidden;
+}
+.bp-sidebar-section {
+  font-size: 0.6em; opacity: 0.92; line-height: 1.2;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* metropolis-style blocks are flat: no rounding, no filled title bar. */
+.bp-block-plain > .bp-block-title { font-weight: 700; }
+
+/* An empty block would otherwise be zero-height and invisible on the canvas. */
+.bp-block.is-empty > .bp-block-body {
+  min-height: calc(var(--bp-mm) * 8);
+  outline: 1px dashed rgba(0, 0, 0, 0.22); outline-offset: -1px;
+}

@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 133 tests
+npm test             # vitest, 144 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -227,6 +227,27 @@ preview. `canvas/mathPreview.ts` does it once for both the canvas and the inspec
 having two copies is how a valid equation rendered correctly in one and as a red error
 in the other.
 
+**Theme colours are asked of beamer, not derived from one hex.** Every palette used to be
+mixed arithmetically from a hand-written `structure` colour, and **25 of the 39 themes shared
+the same blue** — Madrid, Warsaw, Berlin, Frankfurt and 21 others were colour-identical on
+the canvas while the PDFs were plainly different. Beamer will simply tell you: for each
+colour, `\usebeamercolor*{X}` then `\extractcolorspec{X.fg}{\tmp}\typeout{...}`, guarded with
+`\@ifundefined{\string\color@X.fg}` because most beamer colours have no background — and
+**starred, inside a group**, because the unstarred form adds to the colour already in force
+and a theme's answers then depend on the order you asked the questions in. The
+sweep is in `tools/theme-colours.md` and its output is checked in as
+`themes/measured.ts`; `applyMeasured()` overlays it on the derivation, which survives only
+as the fallback for the four themes that cannot compile here. Measurement also corrected
+eight catalogued footline kinds and found AnnArbor's maize title bar (derived: navy),
+CambridgeUS' grey-and-red (derived: maroon) and Madrid's footline running light-dark-light
+when beamer runs it dark-to-light. Re-run the sweep after touching the theme list.
+
+**A sidebar theme's frame title must be inset past the sidebar.** The sidebar occupies the
+whole left text margin, and the frame title spans the full page width, so padding the title
+by `margins.hMm` put it exactly underneath — Berkeley's "Frame title bar" rendered as
+"ne title bar". The title's left padding is `max(its own, sidebar + 1.5mm)`, and both the
+sidebar and that inset read one `sidebarMm` local so they cannot drift apart.
+
 **Prefer the Write/Edit tools over shell heredocs for files containing LaTeX.** Multiple
 layers of shell/Python escaping have repeatedly halved backslashes and corrupted
 `\includegraphics` into `includegraphics`.
@@ -247,7 +268,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Twenty-one commits on `master`, ~15,900 lines across 83 source files, 133 tests passing.
+Twenty-two commits on `master`, ~16,100 lines across 85 source files, 144 tests passing.
 
 ### Done
 
@@ -281,7 +302,8 @@ Twenty-one commits on `master`, ~15,900 lines across 83 source files, 133 tests 
 - **Math**: display equations (equation/align/gather and their starred forms, plus
   `\[ \]`), body kept verbatim, KaTeX preview on the canvas and in the inspector
 - **Sections and speaker notes**: emitted and parsed (no authoring UI yet)
-- **Themes**: 35 presentation themes, each verified to compile, with measured margins; XeLaTeX auto-selected for
+- **Themes**: 35 presentation themes, each verified to compile, with measured margins and
+  measured colours (`themes/measured.ts`); XeLaTeX auto-selected for
   fontspec themes via a `% !TEX program` magic comment
 - **Engine**: busytex WASM (TeX Live 2026), log parsing with diagnostics mapped back to
   slides and elements, overfull-box fidelity warnings

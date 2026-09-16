@@ -105,8 +105,15 @@ function Body(props: Props): React.ReactElement {
         el.variant === 'alertblock' ? theme.block.alert
         : el.variant === 'exampleblock' ? theme.block.example
         : theme.block;
+      // `block.shape` was declared and never read, so metropolis' flat blocks still
+      // drew a rounded filled bar. An empty block also had no height at all: nothing
+      // to see and nothing to grab.
       return (
-        <div className="bp-block" style={{ borderRadius: `${theme.block.radiusMm * PX_PER_MM}px` }}>
+        <div
+          className={`bp-block bp-block-${theme.block.shape}${
+            el.children.length === 0 ? ' is-empty' : ''}`}
+          style={{ borderRadius: `${theme.block.radiusMm * PX_PER_MM}px` }}
+        >
           {el.title !== undefined && (
             <div
               className="bp-block-title"

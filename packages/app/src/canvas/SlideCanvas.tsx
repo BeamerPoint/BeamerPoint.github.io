@@ -77,6 +77,11 @@ export function SlideCanvas(props: Props): React.ReactElement {
 
   const hasFrametitle = frame.title !== undefined && !frame.options.plain;
 
+  /** Width the sidebar occupies, or 0. Sidebar themes reserve their whole left margin. */
+  const sidebarMm = theme.headline.kind === 'bar' && !frame.options.plain
+    ? theme.margins.hMm
+    : 0;
+
   /** Design millimetres: the canvas grid, not CSS physical millimetres. */
   const mm = (n: number): string => `${n * PX_PER_MM}px`;
 
@@ -135,13 +140,42 @@ export function SlideCanvas(props: Props): React.ReactElement {
           </div>
         )}
 
+        {/*
+          * The sidebar themes reserve horizontal space and used to draw nothing in it —
+          * `headlineFor` produced a 'bar' headline that no branch ever rendered, so
+          * Berkeley, PaloAlto, Goettingen, Marburg and Hannover showed a blank strip.
+          * A real sidebar is vertical, and its width is the measured text margin.
+          */}
+        {sidebarMm > 0 && (
+          <div
+            className="bp-sidebar"
+            style={{
+              width: mm(sidebarMm),
+              background: theme.headline.bg,
+              color: theme.headline.fg,
+            }}
+          >
+            {sectionTitles(deck).map((t, i) => (
+              <span key={i} className="bp-sidebar-section">{t}</span>
+            ))}
+          </div>
+        )}
+
         {hasFrametitle && (
           <div
             className="bp-frametitle"
             style={{
               color: theme.frametitle.fg,
               background: theme.frametitle.bg ?? 'transparent',
-              padding: `${mm(theme.frametitle.paddingMm.y)} ${mm(theme.frametitle.paddingMm.x || theme.margins.hMm)}`,
+              // A sidebar theme's frame title has to start clear of the sidebar, which
+              // occupies the left margin; otherwise the title runs underneath it.
+              paddingTop: mm(theme.frametitle.paddingMm.y),
+              paddingBottom: mm(theme.frametitle.paddingMm.y),
+              paddingRight: mm(theme.frametitle.paddingMm.x || theme.margins.hMm),
+              paddingLeft: mm(Math.max(
+                theme.frametitle.paddingMm.x || theme.margins.hMm,
+                sidebarMm === 0 ? 0 : sidebarMm + 1.5,
+              )),
               fontWeight: theme.frametitle.bold ? 700 : 400,
               textAlign: theme.frametitle.align,
             }}

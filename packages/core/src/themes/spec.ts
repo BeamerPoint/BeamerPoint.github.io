@@ -57,10 +57,25 @@ export interface BlockSpec extends BlockStyle {
   example: BlockStyle;
 }
 
+/** Colours the title page uses. Measured per theme; beamer names each one. */
+export interface TitlePageSpec {
+  titleFg: Css;
+  titleBg?: Css;
+  subtitleFg: Css;
+  authorFg: Css;
+  instituteFg: Css;
+  dateFg: Css;
+}
+
 export interface ThemeSpec {
   id: string;
   label: string;
   structure: Css;
+  /** `lert` and alerted blocks. */
+  alertFg: Css;
+  titlePage: TitlePageSpec;
+  /** True when these colours came from the engine rather than from derivation. */
+  measured: boolean;
   background: Css;
   foreground: Css;
   fontFamily: 'sans' | 'serif';
