@@ -33,15 +33,30 @@ function getEngine(): LatexEngine {
 
 const resolver: ResourceResolver = { getBytes: getResourceBytes };
 
+/**
+ * Which asset bundles this browser actually has.
+ *
+ * Exported as a plain function rather than through the hook because the missing-package
+ * banner needs it once, on mount, not as reactive state.
+ */
+export async function installedCollections(): ReturnType<BusytexEngine['installedCollections']> {
+  const engine = engineSingleton;
+  if (engine === null || !(engine instanceof BusytexEngine)) return null;
+  return engine.installedCollections();
+}
+
 export function useEngine(): {
   install(): Promise<void>;
+  repair(): Promise<void>;
   compile(): Promise<void>;
   installProgress: string;
+  repairing: boolean;
 } {
   const setEngineStatus = useStore((s) => s.setEngineStatus);
   const setCompiling = useStore((s) => s.setCompiling);
   const setCompileResult = useStore((s) => s.setCompileResult);
   const [installProgress, setInstallProgress] = useState('Starting…');
+  const [repairing, setRepairing] = useState(false);
   const busy = useRef(false);
 
   const install = useCallback(async () => {
@@ -124,5 +139,44 @@ export function useEngine(): {
     }
   }, [setCompiling, setCompileResult]);
 
-  return { install, compile, installProgress };
+  /**
+   * Throw away the cached asset bundles and fetch them again.
+   *
+   * The fix for a half-installed engine, where the runner reports ready but a
+   * collection is absent, so ordinary decks compile and the first package from the
+   * missing collection fails with a bare "file not found".
+   */
+  const repair = useCallback(async () => {
+    if (busy.current) return;
+    busy.current = true;
+    setRepairing(true);
+    const engine = getEngine();
+    try {
+      if (engine instanceof BusytexEngine) {
+        await engine.repair({
+          onProgress: (s) => {
+            setEngineStatus(s);
+            if (s.s === 'installing') {
+              const pct = s.totalBytes > 0
+                ? Math.round((s.receivedBytes / s.totalBytes) * 100)
+                : 0;
+              setInstallProgress(
+                s.receivedBytes > 0
+                  ? `${pct}% of ~${Math.round(s.totalBytes / 1024 / 1024)} MB`
+                  : 'Fetching TeX Live collections…',
+              );
+            }
+          },
+        });
+      }
+      setEngineStatus(engine.status());
+    } catch (err) {
+      setEngineStatus({ s: 'failed', error: err instanceof Error ? err.message : String(err) });
+    } finally {
+      busy.current = false;
+      setRepairing(false);
+    }
+  }, [setEngineStatus]);
+
+  return { install, repair, compile, installProgress, repairing };
 }

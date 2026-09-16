@@ -6,21 +6,27 @@ import type {
   LatexEngine,
 } from '../../LatexEngine.js';
 import { parseLog } from '../../logParser.js';
+import { COLLECTIONS, type Collection } from '../../packageIndex.js';
 
 /**
  * TeX Live 2026 compiled to WebAssembly, running in its own worker.
  *
- * Beamer lives in TeX Live's *extra* collection, so a working Beamer setup needs
- * basic + recommended + extra. That is a large one-time download, which is why
- * `init()` is never called implicitly — the user opts in from the UI, and everything
- * except compilation works without it.
+ * Measured against the shipped manifests: beamer, tikz and booktabs are all in
+ * *recommended*, while packages such as `textpos` are in *extra* only. So a deck can
+ * look like it compiles fine on an install that is missing `extra`, right up until it
+ * uses the first extra-only package. All three are downloaded, and
+ * `installedCollections()` exists so a failure can tell the difference between "not
+ * bundled" and "bundled but not here".
+ *
+ * That is a large one-time download, which is why `init()` is never called implicitly —
+ * the user opts in from the UI, and everything except compilation works without it.
  */
 
 export interface BusytexOptions {
   /** Where the WASM and .data bundles are served from. */
   basePath?: string;
-  /** Cumulative collections. Beamer requires `extra`. */
-  collections?: Array<'basic' | 'recommended' | 'extra'>;
+  /** Cumulative collections. `extra` is needed for textpos and other extras. */
+  collections?: Collection[];
   /** Optional on-demand package endpoint for anything beyond the bundles. */
   remoteEndpoint?: string;
 }
@@ -37,6 +43,8 @@ export const COLLECTION_BYTES: Readonly<Record<string, number>> = {
 interface BusytexRunnerLike {
   initialize(useWorker?: boolean): Promise<void>;
   terminate?(): void;
+  isPackageCached?(packageJsUrl: string): Promise<boolean>;
+  clearPreloadDataPackageCache?(): Promise<void>;
 }
 
 interface BusytexEngineLike {
@@ -88,6 +96,46 @@ export class BusytexEngine implements LatexEngine {
 
   status(): EngineStatus {
     return this.state;
+  }
+
+  /**
+   * Which asset bundles are actually present in this browser.
+   *
+   * The runner reports `ready` once it has started, and a bundle that is absent from
+   * the cache does not stop that — so an install missing `extra` compiles ordinary
+   * decks happily and then fails on the first extra-only package with nothing but a
+   * bare "file not found". This is how that case is told apart from a genuinely
+   * unbundled package.
+   */
+  async installedCollections(): Promise<Record<Collection, boolean> | null> {
+    const runner = this.runner;
+    if (runner?.isPackageCached === undefined) return null;
+
+    const out = {} as Record<Collection, boolean>;
+    for (const c of COLLECTIONS) {
+      if (!this.opts.collections.includes(c)) continue;
+      try {
+        out[c] = await runner.isPackageCached(`${this.opts.basePath}/texlive-${c}.js`);
+      } catch {
+        return null;
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Drop the cached bundles and fetch them again.
+   *
+   * The repair for a half-installed engine. Destructive only of the cache — the assets
+   * are served from this app, so this re-downloads rather than losing anything.
+   */
+  async repair(opts: { onProgress?: (s: EngineStatus) => void } = {}): Promise<void> {
+    await this.runner?.clearPreloadDataPackageCache?.();
+    this.runner?.terminate?.();
+    this.runner = null;
+    this.engines.clear();
+    this.state = { s: 'uninitialised' };
+    await this.init(opts);
   }
 
   async init(opts: { onProgress?: (s: EngineStatus) => void } = {}): Promise<void> {

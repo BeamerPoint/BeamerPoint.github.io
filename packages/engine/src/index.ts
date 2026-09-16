@@ -10,3 +10,7 @@ export {
   type BuiltProject, type BuildOptions, type ResourceResolver,
 } from './buildProject.js';
 export { attachDiagnostics } from './attachDiagnostics.js';
+export {
+  COLLECTIONS, packageOrigin, resetPackageIndex,
+  type Collection, type PackageOrigin,
+} from './packageIndex.js';

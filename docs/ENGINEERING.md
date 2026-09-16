@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 92 tests
+npm test             # vitest, 100 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -154,6 +154,22 @@ script used 72.27 and so scaled every measurement down by 0.375% — 0.37mm at 1
 leaning the same way in every residual. A node placed at exactly 100mm read as 99.63
 under the old constant.
 
+**Never tell the user a package is not bundled without checking.** The missing-file
+banner used to assert "not part of the bundled TeX Live collections" for every missing
+`.sty`. For `textpos` — which the app emits for every text box, and which ships in the
+*extra* bundle — that was false, and the advice it gave ("pick a different theme") sent
+the user away from the real cause. `engine/packageIndex.ts` answers the question from
+the manifests that ship beside the bundles. It reads the cheap `providespackage` list
+first, then falls back to the full file listing, because `tikz.sty` declares no
+`\ProvidesPackage` and would otherwise be reported as unbundled — the same bug again.
+An unreadable manifest yields `conclusive: false`, never a negative.
+
+**The collections are not equal, and a partial install looks healthy.** beamer, tikz
+and booktabs are all in *recommended*; `textpos` is *extra*-only. The runner reports
+`ready` with a collection absent, so ordinary decks compile and the first extra-only
+package fails with a bare "file not found". `BusytexEngine.installedCollections()`
+tells the two cases apart and `repair()` re-downloads.
+
 **KaTeX cannot render a bare `align` body.** `&` and `\` are only legal inside an
 environment, so a display-math body must be wrapped (`aligned`/`gathered`) before
 preview. `canvas/mathPreview.ts` does it once for both the canvas and the inspector —
@@ -180,7 +196,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Seventeen commits on `master`, ~13,300 lines across 68 source files, 92 tests passing.
+Eighteen commits on `master`, ~13,600 lines across 71 source files, 100 tests passing.
 
 ### Done
 
