@@ -2,6 +2,19 @@ import { findMissingFiles } from '@beamerpoint/engine';
 import { useStore } from '../state/store.js';
 
 /** Compile diagnostics, mapped back to slides and elements via the source map. */
+/** Say "image" for an image and "package" for a package; mixed cases say "file". */
+function missingHeading(missing: ReturnType<typeof findMissingFiles>): string {
+  const graphics = missing.filter((m) => m.kind === 'graphic').length;
+  const noun =
+    graphics === missing.length ? 'image'
+    : graphics === 0 ? 'package'
+    : 'file';
+  return missing.length === 1
+    ? `An ${noun} this deck needs could not be found`.replace('An package', 'A package')
+       .replace('An file', 'A file')
+    : `${noun[0]!.toUpperCase()}${noun.slice(1)}s this deck needs could not be found`;
+}
+
 export function LogPanel(): React.ReactElement {
   const result = useStore((s) => s.engine.result);
   const selectSlide = useStore((s) => s.selectSlide);
@@ -23,10 +36,7 @@ export function LogPanel(): React.ReactElement {
 
       {missing.length > 0 && (
         <div className="bp-log-missing">
-          <strong>
-            {missing.length === 1 ? 'A package this deck needs' : 'Packages this deck needs'}
-            {' '}could not be found
-          </strong>
+          <strong>{missingHeading(missing)}</strong>
           <ul>
             {missing.map((m) => (
               <li key={m.file}>

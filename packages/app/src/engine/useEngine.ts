@@ -4,6 +4,7 @@ import {
   attachDiagnostics,
   buildProject,
   jobForProject,
+  type Diagnostic,
   type LatexEngine,
   type ResourceResolver,
 } from '@beamerpoint/engine';
@@ -91,9 +92,23 @@ export function useEngine(): {
 
       // Map TeX line numbers back to slides and elements via the emitter's source map.
       const { sourceMap } = emitDeck(deck, { target: 'preview' });
+
+      // buildProject knows about problems BEFORE TeX runs — a referenced image with no
+      // stored bytes, a minted block the engine cannot handle. Discarding those left
+      // the user with a cryptic TeX error and no explanation of the actual cause.
+      const buildDiagnostics: Diagnostic[] = project.warnings.map((message) => ({
+        severity: 'error',
+        code: 'project.build',
+        message,
+        raw: message,
+      }));
+
       setCompileResult({
         ...result,
-        diagnostics: attachDiagnostics(result.diagnostics, sourceMap),
+        diagnostics: [
+          ...buildDiagnostics,
+          ...attachDiagnostics(result.diagnostics, sourceMap),
+        ],
       });
     } catch (err) {
       setCompileResult({
