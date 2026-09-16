@@ -165,3 +165,46 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
 export function isImageFile(file: File): boolean {
   return file.type.startsWith('image/') || file.type === 'application/pdf';
 }
+
+/**
+ * Attach a picked file to a resource an imported `.tex` already references.
+ *
+ * Unlike `importImageFile` this keeps the existing resource id, because the deck's
+ * elements point at it. The PATH may still change: if the file has to be rasterised
+ * the extension is no longer right, and the emitter writes paths from the resource
+ * table rather than from the original source, so changing it here is safe and the
+ * emitted `\includegraphics` follows.
+ */
+export async function attachResourceFile(
+  ref: ResourceRef,
+  file: File,
+  existingPaths: ReadonlySet<string>,
+): Promise<ImportedImage> {
+  const native = NATIVE_MIME.has(file.type);
+  const { bytes, mime, width, height, converted } = native
+    ? { ...(await readAsBytes(file)), converted: undefined }
+    : await rasterise(file);
+
+  await putResourceBytes(ref.id, bytes);
+
+  const extOf = (p: string): string => p.slice(p.lastIndexOf('.') + 1).toLowerCase();
+  const wanted = mime === 'image/jpeg' ? 'jpg' : mime === 'application/pdf' ? 'pdf' : 'png';
+  const path = extOf(ref.path) === wanted
+    ? ref.path
+    : uniquePath(ref.path, mime, new Set([...existingPaths].filter((p) => p !== ref.path)));
+
+  const next: ResourceRef = {
+    ...ref,
+    path,
+    kind: 'image',
+    mime,
+    bytes: bytes.byteLength,
+    sha256: await sha256Hex(bytes),
+    originalName: file.name,
+    ...(width !== undefined && height !== undefined
+      ? { intrinsic: { w: width, h: height } }
+      : {}),
+  };
+
+  return converted === undefined ? { ref: next } : { ref: next, converted };
+}

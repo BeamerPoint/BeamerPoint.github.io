@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 100 tests
+npm test             # vitest, 118 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -154,6 +154,19 @@ script used 72.27 and so scaled every measurement down by 0.375% — 0.37mm at 1
 leaning the same way in every residual. A node placed at exactly 100mm read as 99.63
 under the old constant.
 
+**A frame has three spellings and the model must remember which one it read.**
+`\begin{frame}{Title}` and `\frame{...}` mean the same as the app's own
+`\begin{frame}` + `\frametitle{...}`, but the guard compares BYTES — so re-emitting in
+the app's style made every imported frame mismatch, and a typical third-party deck
+imported as ONE enormous raw block. `FrameNode.titleStyle` and `FrameNode.form` record
+the spelling; new frames still use the app's. Covered by `test/frameForms.spec.ts`.
+
+**Parsing must not apply the app's preferences to someone else's file.** Beamer shows
+navigation symbols by default and `defaultPreamble()` turns them off, so importing a
+deck silently added `\setbeamertemplate{navigation symbols}{}` and changed every slide.
+The parser now starts that flag at beamer's default and only turns it off when the file
+does.
+
 **Never tell the user a package is not bundled without checking.** The missing-file
 banner used to assert "not part of the bundled TeX Live collections" for every missing
 `.sty`. For `textpos` — which the app emits for every text box, and which ships in the
@@ -196,7 +209,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Eighteen commits on `master`, ~13,600 lines across 71 source files, 100 tests passing.
+Nineteen commits on `master`, ~14,100 lines across 75 source files, 118 tests passing.
 
 ### Done
 
@@ -217,6 +230,10 @@ Eighteen commits on `master`, ~13,600 lines across 71 source files, 100 tests pa
   dropped on a shape **attaches** to that side and follows it, which is what makes it a
   diagram rather than loose shapes. A hand-written `tikzpicture` is kept verbatim as a
   `mode: 'raw'` element. Operations are pure functions in `core/model/shapeOps.ts`
+- **Import**: open an external `.tex` by button or by dropping it on the canvas. The
+  dialog reports what became editable AND what stayed raw before replacing the open
+  deck, checks the theme and every `\usepackage` against the bundled collections, and
+  matches picked image files onto the paths the file references
 - **Math**: display equations (equation/align/gather and their starred forms, plus
   `\[ \]`), body kept verbatim, KaTeX preview on the canvas and in the inspector
 - **Sections and speaker notes**: emitted and parsed (no authoring UI yet)
@@ -236,8 +253,7 @@ Roughly in the order the user and I agreed to tackle them:
 3. **pgfplots charts** — small data-table editor
 4. Authoring UI for sections and speaker notes (model/emit/parse already exist)
 5. Image rotation (model and emitter support `angle=`; no handle yet)
-6. Importing an arbitrary external `.tex` (the parser can already do it; needs a file
-   picker and a report of what degraded to raw)
+6. Rich text inside a diagram label, and multi-point polyline editing
 
 Model types, and in several cases the emitter, already exist for all of these — check
 `packages/core/src/model/types.ts` before designing anything new.
@@ -260,6 +276,11 @@ Model types, and in several cases the emitter, already exist for all of these �
   compiled position is not. Internal diagram geometry was measured at **0.00mm** against
   the PDF; the picture's own placement on the slide is within about 1.4mm, the same
   vertical-centring approximation as text and tables
+- Import understands the structure the app models; `\titlepage`, `\tableofcontents`,
+  `verbatim` and any unmodelled package land as raw blocks, editable only in the source
+  panel. A measured sample of an ordinary 8-slide deck came through with 5% raw. Import
+  also reformats: indentation, package order and a few escapes (`\ ` gains a `{}`
+  terminator) change, so the output is equivalent LaTeX rather than the original bytes
 - `minted` needs shell escape, which the WASM engine cannot provide; preview falls back
   to `listings` with a warning
 - The file picker, drag-drop and paste paths have not been exercised with a real mouse —

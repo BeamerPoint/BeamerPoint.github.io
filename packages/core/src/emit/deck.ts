@@ -209,17 +209,30 @@ function emitFrame(w: TexWriter, frame: FrameNode, ctx: EmitContext): void {
     const opts = frameOptionList(frame, ctx);
     const optPart = opts.length > 0 ? `[${opts.join(',')}]` : '';
     const overlay = frame.overlay ?? '';
-    w.line_(`\\begin{frame}${overlay}${optPart}`);
 
-    w.indented(() => {
-      if (frame.title !== undefined) {
+    // `\frame{...}` takes no options, so an imported command-form frame that has
+    // since acquired any must be written as an environment instead.
+    const asCommand = frame.form === 'command' && optPart === '' && overlay === '';
+
+    // The title is either an argument on the opening line or a \frametitle in the
+    // body, depending on how the source wrote it. See FrameNode.titleStyle.
+    const inArgument = frame.titleStyle === 'argument' && frame.title !== undefined;
+    const titleArgs = inArgument
+      ? `{${emitInline(frame.title!)}}`
+        + (frame.subtitle === undefined ? '' : `{${emitInline(frame.subtitle)}}`)
+      : '';
+
+    const body = (): void => {
+      if (frame.title !== undefined && !inArgument) {
         const short = frame.shortTitle === undefined ? '' : `[${emitInline(frame.shortTitle)}]`;
         w.line_(`\\frametitle${short}{${emitInline(frame.title)}}`);
       }
-      if (frame.subtitle !== undefined) {
+      if (frame.subtitle !== undefined && !inArgument) {
         w.line_(`\\framesubtitle{${emitInline(frame.subtitle)}}`);
       }
-      if (frame.title !== undefined || frame.subtitle !== undefined) w.blank();
+      if (!inArgument && (frame.title !== undefined || frame.subtitle !== undefined)) {
+        w.blank();
+      }
 
       for (const el of frame.children) emitElement(w, el, ctx);
 
@@ -228,8 +241,17 @@ function emitFrame(w: TexWriter, frame: FrameNode, ctx: EmitContext): void {
           w.line_(`\\note${note.options ?? ''}{${emitInline(note.content)}}`);
         });
       }
-    });
+    };
 
+    if (asCommand) {
+      w.line_(`\\frame${titleArgs}{`);
+      w.indented(body);
+      w.line_('}');
+      return;
+    }
+
+    w.line_(`\\begin{frame}${overlay}${optPart}${titleArgs}`);
+    w.indented(body);
     w.line_('\\end{frame}');
   });
 }

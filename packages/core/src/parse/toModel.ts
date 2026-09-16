@@ -14,6 +14,7 @@ import type {
   ResourceRef,
   RichText,
   SectionNode,
+  SrcSpan,
   ThemeRef,
 } from '../model/types.js';
 import { defaultPreamble } from '../model/factory.js';
@@ -126,6 +127,10 @@ function parsePreamble(
 ): { preamble: Preamble; unknownChunks: number } {
   const p = defaultPreamble();
   p.packages = [];
+  // Beamer shows navigation symbols by default; the app's own new decks turn them off,
+  // but a file being read did not ask for that. Without this, importing someone's deck
+  // silently added \setbeamertemplate{navigation symbols}{} and changed their slides.
+  p.navigationSymbols = true;
   let slot: PreambleSlot = 'after-documentclass';
   let order = 0;
   let unknownChunks = 0;
@@ -374,6 +379,15 @@ function parseDocumentBody(nodes: CstNode[], ctx: RecognizeCtx): DocNode[] {
       continue;
     }
 
+    if (node.n === 'cmd' && node.name === 'frame') {
+      const source = frameCommandSource(node);
+      if (source !== null) {
+        flushStrays();
+        out.push(attachComments(parseFrame(source, ctx)));
+        continue;
+      }
+    }
+
     if (node.n === 'cmd' && SECTION_LEVELS[node.name] !== undefined && node.args.length === 1) {
       flushStrays();
       const section: SectionNode = {
@@ -407,7 +421,35 @@ function parseDocumentBody(nodes: CstNode[], ctx: RecognizeCtx): DocNode[] {
   return out;
 }
 
-function parseFrame(node: Extract<CstNode, { n: 'env' }>, ctx: RecognizeCtx): FrameNode {
+/**
+ * The two ways a frame can be written.
+ *
+ * `\begin{frame}...\end{frame}` and `\frame{...}` differ only in spelling, so the body
+ * handling is shared and `form` records which one to write back.
+ */
+interface FrameSource {
+  children: CstNode[];
+  args: CstGroup[];
+  opts: CstGroup[];
+  span: SrcSpan;
+  form?: 'command';
+}
+
+/** `\frame{...}`, which is how a title page is usually written. */
+function frameCommandSource(
+  node: Extract<CstNode, { n: 'cmd' }>,
+): FrameSource | null {
+  if (node.name !== 'frame' || node.args.length !== 1) return null;
+  return {
+    children: node.args[0]!.children,
+    args: [],
+    opts: node.opts,
+    span: node.span,
+    form: 'command',
+  };
+}
+
+function parseFrame(node: FrameSource, ctx: RecognizeCtx): FrameNode {
   const frame: FrameNode = {
     kind: 'frame',
     id: ctx.newId(),
@@ -416,10 +458,14 @@ function parseFrame(node: Extract<CstNode, { n: 'env' }>, ctx: RecognizeCtx): Fr
     notes: [],
     src: node.span,
   };
+  if (node.form === 'command') frame.form = 'command';
 
-  // `\begin{frame}{Title}{Subtitle}` shorthand.
+  // `\begin{frame}{Title}{Subtitle}` shorthand. Recording that the title came from an
+  // argument is what lets it re-emit unchanged; without it the guard would demote the
+  // frame and the most common Beamer style would import as one raw block.
   if (node.args.length >= 1) {
     frame.title = trimRichText(parseInline(node.args[0]!.children, ctx.src));
+    frame.titleStyle = 'argument';
   }
   if (node.args.length >= 2) {
     frame.subtitle = trimRichText(parseInline(node.args[1]!.children, ctx.src));

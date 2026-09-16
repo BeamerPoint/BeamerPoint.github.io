@@ -349,6 +349,18 @@ export interface FrameNode {
   shortTitle?: RichText;
   subtitle?: RichText;
   overlay?: TexString;
+  /**
+   * How the title was written in the source.
+   *
+   * `\begin{frame}{Title}` and `\begin{frame}` + `\frametitle{Title}` mean the same
+   * thing, and the app writes the second. Without remembering which one an imported
+   * file used, re-emitting differs from the source, the round-trip guard demotes the
+   * whole frame to a raw block, and the commonest way people write Beamer becomes
+   * unimportable. Absent means `\frametitle`, which is what new frames use.
+   */
+  titleStyle?: 'argument';
+  /** Set when the frame was written as `\frame{...}` rather than as an environment. */
+  form?: 'command';
   options: FrameOptions;
   /** Flow order. Absolute elements keep their slot so toggling back restores position. */
   children: Element[];

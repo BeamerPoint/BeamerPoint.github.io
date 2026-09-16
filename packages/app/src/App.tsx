@@ -12,6 +12,8 @@ import { useColumnLayout } from './ui/useColumnLayout.js';
 import { Splitter } from './ui/Splitter.js';
 import { SaveIndicator } from './ui/SaveIndicator.js';
 import { useImageImport } from './ui/useImageImport.js';
+import { useTexImport, isTexFile } from './ui/useTexImport.js';
+import { ImportDialog } from './panels/ImportDialog.js';
 import { exportDeck } from './io/exportProject.js';
 
 type Tab = 'source' | 'pdf' | 'log';
@@ -20,6 +22,7 @@ export function App(): React.ReactElement {
   const [tab, setTab] = useState<Tab>('source');
   const layout = useColumnLayout();
   const images = useImageImport();
+  const texImport = useTexImport();
   const [recovery, setRecovery] = useState<{ at: number; tex: string } | null>(null);
   const [exportNote, setExportNote] = useState<string | null>(null);
   const overlayMode = useStore((s) => s.overlayMode);
@@ -96,6 +99,12 @@ export function App(): React.ReactElement {
         <div className="bp-ribbon-group">
           <button onClick={resetDeck}>New</button>
           <button
+            onClick={texImport.choose}
+            title="Open a Beamer .tex file and work on it here"
+          >
+            Import .tex
+          </button>
+          <button
             onClick={onExport}
             title={deck.resources.length > 0
               ? 'Export a zip with the source and every image it uses'
@@ -115,6 +124,22 @@ export function App(): React.ReactElement {
           </span>
         )}
       </header>
+
+      {texImport.pending !== null && (
+        <ImportDialog
+          filename={texImport.pending.filename}
+          analysis={texImport.pending.analysis}
+          onCancel={texImport.cancel}
+          onConfirm={(files) => void texImport.confirm(files)}
+        />
+      )}
+
+      {texImport.notice !== null && (
+        <div className="bp-recovery">
+          <span>{texImport.notice}</span>
+          <button onClick={texImport.dismissNotice}>Dismiss</button>
+        </div>
+      )}
 
       {exportNote !== null && (
         <div className="bp-recovery">
@@ -156,6 +181,18 @@ export function App(): React.ReactElement {
         <div
           className={`bp-center${images.dragging ? ' is-dropping' : ''}`}
           {...images.dropHandlers}
+          onDrop={(e) => {
+            // A dropped .tex is an import, not an image. Intercept it before the
+            // image handler tells the user it is "not an image".
+            const tex = [...e.dataTransfer.files].find(isTexFile);
+            if (tex !== undefined) {
+              e.preventDefault();
+              e.stopPropagation();
+              void texImport.offer(tex);
+              return;
+            }
+            images.dropHandlers.onDrop(e);
+          }}
         >
           {images.dragging && (
             <div className="bp-drop-overlay">Drop to add the image to this slide</div>

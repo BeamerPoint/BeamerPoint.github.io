@@ -555,3 +555,40 @@ body.bp-dragging { user-select: none; }
     linear-gradient(45deg, transparent 45%, var(--bp-danger) 45%,
                     var(--bp-danger) 55%, transparent 55%) !important;
 }
+
+/* ------------------------------------------------------------ import dialog */
+.bp-modal-backdrop {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(15, 18, 28, 0.45);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.bp-modal {
+  background: #fff; border-radius: 8px; padding: 18px 20px;
+  width: min(560px, 100%); max-height: 84vh; overflow-y: auto;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+.bp-modal h3 { margin: 0 0 12px; font-size: 15px; }
+.bp-modal p { margin: 0 0 10px; font-size: 13px; line-height: 1.45; }
+.bp-modal ul { margin: 6px 0 10px; padding-left: 18px; font-size: 12px; line-height: 1.6; }
+.bp-modal code { background: var(--bp-panel); padding: 0 3px; border-radius: 3px; }
+
+.bp-import-raw, .bp-import-files {
+  border: 1px solid var(--bp-border); border-radius: 6px;
+  padding: 10px 12px; margin-bottom: 12px;
+}
+.bp-import-raw strong, .bp-import-files strong { display: block; margin-bottom: 4px; font-size: 13px; }
+
+/* A styled label, because a bare file input cannot be made to look like anything. */
+.bp-file-input {
+  display: inline-block; cursor: pointer; font-size: 12px;
+  border: 1px solid var(--bp-border); border-radius: 4px; padding: 4px 10px;
+  background: #fff; margin-bottom: 6px;
+}
+.bp-file-input input { display: none; }
+
+.bp-modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+/* :not(.bp-primary) — otherwise this repaints the primary button white on white. */
+.bp-modal-actions button:not(.bp-primary) {
+  padding: 6px 14px; border: 1px solid var(--bp-border); border-radius: 4px; background: #fff;
+}
+.bp-modal-note { margin-top: 8px !important; text-align: right; font-size: 11px !important; }
