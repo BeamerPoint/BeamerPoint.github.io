@@ -57,6 +57,7 @@ export function ShapeEditor({ el, slideId, locked }: Props): React.ReactElement 
   const shapeId = useStore((s) => s.selection.shapeId ?? null);
   const deleteShape = useStore((s) => s.deleteShape);
   const restyleShape = useStore((s) => s.restyleShape);
+  const setShapeOption = useStore((s) => s.setShapeOption);
   const reorderShape = useStore((s) => s.reorderShape);
   const setShapeArrowHead = useStore((s) => s.setShapeArrowHead);
   const setShapeText = useStore((s) => s.setShapeText);
@@ -167,6 +168,54 @@ export function ShapeEditor({ el, slideId, locked }: Props): React.ReactElement 
             </label>
           )}
 
+          {selected.t === 'node' && (
+            <div className="bp-field-row">
+              <span className="bp-field-label">Shape</span>
+              <div className="bp-btn-row">
+                {([
+                  ['none', 'None'], ['rect', 'Box'], ['circle', 'Circle'],
+                ] as const).map(([v, label]) => (
+                  <button
+                    key={v}
+                    className={selected.shape === v ? 'is-active' : ''}
+                    disabled={locked}
+                    onClick={() => setShapeOption(slideId, el.id, selected.id, { nodeShape: v })}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {selected.t === 'rect' && (
+            <label>
+              Corner radius ({selected.rx ?? 0}mm)
+              <input
+                type="range" min={0} max={8} step={0.5}
+                disabled={locked}
+                value={selected.rx ?? 0}
+                onChange={(e) => setShapeOption(slideId, el.id, selected.id, {
+                  rx: Number(e.target.value),
+                })}
+              />
+            </label>
+          )}
+
+          {selected.t === 'arrow' && (
+            <label>
+              Curve ({selected.bend ?? 0}&deg;)
+              <input
+                type="range" min={-60} max={60} step={5}
+                disabled={locked}
+                value={selected.bend ?? 0}
+                onChange={(e) => setShapeOption(slideId, el.id, selected.id, {
+                  bend: Number(e.target.value),
+                })}
+              />
+            </label>
+          )}
+
           {selected.t === 'arrow' && (
             <div className="bp-field-row">
               <span className="bp-field-label">Arrowhead</span>
@@ -233,10 +282,77 @@ export function ShapeEditor({ el, slideId, locked }: Props): React.ReactElement 
               })}
             />
           </label>
+
+          <SwatchRow
+            label="Text"
+            current={selected.style.textColor}
+            theme={theme}
+            disabled={locked}
+            onPick={(c) => restyleShape(slideId, el.id, selected.id, { textColor: c })}
+          />
+
+          {/*
+            * Transparency and a shadow are the honest subset of PowerPoint's "shape
+            * effects": glow, reflection and 3-D have no TikZ equivalent worth faking.
+            */}
+          <div className="bp-num-grid">
+            <label className="bp-field bp-field-num">
+              <span title="Anticlockwise, as LaTeX measures it">Rotation (&deg; ccw)</span>
+              <input
+                type="number" step={5}
+                disabled={locked}
+                value={selected.style.rotate ?? 0}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  restyleShape(slideId, el.id, selected.id, {
+                    rotate: v === 0 ? undefined : v,
+                  });
+                }}
+              />
+            </label>
+            <label className="bp-field bp-field-num bp-field-check">
+              <span>Shadow</span>
+              <input
+                type="checkbox"
+                disabled={locked}
+                checked={selected.style.shadow === true}
+                onChange={(e) => restyleShape(slideId, el.id, selected.id, {
+                  shadow: e.target.checked ? true : undefined,
+                })}
+              />
+            </label>
+          </div>
+
+          <label>
+            Transparency ({Math.round((1 - (selected.style.opacity ?? 1)) * 100)}%)
+            <input
+              type="range" min={0} max={90} step={5}
+              disabled={locked}
+              value={Math.round((1 - (selected.style.opacity ?? 1)) * 100)}
+              onChange={(e) => {
+                const pct = Number(e.target.value);
+                restyleShape(slideId, el.id, selected.id, {
+                  opacity: pct === 0 ? undefined : Math.round((1 - pct / 100) * 100) / 100,
+                });
+              }}
+            />
+          </label>
         </>
       )}
     </div>
   );
+}
+
+/** `#rrggbb` to the model's 0..1 triple, which is what xcolor's rgb model takes. */
+function hexToColor(hex: string): Color {
+  const n = Number.parseInt(hex.slice(1), 16);
+  const q = (v: number): number => Math.round((v / 255) * 1000) / 1000;
+  return { k: 'rgb', r: q((n >> 16) & 255), g: q((n >> 8) & 255), b: q(n & 255) };
+}
+
+function colorToHex(c: Color | undefined, theme: ThemeSpec): string {
+  const css = colorToCss(c, theme, '#000000');
+  return /^#[0-9a-f]{6}$/i.test(css) ? css : '#000000';
 }
 
 function SwatchRow({
@@ -263,6 +379,19 @@ function SwatchRow({
             onClick={() => onPick(s.color)}
           />
         ))}
+        {/*
+          * Any colour at all. `Color.k === 'rgb'` has been emitted and parsed from the
+          * start with nothing able to author it, so the palette was whatever the ten
+          * swatches happened to be.
+          */}
+        <input
+          className="bp-swatch bp-swatch-custom"
+          type="color"
+          title="Custom colour"
+          disabled={disabled}
+          value={colorToHex(current, theme)}
+          onChange={(e) => onPick(hexToColor(e.target.value))}
+        />
       </div>
     </div>
   );

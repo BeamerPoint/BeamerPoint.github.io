@@ -85,7 +85,7 @@ export function ArrangePane({ el, slideId, locked }: Props): React.ReactElement 
         {num('X (mm)', x, (v) => setElementBox(slideId, el.id, { x: v }))}
         {num('Y (mm)', y, (v) => setElementBox(slideId, el.id, { y: v }))}
         {num('Width (mm)', w, (v) => setElementBox(slideId, el.id, { w: v }))}
-        {num('Rotation (°)', rotate, (v) => setElementRotate(slideId, el.id, v), 5)}
+        {num('Rotation (° ccw)', rotate, (v) => setElementRotate(slideId, el.id, v), 5)}
       </div>
 
       <p className="bp-hint">

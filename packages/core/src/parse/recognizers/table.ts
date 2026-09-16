@@ -1,5 +1,6 @@
 import type {
   CellMerge,
+  Color,
   Length,
   RowRule,
   TableColumn,
@@ -10,6 +11,7 @@ import type { CstNode } from '../cst.js';
 import { parseInline, trimRichText } from '../inline.js';
 import type { RecognizeCtx } from './elements.js';
 import { parseLength } from './elements.js';
+import { parseTikzColor } from './tikz.js';
 
 /**
  * Tables.
@@ -95,6 +97,28 @@ export function parseColumnSpec(
 interface RawRow {
   cells: CstNode[][];
   ruleBelow?: RowRule;
+  fill?: Color;
+}
+
+/**
+ * A colour argument to `\rowcolor` / `\cellcolor`, in either of the two forms the
+ * emitter writes: `{spec}` for a named or mixed colour, `[rgb]{r,g,b}` for a literal.
+ */
+function readColorCommand(
+  node: Extract<CstNode, { n: 'cmd' }>,
+  src: string,
+): Color | null {
+  if (node.args.length !== 1) return null;
+  const arg = src.slice(node.args[0]!.span.start + 1, node.args[0]!.span.end - 1).trim();
+
+  if (node.opts.length === 0) return parseTikzColor(arg);
+  if (node.opts.length !== 1) return null;
+
+  const model = src.slice(node.opts[0]!.span.start + 1, node.opts[0]!.span.end - 1).trim();
+  if (model !== 'rgb') return null;
+  const parts = arg.split(',').map((v) => Number(v.trim()));
+  if (parts.length !== 3 || parts.some((v) => !Number.isFinite(v))) return null;
+  return { k: 'rgb', r: parts[0]!, g: parts[1]!, b: parts[2]! };
 }
 
 interface SplitBody {
@@ -161,14 +185,16 @@ function splitBody(children: CstNode[], src: string): SplitBody | null {
   let cells: CstNode[][] = [];
   let cell: CstNode[] = [];
   let topRule: RowRule | undefined;
+  let pendingFill: Color | undefined;
 
   const rowPending = (): boolean => cells.length > 0 || !isBlankNodes(cell);
 
   const endRow = (): void => {
     cells.push(cell);
-    rows.push({ cells });
+    rows.push({ cells, ...(pendingFill !== undefined ? { fill: pendingFill } : {}) });
     cells = [];
     cell = [];
+    pendingFill = undefined;
   };
 
   for (let i = 0; i < children.length; i++) {
@@ -198,6 +224,16 @@ function splitBody(children: CstNode[], src: string): SplitBody | null {
       continue;
     }
 
+    // `\rowcolor` is a row prefix: it stands before the row's first cell and colours
+    // the whole row, so it is read here rather than inside a cell.
+    if (node.n === 'cmd' && node.name === 'rowcolor') {
+      if (rowPending()) return null;
+      const fill = readColorCommand(node, src);
+      if (fill === null) return null;
+      pendingFill = fill;
+      continue;
+    }
+
     if (node.n === 'text') {
       for (const piece of splitOnAmpersand(node)) {
         if (piece === '&') { cells.push(cell); cell = []; }
@@ -222,13 +258,25 @@ interface ReadCell {
   content: ReturnType<typeof trimRichText>;
   colspan: number;
   align?: 'l' | 'c' | 'r';
+  fill?: Color;
 }
 
 /** A cell, which may be a whole `\multicolumn` spanning several columns. */
 function readCell(nodes: CstNode[], ctx: RecognizeCtx): ReadCell | null {
-  const significant = nodes.filter(
+  let significant = nodes.filter(
     (n) => !(n.n === 'parbreak' || (n.n === 'text' && n.value.trim() === '')),
   );
+
+  // `\cellcolor` prefixes the cell's content and is not part of it.
+  let fill: Color | undefined;
+  const head = significant[0];
+  if (head !== undefined && head.n === 'cmd' && head.name === 'cellcolor') {
+    const read = readColorCommand(head, ctx.src);
+    if (read === null) return null;
+    fill = read;
+    significant = significant.slice(1);
+    nodes = nodes.slice(nodes.indexOf(head) + 1);
+  }
 
   const only = significant[0];
   if (significant.length === 1 && only !== undefined
@@ -245,10 +293,15 @@ function readCell(nodes: CstNode[], ctx: RecognizeCtx): ReadCell | null {
       content: trimRichText(parseInline(only.args[2]!.children, ctx.src)),
       colspan,
       align: alignText,
+      ...(fill !== undefined ? { fill } : {}),
     };
   }
 
-  return { content: trimRichText(parseInline(nodes, ctx.src)), colspan: 1 };
+  return {
+    content: trimRichText(parseInline(nodes, ctx.src)),
+    colspan: 1,
+    ...(fill !== undefined ? { fill } : {}),
+  };
 }
 
 /* ------------------------------------------------------------------ tabular */
@@ -287,7 +340,11 @@ function recognizeTabularShape(
       if (read === null) return null;
       if (col + read.colspan > columns.length) return null;
 
-      cells.push({ id: ctx.newId(), content: read.content });
+      cells.push({
+        id: ctx.newId(),
+        content: read.content,
+        ...(read.fill !== undefined ? { fill: read.fill } : {}),
+      });
       if (read.colspan > 1) {
         merges.push({
           row: r,
@@ -308,6 +365,7 @@ function recognizeTabularShape(
     rows.push({
       id: ctx.newId(),
       cells,
+      ...(raw.fill !== undefined ? { fill: raw.fill } : {}),
       ...(raw.ruleBelow !== undefined ? { ruleBelow: raw.ruleBelow } : {}),
     });
   }

@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 170 tests
+npm test             # vitest, 176 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -311,6 +311,31 @@ text uneditable: every click landed on the overlay. The overlay's own box is
 reason the move target is a BAND around the edge, not a sheet over the middle, for
 anything that is typed into in place.
 
+**TikZ's `rotate` turns the coordinate system, not the shape.** A shape given
+`rotate=20` swings away from where it was drawn, which is not what a rotation control
+means anywhere else. `rotate around={20:(cx,-cy)}` takes a pivot, and the pivot is the
+shape's own centre. `drop shadow` additionally needs `\usetikzlibrary{shadows}` --
+without it the compile fails outright with *I do not know the key '/tikz/drop shadow'*
+and there is no PDF. Adding `shadows` to `TIKZ_LIBRARIES` meant keeping the previous
+spelling as `TIKZ_LIBRARIES_LEGACY` inside `DERIVED_SETUP_LINES`, which matches by exact
+string: without it a deck saved by an older build keeps its old line as a user chunk AND
+derives the new one beside it, growing a duplicate on every edit.
+
+**TikZ and LaTeX turn anticlockwise; CSS and SVG turn clockwise.** Every rotation
+crosses that boundary, so the canvas draws `rotate(-deg)` for both a shape's `rotate
+around` and an element's `\rotatebox`. The model keeps LaTeX's convention, because
+flipping the sign in emit and parse instead would put a sign error one refactor away
+from being permanent.
+
+**Table shading needs `colortbl`, and `\rowcolor` is a row PREFIX.** Measured: without
+the package, `\rowcolor` is an undefined control sequence and the deck does not compile;
+beamer already loads xcolor, so colortbl alone is the smaller ask than re-loading xcolor
+with its `table` option. The command stands before the row's first cell and colours the
+whole row, so the parser reads it between rows rather than inside a cell. The rgb form of
+a colour already carries its own `[model]{spec}`, so it must NOT be wrapped in braces
+again — `\rowcolor{[rgb]{...}}` is not a colour. Fill lives on the id-keyed row and cell
+rather than in an index-keyed side table, so inserting a row does not move the colour.
+
 **A sidebar theme's frame title must be inset past the sidebar.** The sidebar occupies the
 whole left text margin, and the frame title spans the full page width, so padding the title
 by `margins.hMm` put it exactly underneath — Berkeley's "Frame title bar" rendered as
@@ -337,7 +362,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Twenty-five commits on `master`, ~16,900 lines across 91 source files, 170 tests passing.
+Twenty-six commits on `master`, ~17,300 lines across 92 source files, 176 tests passing.
 
 ### Done
 
@@ -378,6 +403,10 @@ Twenty-five commits on `master`, ~16,900 lines across 91 source files, 170 tests
   subtitle, author, institute and date are edited in the format pane
 - **Arrange**: a numeric Position and Size panel (X, Y, width, rotation in millimetres
   and degrees) and align-to-slide for any selected element
+- **Formatting**: shape fill, outline, line style and width, corner radius, arrow curve
+  and head, node shape, text colour, transparency, rotation and drop shadow; any colour
+  at all through an RGB picker, not just the ten preset swatches; picture height,
+  rotation and keep-aspect; table borders, row and cell shading, and banded rows
 - **Direct manipulation**: every element -- text, list, block, columns, table, picture,
   equation, diagram, at any depth -- is selectable, draggable and resizable on the
   canvas. Dragging one out of the flow converts it to a free position at the place it

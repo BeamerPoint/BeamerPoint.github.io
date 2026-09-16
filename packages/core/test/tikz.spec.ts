@@ -4,6 +4,7 @@ import { parseDeck } from '../src/parse/parseDeck.js';
 import { newDeck, newFrame, newTikzElement, newTextElement } from '../src/model/factory.js';
 import { makeSeededIdFactory } from '../src/model/ids.js';
 import { derivePackages } from '../src/emit/derivePackages.js';
+import { TIKZ_LIBRARIES } from '../src/emit/tikz.js';
 import { addShape, shapeFromDrag } from '../src/model/shapeOps.js';
 import type { Deck, TikzElement, TikzShape } from '../src/model/types.js';
 
@@ -50,7 +51,7 @@ describe('tikz shapes', () => {
   it('round-trips every shape kind without degrading', () => {
     const { tex, round } = roundTrip(deckWith(sampler()));
 
-    expect(tex).toContain('\\usetikzlibrary{arrows.meta,shapes.geometric}');
+    expect(tex).toContain(TIKZ_LIBRARIES);
     expect(tex).toContain('\\useasboundingbox (0mm,0mm) rectangle (100mm,-60mm);');
     expect(round.guard.ok).toBe(true);
     expect(round.health.demoted).toBe(0);
@@ -95,7 +96,7 @@ describe('tikz shapes', () => {
   it('derives the tikz libraries, without which nothing compiles', () => {
     const packages = derivePackages(deckWith(sampler()));
     const tikz = packages.find((p) => p.name === 'tikz');
-    expect(tikz?.setup).toEqual(['\\usetikzlibrary{arrows.meta,shapes.geometric}']);
+    expect(tikz?.setup).toEqual([TIKZ_LIBRARIES]);
 
     // Emitted once, not once per picture.
     const deck = deckWith(sampler());

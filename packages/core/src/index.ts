@@ -10,7 +10,8 @@ export {
 export {
   addShape, attachEndpoint, isAttachable, isNodeTool, moveEndpoint, moveShape,
   removeShape, reorderShape, resizeShape, restyleShape, setArrowHead, setCanvasSize,
-  setNodeContent, shapeBounds, shapeFromDrag,
+  setNodeContent, setShapeOption, shapeBounds, shapeFromDrag,
+  type ShapeOptionPatch,
   type BasicTool, type ShapeTool,
 } from './model/shapeOps.js';
 export {

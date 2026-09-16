@@ -85,7 +85,8 @@ export function ElementView(props: Props): React.ReactElement {
         top: `${absolute.y * PX_PER_MM}px`,
         width: `${absolute.w * PX_PER_MM}px`,
         zIndex: absolute.z,
-        ...(absolute.rotate ? { transform: `rotate(${absolute.rotate}deg)` } : {}),
+        // `\rotatebox` turns anticlockwise and CSS turns clockwise, so the sign flips.
+        ...(absolute.rotate ? { transform: `rotate(${-absolute.rotate}deg)` } : {}),
       }
     : {};
 

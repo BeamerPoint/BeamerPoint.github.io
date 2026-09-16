@@ -840,6 +840,14 @@ body.bp-dragging { user-select: none; }
                     var(--bp-danger) 55%, transparent 55%) !important;
 }
 
+/* A native colour well, sized to sit in the same row as the preset swatches. */
+.bp-swatch-custom {
+  width: 20px !important; height: 20px; padding: 0 !important;
+  background: none; appearance: none; -webkit-appearance: none;
+}
+.bp-swatch-custom::-webkit-color-swatch-wrapper { padding: 0; }
+.bp-swatch-custom::-webkit-color-swatch { border: none; border-radius: 3px; }
+
 /* ------------------------------------------------------------ import dialog */
 .bp-modal-backdrop {
   position: fixed; inset: 0; z-index: 50;

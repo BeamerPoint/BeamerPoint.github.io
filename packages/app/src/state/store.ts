@@ -19,6 +19,7 @@ import {
   setArrowHead,
   setCanvasSize,
   setNodeContent,
+  setShapeOption as setShapeOptionOp,
   shapeFromDrag,
   // Aliased: the store exposes actions with these names, and a bare call inside a
   // shorthand method would read as recursion even though it is not.
@@ -45,8 +46,10 @@ import {
   type RichText,
   type SourceMap,
   type ArrowHead,
+  type ShapeOptionPatch,
   type ShapeTool,
   type SmartArtKind,
+  type Color,
   type TableColumn,
   type TableElement,
   type TikzElement,
@@ -156,6 +159,12 @@ interface AppState {
   setTableStyle(slideId: string, elementId: string, style: TableElement['style']): void;
   setTableFit(slideId: string, elementId: string, fit: TableElement['fit']): void;
   setTableCaption(slideId: string, elementId: string, caption: string | null): void;
+  setTableRowFill(
+    slideId: string, elementId: string, rowIndex: number, fill: Color | null,
+  ): void;
+  setTableVerticalRules(
+    slideId: string, elementId: string, mode: 'none' | 'all' | 'outer',
+  ): void;
 
   addTikzElement(slideId: string): void;
   addSmartArt(slideId: string, kind: SmartArtKind, labels: string[]): void;
@@ -175,6 +184,9 @@ interface AppState {
   reorderShape(slideId: string, elementId: string, shapeId: string, delta: 1 | -1): void;
   setShapeArrowHead(slideId: string, elementId: string, shapeId: string, head: ArrowHead): void;
   setShapeText(slideId: string, elementId: string, shapeId: string, text: string): void;
+  setShapeOption(
+    slideId: string, elementId: string, shapeId: string, patch: ShapeOptionPatch,
+  ): void;
   setTikzCanvasSize(slideId: string, elementId: string, w: number, h: number): void;
   setMathTex(slideId: string, elementId: string, tex: string): void;
   setMathEnv(slideId: string, elementId: string, env: MathEnv): void;
@@ -192,6 +204,8 @@ interface AppState {
     box: { x?: number; y?: number; w?: number },
   ): void;
   setImageHeightMm(slideId: string, elementId: string, mm: number | null): void;
+  setImageRotate(slideId: string, elementId: string, deg: number): void;
+  setImageKeepAspect(slideId: string, elementId: string, keep: boolean): void;
   setElementRotate(slideId: string, elementId: string, deg: number): void;
   returnElementToFlow(slideId: string, elementId: string): void;
   moveElementToAbsolute(slideId: string, elementId: string, x: number, y: number, w: number): void;
@@ -771,6 +785,52 @@ export const useStore = create<AppState>()((set, get) => {
 
     /* ------------------------------------------------------ shapes and diagrams */
 
+    /**
+     * Shade a row.
+     *
+     * Fill sits on the id-keyed row, so inserting or deleting rows above it does not
+     * move the colour to a different row the way an index-keyed table would.
+     */
+    setTableRowFill(slideId, elementId, rowIndex, fill) {
+      mutate((deck) =>
+        mapTable(deck, slideId, elementId, (el) => ({
+          ...el,
+          rows: el.rows.map((r, i) => {
+            if (i !== rowIndex) return r;
+            if (fill === null) {
+              const { fill: _drop, ...rest } = r;
+              return rest;
+            }
+            return { ...r, fill };
+          }),
+        })),
+      );
+    },
+
+    /**
+     * Vertical rules, which live on the column that FOLLOWS them plus `endRule` for the
+     * last one -- there is no "rule after this column" field, so the outer-only case
+     * sets the first column's `leftRule` and `endRule` and clears the rest.
+     */
+    setTableVerticalRules(slideId, elementId, mode) {
+      mutate((deck) =>
+        mapTable(deck, slideId, elementId, (el) => {
+          const columns = el.columns.map((c, i) => {
+            const rest = { ...c };
+            delete rest.leftRule;
+            if (mode === 'all' || (mode === 'outer' && i === 0)) {
+              return { ...rest, leftRule: 'single' as const };
+            }
+            return rest;
+          });
+          const next = { ...el, columns };
+          if (mode === 'none') delete next.endRule;
+          else next.endRule = 'single';
+          return next;
+        }),
+      );
+    },
+
     addTikzElement(slideId) {
       const el = newTikzElement();
       mutate((deck) => mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, el] })));
@@ -844,6 +904,12 @@ export const useStore = create<AppState>()((set, get) => {
     setShapeText(slideId, elementId, shapeId, text) {
       mutate((deck) =>
         mapTikz(deck, slideId, elementId, (el) => setNodeContent(el, shapeId, plain(text))));
+    },
+
+    /** Corner radius, arrow bend and node shape: modelled and emitted, never settable. */
+    setShapeOption(slideId, elementId, shapeId, patch) {
+      mutate((deck) =>
+        mapTikz(deck, slideId, elementId, (el) => setShapeOptionOp(el, shapeId, patch)));
     },
 
     setTikzCanvasSize(slideId, elementId, w, h) {
@@ -1090,10 +1156,33 @@ export const useStore = create<AppState>()((set, get) => {
     /**
      * Rotate a freely-placed element.
      *
-     * `Placement.rotate` was modelled and emitted as `otatebox` all along, with no
+     * `Placement.rotate` was modelled and emitted as `
+otatebox` all along, with no
      * control anywhere to set it. Zero removes the wrapper rather than emitting a
      * rotation of nothing.
      */
+    /** `angle=` on the \includegraphics -- modelled and emitted, never settable. */
+    setImageRotate(slideId, elementId, deg) {
+      const normalised = Math.round(((deg % 360) + 360) % 360 * 10) / 10;
+      mutate((deck) =>
+        mapElement(deck, slideId, elementId, (el) => {
+          if (el.kind !== 'image') return el;
+          if (normalised === 0) {
+            const { rotate: _drop, ...rest } = el;
+            return rest;
+          }
+          return { ...el, rotate: normalised };
+        }),
+      );
+    },
+
+    setImageKeepAspect(slideId, elementId, keep) {
+      mutate((deck) =>
+        mapElement(deck, slideId, elementId, (el) =>
+          el.kind === 'image' ? { ...el, keepAspect: keep } : el),
+      );
+    },
+
     setElementRotate(slideId, elementId, deg) {
       const normalised = Math.round(((deg % 360) + 360) % 360 * 10) / 10;
       mutate((deck) =>

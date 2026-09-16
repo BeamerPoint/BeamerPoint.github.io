@@ -10,6 +10,7 @@ import {
 import { InlineText } from './InlineText.js';
 import { readInlineFromDom } from './domInline.js';
 import { useCanvasGeometry } from './CanvasContext.js';
+import { colorToCss } from './shapeColors.js';
 
 interface Props {
   el: TableElement;
@@ -113,6 +114,10 @@ export function TableView({ el, theme, locked, onEditCell }: Props): React.React
                   style={{
                     textAlign: align === 'c' ? 'center' : align === 'r' ? 'right' : 'left',
                     padding: `0 ${COL_SEP_MM * PX_PER_MM}px`,
+                    // A cell's own shading wins over the row's, as \cellcolor does.
+                    ...(cell?.fill !== undefined || row.fill !== undefined
+                      ? { background: colorToCss(cell?.fill ?? row.fill, theme, 'transparent') }
+                      : {}),
                     borderLeft: vRule(col.leftRule),
                     ...(c + span === el.columns.length
                       ? { borderRight: vRule(el.endRule) }

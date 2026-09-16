@@ -1,5 +1,5 @@
 import type { Deck, Element, PackageSpec } from '../model/types.js';
-import { TIKZ_LIBRARIES } from './tikz.js';
+import { TIKZ_LIBRARIES, TIKZ_LIBRARIES_LEGACY } from './tikz.js';
 
 /**
  * Compute the packages a deck's content requires, so the user never has to think
@@ -26,6 +26,7 @@ export interface DerivedPackage extends PackageSpec {
  */
 export const DERIVED_SETUP_LINES: ReadonlySet<string> = new Set([
   TIKZ_LIBRARIES,
+  TIKZ_LIBRARIES_LEGACY,
   '\\pgfplotsset{compat=1.18}',
   '\\setlength{\\TPHorizModule}{1mm}',
   '\\setlength{\\TPVertModule}{1mm}',
@@ -73,6 +74,12 @@ export function derivePackages(deck: Deck): DerivedPackage[] {
         if (rules.some((r) => r !== undefined && r.k !== 'hline')) add('booktabs');
         if (el.fit === 'tabularx') add('tabularx');
         if (el.fit === 'resizebox') add('graphicx');
+        // Measured: without colortbl, `\rowcolor` is an undefined control sequence and
+        // the deck does not compile. beamer already loads xcolor, so colortbl on its
+        // own is the smaller ask than re-loading xcolor with its `table` option.
+        if (el.rows.some((r) => r.fill !== undefined || r.cells.some((c) => c.fill !== undefined))) {
+          add('colortbl');
+        }
         break;
       }
       case 'math':

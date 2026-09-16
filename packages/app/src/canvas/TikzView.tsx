@@ -251,6 +251,14 @@ export function TikzView(props: Props): React.ReactElement {
       onPointerCancel={onPointerUp}
     >
       <defs>
+        {/*
+          * TikZ's `drop shadow` is a soft offset copy of the shape. A Gaussian blur is
+          * the closest SVG gets; the canvas says it approximates and this is one of the
+          * places it does.
+          */}
+        <filter id={`bp-shadow-${el.id}`} x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0.7" dy="0.7" stdDeviation="0.5" floodOpacity="0.4" />
+        </filter>
         <marker
           id={`bp-arrow-${el.id}`}
           markerWidth="6" markerHeight="6" refX="5" refY="3"
@@ -260,21 +268,41 @@ export function TikzView(props: Props): React.ReactElement {
         </marker>
       </defs>
 
-      {shapes.map((s) => (
-        <ShapeView
-          key={s.id}
-          shape={s}
-          shapes={shapes}
-          theme={theme}
-          arrowMarker={`bp-arrow-${el.id}`}
-          onPointerDown={(e) => {
-            if (locked || tool !== null) return;
-            e.stopPropagation();
-            props.onSelectShape(s.id);
-            startDrag({ k: 'move', id: s.id, x: e.clientX, y: e.clientY })(e);
-          }}
-        />
-      ))}
+      {shapes.map((s) => {
+        const view = (
+          <ShapeView
+            key={s.id}
+            shape={s}
+            shapes={shapes}
+            theme={theme}
+            arrowMarker={`bp-arrow-${el.id}`}
+            onPointerDown={(e) => {
+              if (locked || tool !== null) return;
+              e.stopPropagation();
+              props.onSelectShape(s.id);
+              startDrag({ k: 'move', id: s.id, x: e.clientX, y: e.clientY })(e);
+            }}
+          />
+        );
+
+        const b = shapeBounds(s);
+        const spin = s.style.rotate !== undefined && s.style.rotate !== 0 && b !== null;
+        if (!spin && s.style.shadow !== true) return view;
+
+        return (
+          <g
+            key={s.id}
+            // TikZ turns anticlockwise and SVG turns clockwise, so the sign flips here.
+            // The pivot is the shape's centre, matching the `rotate around` we emit.
+            {...(spin && b !== null
+              ? { transform: `rotate(${-s.style.rotate!} ${b.x + b.w / 2} ${b.y + b.h / 2})` }
+              : {})}
+            {...(s.style.shadow === true ? { filter: `url(#bp-shadow-${el.id})` } : {})}
+          >
+            {view}
+          </g>
+        );
+      })}
 
       {/*
         * The diagram's own canvas, which is what the shapes are positioned inside and

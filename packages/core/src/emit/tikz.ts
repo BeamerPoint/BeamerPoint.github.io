@@ -2,6 +2,7 @@ import type {
   Anchor, ArrowHead, Color, Mm, TikzElement, TikzShape, TikzStyle,
 } from '../model/types.js';
 import { roundMm } from '../geometry/paper.js';
+import { shapeBounds } from '../model/shapeOps.js';
 import { emitInline } from './inline.js';
 import type { EmitContext } from './elements.js';
 import type { TexWriter } from './writer.js';
@@ -17,7 +18,18 @@ import type { TexWriter } from './writer.js';
  */
 
 /** The TikZ libraries the emitted shapes need. Without these, nothing compiles. */
-export const TIKZ_LIBRARIES = '\\usetikzlibrary{arrows.meta,shapes.geometric}';
+export const TIKZ_LIBRARIES =
+  '\\usetikzlibrary{arrows.meta,shapes.geometric,shadows}';
+
+/**
+ * The libraries line as earlier versions wrote it.
+ *
+ * `DERIVED_SETUP_LINES` matches by exact string, so a deck saved before `shadows` was
+ * added would otherwise have its old line kept as a user-owned chunk AND the new one
+ * derived beside it, growing a duplicate on every edit. Keeping the old spelling in the
+ * set absorbs it; the next emit writes the current one.
+ */
+export const TIKZ_LIBRARIES_LEGACY = '\\usetikzlibrary{arrows.meta,shapes.geometric}';
 
 function n(v: Mm): string {
   // -0 would print as "-0mm", which is valid but churns the round trip.
@@ -48,8 +60,18 @@ export function tikzColor(c: Color): string {
   }
 }
 
-/** Style options, in a fixed order so the round trip is a fixpoint. */
-export function styleOptions(s: TikzStyle): string[] {
+/**
+ * Style options, in a fixed order so the round trip is a fixpoint.
+ *
+ * `centre` is the shape's own middle, needed for rotation: TikZ's plain `rotate` key
+ * transforms the COORDINATE SYSTEM, so a rotated shape swings away from where it was
+ * drawn rather than turning in place. `rotate around` takes the pivot, and the pivot is
+ * the shape's centre, which is what a rotation handle means everywhere else.
+ */
+export function styleOptions(
+  s: TikzStyle,
+  centre?: { x: Mm; y: Mm },
+): string[] {
   const out: string[] = [];
   if (s.draw !== undefined) out.push(`draw=${tikzColor(s.draw)}`);
   if (s.fill !== undefined) out.push(`fill=${tikzColor(s.fill)}`);
@@ -58,6 +80,12 @@ export function styleOptions(s: TikzStyle): string[] {
   if (s.dash === 'dashed') out.push('dashed');
   if (s.dash === 'dotted') out.push('dotted');
   if (s.opacity !== undefined) out.push(`opacity=${s.opacity}`);
+  if (s.rotate !== undefined && s.rotate !== 0 && centre !== undefined) {
+    out.push(`rotate around={${n(s.rotate)}:${coord(centre.x, centre.y)}}`);
+  }
+  // Measured: without \usetikzlibrary{shadows} this is *I do not know the key
+  // '/tikz/drop shadow'* and the deck does not compile at all.
+  if (s.shadow === true) out.push('drop shadow');
   return out;
 }
 
@@ -93,7 +121,11 @@ function optionList(parts: string[]): string {
 }
 
 function emitShape(w: TexWriter, shape: TikzShape, ctx: EmitContext): void {
-  const style = styleOptions(shape.style);
+  const b = shapeBounds(shape);
+  const style = styleOptions(
+    shape.style,
+    b === null ? undefined : { x: b.x + b.w / 2, y: b.y + b.h / 2 },
+  );
 
   switch (shape.t) {
     case 'rect': {

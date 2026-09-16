@@ -112,6 +112,7 @@ function readOptions(raw: string): ReadOptions | null {
     const eq = opt.indexOf('=');
     if (eq === -1) {
       if (opt === 'dashed' || opt === 'dotted') style.dash = opt;
+      else if (opt === 'drop shadow') style.shadow = true;
       else flags.add(opt);
       continue;
     }
@@ -138,6 +139,23 @@ function readOptions(raw: string): ReadOptions | null {
         const v = Number(value);
         if (!Number.isFinite(v)) return null;
         style.opacity = v;
+        break;
+      }
+      case 'rotate': {
+        const v = Number(value);
+        if (!Number.isFinite(v)) return null;
+        style.rotate = v;
+        break;
+      }
+      case 'rotate around': {
+        // `{A:(x mm,y mm)}`. Only the angle is kept: the pivot is recomputed from the
+        // shape on re-emit, and if a hand-written one differs from the shape's centre
+        // the re-emitted bytes differ and the guard demotes the picture to raw, which
+        // is the right outcome rather than quietly moving someone's drawing.
+        const m = /^\{?\s*(-?[\d.]+)\s*:\s*\((-?[\d.]+)mm\s*,\s*(-?[\d.]+)mm\)\s*\}?$/
+          .exec(value);
+        if (m === null) return null;
+        style.rotate = Number(m[1]);
         break;
       }
       default:

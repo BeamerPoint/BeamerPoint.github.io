@@ -35,6 +35,9 @@ export function FormatPane(): React.ReactElement {
   const setImageCaption = useStore((s) => s.setImageCaption);
   const setImageAlign = useStore((s) => s.setImageAlign);
   const setImageTrim = useStore((s) => s.setImageTrim);
+  const setImageHeightMm = useStore((s) => s.setImageHeightMm);
+  const setImageRotate = useStore((s) => s.setImageRotate);
+  const setImageKeepAspect = useStore((s) => s.setImageKeepAspect);
   const overlayMode = useStore((s) => s.overlayMode);
   const setOverlayMode = useStore((s) => s.setOverlayMode);
 
@@ -126,6 +129,46 @@ export function FormatPane(): React.ReactElement {
                 value={Math.round((selected.width?.v ?? 0.6) * 100)}
                 onChange={(e) => setImageWidth(frame.id, selected.id, Number(e.target.value) / 100)}
               />
+            </label>
+
+            {/*
+              * Height, rotation and keep-aspect were all modelled and emitted from the
+              * start -- `height=`, `angle=`, `keepaspectratio` -- with no control able
+              * to set any of them.
+              */}
+            <div className="bp-num-grid">
+              <label className="bp-field bp-field-num">
+                <span>Height (mm)</span>
+                <input
+                  type="number" min={0} step={1}
+                  disabled={locked}
+                  placeholder="auto"
+                  value={selected.height?.u === 'mm' ? selected.height.v : ''}
+                  onChange={(e) => setImageHeightMm(
+                    frame.id, selected.id,
+                    e.target.value === '' ? null : Number(e.target.value),
+                  )}
+                />
+              </label>
+              <label className="bp-field bp-field-num">
+                <span title="Anticlockwise, as LaTeX measures it">Rotation (&deg; ccw)</span>
+                <input
+                  type="number" step={5}
+                  disabled={locked}
+                  value={selected.rotate ?? 0}
+                  onChange={(e) => setImageRotate(frame.id, selected.id, Number(e.target.value))}
+                />
+              </label>
+            </div>
+
+            <label className="bp-field bp-field-inline">
+              <input
+                type="checkbox"
+                disabled={locked}
+                checked={selected.keepAspect}
+                onChange={(e) => setImageKeepAspect(frame.id, selected.id, e.target.checked)}
+              />
+              <span>Keep aspect ratio</span>
             </label>
 
             <div className="bp-field">

@@ -290,6 +290,45 @@ export function setArrowHead(
   return mapShape(el, shapeId, (s) => (s.t === 'arrow' ? { ...s, head } : s));
 }
 
+/**
+ * A shape's own geometry options, as opposed to its style.
+ *
+ * `rect.rx`, `arrow.bend` and `node.shape` were all modelled, emitted and parsed with no
+ * control anywhere able to set them. `null` clears a field rather than storing a zero,
+ * so a rectangle with no rounding emits no `rounded corners` key at all and the round
+ * trip stays a fixpoint.
+ */
+export interface ShapeOptionPatch {
+  rx?: number | null;
+  bend?: number | null;
+  nodeShape?: 'none' | 'rect' | 'circle';
+}
+
+export function setShapeOption(
+  el: TikzElement,
+  shapeId: string,
+  patch: ShapeOptionPatch,
+): TikzElement {
+  return mapShape(el, shapeId, (s) => {
+    if (patch.rx !== undefined && s.t === 'rect') {
+      const next = { ...s };
+      if (patch.rx === null || patch.rx <= 0) delete next.rx;
+      else next.rx = patch.rx;
+      return next;
+    }
+    if (patch.bend !== undefined && s.t === 'arrow') {
+      const next = { ...s };
+      if (patch.bend === null || patch.bend === 0) delete next.bend;
+      else next.bend = patch.bend;
+      return next;
+    }
+    if (patch.nodeShape !== undefined && s.t === 'node') {
+      return { ...s, shape: patch.nodeShape };
+    }
+    return s;
+  });
+}
+
 export function setNodeContent(
   el: TikzElement,
   shapeId: string,

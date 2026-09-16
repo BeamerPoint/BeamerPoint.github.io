@@ -185,8 +185,17 @@ export interface TableColumn {
   width?: Length;
   leftRule?: 'none' | 'single' | 'double';
 }
-export interface TableCell { id: Id; content: RichText }
-export interface TableRow { id: Id; cells: TableCell[]; ruleBelow?: RowRule; isHeader?: boolean }
+/**
+ * A cell, and optionally its own background.
+ *
+ * Fill lives on the id-keyed cell and row rather than in an index-keyed side table, so
+ * inserting a row or a column does not need the index fixing that `shiftMerges` does
+ * for merges.
+ */
+export interface TableCell { id: Id; content: RichText; fill?: Color }
+export interface TableRow {
+  id: Id; cells: TableCell[]; ruleBelow?: RowRule; isHeader?: boolean; fill?: Color;
+}
 export interface CellMerge {
   row: number; col: number; colspan: number; rowspan: number;
   align?: 'l' | 'c' | 'r';
@@ -236,6 +245,10 @@ export interface CodeElement extends ElementBase {
 export interface TikzStyle {
   draw?: Color; fill?: Color; lineWidth?: Length;
   dash?: 'solid' | 'dashed' | 'dotted'; opacity?: number; textColor?: Color;
+  /** Degrees, clockwise on screen. Needs no TikZ library. */
+  rotate?: Deg;
+  /** `drop shadow`, which DOES need `\usetikzlibrary{shadows}`. */
+  shadow?: boolean;
 }
 export type Anchor =
   | { kind: 'point'; x: Mm; y: Mm }

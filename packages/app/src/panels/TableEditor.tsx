@@ -1,4 +1,6 @@
-import { richTextToPlain, type TableColumn, type TableElement } from '@beamerpoint/core';
+import {
+  richTextToPlain, type Color, type TableColumn, type TableElement,
+} from '@beamerpoint/core';
 import { useStore } from '../state/store.js';
 
 interface Props {
@@ -31,6 +33,8 @@ export function TableEditor({ el, slideId, locked }: Props): React.ReactElement 
   const setTableStyle = useStore((s) => s.setTableStyle);
   const setTableFit = useStore((s) => s.setTableFit);
   const setTableCaption = useStore((s) => s.setTableCaption);
+  const setTableRowFill = useStore((s) => s.setTableRowFill);
+  const setTableVerticalRules = useStore((s) => s.setTableVerticalRules);
 
   const rows = el.rows.length;
   const cols = el.columns.length;
@@ -118,6 +122,80 @@ export function TableEditor({ el, slideId, locked }: Props): React.ReactElement 
         </div>
       </div>
 
+      {/*
+        * Vertical rules live on the column that FOLLOWS them, plus `endRule` for the
+        * last one -- all three fields were modelled and parsed with nothing able to set
+        * them, so an imported table's rules could be seen and never changed.
+        */}
+      <div className="bp-field-row">
+        <span className="bp-field-label">Borders</span>
+        <div className="bp-btn-row">
+          {([
+            ['none', 'None', 'Horizontal rules only'],
+            ['outer', 'Outer', 'A rule down each side'],
+            ['all', 'Grid', 'A rule between every column'],
+          ] as const).map(([v, label, title]) => (
+            <button
+              key={v}
+              title={title}
+              className={verticalRules(el) === v ? 'is-active' : ''}
+              disabled={locked}
+              onClick={() => setTableVerticalRules(slideId, el.id, v)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="bp-field-row">
+        <span className="bp-field-label">Shading</span>
+        <div className="bp-swatches">
+          {SHADES.map((sh) => (
+            <button
+              key={sh.label}
+              title={`${sh.label} — applied to the header row`}
+              className={`bp-swatch${sh.color === undefined ? ' is-none' : ''}${
+                sameFill(el.rows[0]?.fill, sh.color) ? ' is-active' : ''}`}
+              style={{ background: sh.css }}
+              disabled={locked}
+              onClick={() => setTableRowFill(slideId, el.id, 0, sh.color ?? null)}
+            />
+          ))}
+        </div>
+      </div>
+      <p className="bp-hint">
+        Shading needs <code>colortbl</code>, which is added to the preamble for you.
+      </p>
+
+      <div className="bp-field-row">
+        <span className="bp-field-label">Banding</span>
+        <div className="bp-btn-row">
+          <button
+            disabled={locked}
+            title="Shade every other row"
+            onClick={() => {
+              for (let i = 1; i < el.rows.length; i += 1) {
+                setTableRowFill(slideId, el.id, i, i % 2 === 1 ? BAND : null);
+              }
+            }}
+          >
+            Banded
+          </button>
+          <button
+            disabled={locked}
+            title="Remove all shading"
+            onClick={() => {
+              for (let i = 0; i < el.rows.length; i += 1) {
+                setTableRowFill(slideId, el.id, i, null);
+              }
+            }}
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+
       <div className="bp-field-row">
         <span className="bp-field-label">Fit</span>
         <div className="bp-btn-row">
@@ -162,4 +240,34 @@ export function TableEditor({ el, slideId, locked }: Props): React.ReactElement 
       )}
     </div>
   );
+}
+
+/** Which vertical-rule preset a table currently matches. */
+function verticalRules(el: TableElement): 'none' | 'all' | 'outer' {
+  const inner = el.columns.slice(1).some((c) => c.leftRule !== undefined && c.leftRule !== 'none');
+  if (inner) return 'all';
+  const first = el.columns[0]?.leftRule;
+  if (first !== undefined && first !== 'none') return 'outer';
+  return el.endRule === undefined ? 'none' : 'outer';
+}
+
+const BAND: Color = { k: 'structure', shade: 10 };
+
+/**
+ * Shades offered for a header row.
+ *
+ * Theme-relative by default, so a shaded table still follows the deck's colour when the
+ * theme changes; the CSS beside each is only what the swatch button shows.
+ */
+const SHADES: Array<{ label: string; color: Color | undefined; css: string }> = [
+  { label: 'None', color: undefined, css: 'transparent' },
+  { label: 'Theme 10%', color: { k: 'structure', shade: 10 }, css: '#e8e8f6' },
+  { label: 'Theme 25%', color: { k: 'structure', shade: 25 }, css: '#ccccec' },
+  { label: 'Theme 50%', color: { k: 'structure', shade: 50 }, css: '#9999d9' },
+  { label: 'Grey', color: { k: 'mix', expr: 'black!12' }, css: '#e0e0e0' },
+];
+
+function sameFill(a: Color | undefined, b: Color | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b;
+  return JSON.stringify(a) === JSON.stringify(b);
 }

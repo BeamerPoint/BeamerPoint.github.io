@@ -1,9 +1,9 @@
 import type {
-  Element, Length, ListElement, ListItem, Placement, RowRule, TableColumn, TableElement,
+  Color, Element, Length, ListElement, ListItem, Placement, RowRule, TableColumn, TableElement,
   TableRow, TexString,
 } from '../model/types.js';
 import { roundMm } from '../geometry/paper.js';
-import { emitInline, isBlankRichText } from './inline.js';
+import { colorToTex, emitInline, isBlankRichText } from './inline.js';
 import { emitTikz } from './tikz.js';
 import type { TexWriter } from './writer.js';
 
@@ -258,6 +258,17 @@ function mergeAlignOf(el: TableElement, col: number, override: string | undefine
  * in the output — emitting them would add stray `&` — so they are skipped, and a
  * covered cell that is not blank is reported rather than silently dropped.
  */
+/**
+ * A colour as an argument to `\rowcolor` / `\cellcolor`.
+ *
+ * The rgb form already carries its own `[model]{spec}`, so wrapping it in braces again
+ * would produce `\rowcolor{[rgb]{...}}`, which is not a colour at all.
+ */
+function colorArg(c: Color): string {
+  const spec = colorToTex(c);
+  return spec.startsWith('[') ? spec : `{${spec}}`;
+}
+
 function emitTableRow(
   w: TexWriter,
   el: TableElement,
@@ -267,10 +278,17 @@ function emitTableRow(
 ): void {
   const parts: string[] = [];
 
+  // colortbl's `\rowcolor` is a row PREFIX, not a cell option: it has to come before
+  // the first cell of the row and it colours the whole row.
+  if (row.fill !== undefined) w.line_(`\\rowcolor${colorArg(row.fill)}`);
+
   for (let col = 0; col < el.columns.length;) {
     const merge = el.merges.find((m) => m.row === rowIndex && m.col === col && m.colspan > 1);
     const cell = row.cells[col];
-    const body = cell === undefined ? '' : emitInline(cell.content);
+    const inner = cell === undefined ? '' : emitInline(cell.content);
+    const body = cell?.fill === undefined
+      ? inner
+      : `\\cellcolor${colorArg(cell.fill)}${inner}`;
 
     if (merge === undefined) {
       parts.push(body);
