@@ -9,6 +9,7 @@ import { findElement, selectCurrentFrame, useStore, type DeckMetaField } from '.
 import { MathEditor } from './MathEditor.js';
 import { TableEditor } from './TableEditor.js';
 import { ShapeEditor } from './ShapeEditor.js';
+import { ArrangePane } from './ArrangePane.js';
 import { isTitlePageTex } from '../canvas/TitlePage.js';
 
 const KIND_NAME: Partial<Record<Element['kind'], string>> = {
@@ -36,7 +37,6 @@ export function FormatPane(): React.ReactElement {
   const setImageTrim = useStore((s) => s.setImageTrim);
   const overlayMode = useStore((s) => s.overlayMode);
   const setOverlayMode = useStore((s) => s.setOverlayMode);
-  const returnElementToFlow = useStore((s) => s.returnElementToFlow);
 
   // At any depth: a text box inside a block or a column is as selectable as one in
   // the frame's own list, and the pane has to be able to format it.
@@ -164,17 +164,6 @@ export function FormatPane(): React.ReactElement {
               </button>
             </div>
 
-            {selected.placement.mode === 'absolute' && (
-              <button
-                className="bp-wide"
-                disabled={locked}
-                title="Put the picture back into the text flow"
-                onClick={() => returnElementToFlow(frame.id, selected.id)}
-              >
-                Return to text flow
-              </button>
-            )}
-
             <label className="bp-field">
               <span>Caption</span>
               <input
@@ -188,22 +177,8 @@ export function FormatPane(): React.ReactElement {
           </section>
         )}
 
-        {selected !== undefined && selected.placement.mode === 'absolute'
-          && selected.kind !== 'image' && frame !== undefined && (
-          <section className="bp-format-section">
-            <h4>Position</h4>
-            <p className="bp-hint">
-              Freely placed at {Math.round(selected.placement.x)},{' '}
-              {Math.round(selected.placement.y)} mm.
-            </p>
-            <button
-              className="bp-wide"
-              disabled={locked}
-              onClick={() => returnElementToFlow(frame.id, selected.id)}
-            >
-              Return to text flow
-            </button>
-          </section>
+        {selected !== undefined && frame !== undefined && (
+          <ArrangePane el={selected} slideId={frame.id} locked={locked} />
         )}
       </div>
     </aside>

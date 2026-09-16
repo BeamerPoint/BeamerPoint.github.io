@@ -676,6 +676,80 @@ export function parseLength(s: string): Length | null {
 
 /* ---------------------------------------------------- absolute placement */
 
+/**
+ * Peel a `\rotatebox{deg}{...}` wrapper off a textblock body.
+ *
+ * The emitter writes one whenever `Placement.rotate` is set. Without this the whole
+ * `textblock*` failed to recognise, the guard demoted it to a raw block, and a rotated
+ * element stopped being editable on the canvas the moment the source was reparsed —
+ * and `graphicx` stopped being derived, which reordered the preamble and broke the
+ * `emit -> parse -> emit` fixpoint.
+ *
+ * Returns null for anything that is not exactly one wrapper around the whole body,
+ * which declines rather than guessing, as every recognizer must.
+ */
+function peelRotatebox(
+  text: string,
+): { deg: number; inner: string; offset: number } | null {
+  const head = /^\s*\\rotatebox\{(-?[\d.]+)\}\{%?/.exec(text);
+  if (head === null) return null;
+
+  let depth = 1;
+  let i = head[0].length;
+  for (; i < text.length && depth > 0; i += 1) {
+    const c = text[i];
+    if (c === '\\') { i += 1; continue; }
+    if (c === '{') depth += 1;
+    else if (c === '}') depth -= 1;
+  }
+  if (depth !== 0) return null;
+  // Nothing but whitespace may follow, or this is not a wrapper around the whole body.
+  if (text.slice(i).trim() !== '') return null;
+
+  // The emitter always puts a minipage inside the rotatebox, because rotatebox
+  // typesets in LR mode and a block environment fails there outright.
+  const body = text.slice(head[0].length, i - 1);
+  const mini = /^\s*\\begin\{minipage\}\{\\linewidth\}([\s\S]*)\\end\{minipage\}\s*$/
+    .exec(body);
+
+  return {
+    deg: Number.parseFloat(head[1]!),
+    inner: mini === null ? body : mini[1]!,
+    offset: head[0].length + (mini === null ? 0 : mini[0].indexOf(mini[1]!)),
+  };
+}
+
+/**
+ * Shift an element tree's source spans by `offset`.
+ *
+ * A `textblock*`'s body is re-lexed on its own so that raw slices inside it resolve
+ * against the right string — but that leaves every span inside counted from the start of
+ * the FRAGMENT, while the guard slices them out of the whole document. An absolutely
+ * placed block's child text therefore compared itself against a piece of the preamble,
+ * mismatched, and took the whole frame down to a raw block with it. The outer element's
+ * own span was already replaced, which is why a bare text box survived and anything with
+ * children did not.
+ */
+function rebaseSrc<T extends Element>(el: T, offset: number): T {
+  const next: Element = { ...el };
+  if (next.src !== undefined) {
+    next.src = {
+      ...next.src,
+      start: next.src.start + offset,
+      end: next.src.end + offset,
+    };
+  }
+  if (next.kind === 'block') {
+    next.children = next.children.map((c) => rebaseSrc(c, offset));
+  } else if (next.kind === 'columns') {
+    next.columns = next.columns.map((c) => ({
+      ...c,
+      children: c.children.map((x) => rebaseSrc(x, offset)),
+    }));
+  }
+  return next as T;
+}
+
 /** `\begin{textblock*}{W}(X,Y)` produced by dragging an element on the canvas. */
 function recognizeTextblock(
   node: Extract<CstNode, { n: 'env' }>,
@@ -696,7 +770,10 @@ function recognizeTextblock(
 
   // Re-lex the remainder on its own, so raw slices inside it resolve against the
   // right string rather than against absolute offsets into the full document.
-  const remainder = body.slice(pm[0].length);
+  const rotated = peelRotatebox(body.slice(pm[0].length));
+  const remainder = rotated === null ? body.slice(pm[0].length) : rotated.inner;
+  // Where `remainder` begins inside the whole document, for rebasing spans below.
+  const base = node.bodySpan.start + pm[0].length + (rotated?.offset ?? 0);
   const sub = buildCst(remainder);
   const inner = recognizeElements(sub.root, {
     src: remainder,
@@ -711,10 +788,11 @@ function recognizeTextblock(
     y: Number.parseFloat(pm[2]!),
     w: Number.parseFloat(wm[1]!),
     z: 0,
+    ...(rotated === null ? {} : { rotate: rotated.deg }),
     driver: 'textpos',
   };
 
-  const only = inner[0]!;
+  const only = rebaseSrc(inner[0]!, base);
 
   // An absolutely-placed image is emitted with `width=\linewidth` so it fills the
   // block. That is implied by the placement, so drop it here rather than carrying it

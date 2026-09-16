@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 166 tests
+npm test             # vitest, 170 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -263,6 +263,21 @@ the set, it falls through to `pushChunk` and survives byte-for-byte. Covered by
 `test/deckMeta.spec.ts`. If a command reaches `TITLE_COMMANDS`, it needs a case in
 `applyTitleCommand` AND a line in the emitter — otherwise leaving it out is the safe choice.
 
+**A re-lexed fragment's spans must be rebased before the guard sees them.** A
+`textblock*`'s body is re-lexed on its own so that raw slices inside it resolve against
+the right string -- but that left every span inside counted from the start of the
+FRAGMENT while the guard slices them out of the whole document. An absolutely-placed
+block's child text therefore compared itself against a piece of the preamble, mismatched,
+and took the entire frame down to one raw block. A bare text box survived only because
+its own span is overwritten with the environment's. `rebaseSrc` shifts the subtree.
+
+**`\rotatebox` typesets in LR mode, so its content needs a `minipage`.** Without one, a
+rotated `block` fails with *Missing \endgroup inserted* and produces NO PDF, and a
+rotated paragraph never wraps. Measured: bare fails, wrapped compiles. The emitter always
+writes `\rotatebox{d}{\begin{minipage}{\linewidth}...\end{minipage}}` and
+`peelRotatebox` in the parser strips both layers -- an emit-side change that is only
+correct together with the parse-side one.
+
 **The store's element lookup has to recurse, because elements nest.** `mapElement` and
 `findElement` walked the frame's own child list only, so an edit to something inside a
 block or a column was applied to a list that did not contain it and was then silently
@@ -322,7 +337,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Twenty-four commits on `master`, ~16,700 lines across 89 source files, 166 tests passing.
+Twenty-five commits on `master`, ~16,900 lines across 91 source files, 170 tests passing.
 
 ### Done
 
@@ -361,6 +376,8 @@ Twenty-four commits on `master`, ~16,700 lines across 89 source files, 166 tests
 - **Title page**: `\titlepage` and `\maketitle` render as a real title page on the canvas
   and in the thumbnails, from a per-theme measured layout; the presentation's title,
   subtitle, author, institute and date are edited in the format pane
+- **Arrange**: a numeric Position and Size panel (X, Y, width, rotation in millimetres
+  and degrees) and align-to-slide for any selected element
 - **Direct manipulation**: every element -- text, list, block, columns, table, picture,
   equation, diagram, at any depth -- is selectable, draggable and resizable on the
   canvas. Dragging one out of the flow converts it to a free position at the place it

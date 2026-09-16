@@ -192,6 +192,7 @@ interface AppState {
     box: { x?: number; y?: number; w?: number },
   ): void;
   setImageHeightMm(slideId: string, elementId: string, mm: number | null): void;
+  setElementRotate(slideId: string, elementId: string, deg: number): void;
   returnElementToFlow(slideId: string, elementId: string): void;
   moveElementToAbsolute(slideId: string, elementId: string, x: number, y: number, w: number): void;
 
@@ -1083,6 +1084,31 @@ export const useStore = create<AppState>()((set, get) => {
             driver: 'textpos',
           },
         })),
+      );
+    },
+
+    /**
+     * Rotate a freely-placed element.
+     *
+     * `Placement.rotate` was modelled and emitted as `otatebox` all along, with no
+     * control anywhere to set it. Zero removes the wrapper rather than emitting a
+     * rotation of nothing.
+     */
+    setElementRotate(slideId, elementId, deg) {
+      const normalised = Math.round(((deg % 360) + 360) % 360 * 10) / 10;
+      mutate((deck) =>
+        mapElement(liftToFrame(deck, slideId, elementId), slideId, elementId, (e) => {
+          const base = e.placement.mode === 'absolute'
+            ? e.placement
+            : { ...(measuredRects.get(elementId) ?? FALLBACK_RECT), z: 0 };
+          const placement = {
+            mode: 'absolute' as const,
+            x: base.x, y: base.y, w: base.w, z: base.z,
+            driver: 'textpos' as const,
+            ...(normalised === 0 ? {} : { rotate: normalised }),
+          };
+          return { ...e, placement };
+        }),
       );
     },
 

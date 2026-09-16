@@ -80,8 +80,16 @@ function emitAbsoluteWrapper(
   w.line_(`\\begin{textblock*}{${width}mm}(${x}mm,${y}mm)`);
   w.indented(() => {
     if (p.rotate) {
+      // The minipage is not decoration. `\rotatebox` typesets its argument in LR mode,
+      // where a `block` environment fails with *Missing \endgroup inserted* and no PDF
+      // at all, and where a paragraph would never wrap. Measured against the engine:
+      // bare fails, wrapped compiles. `peelRotatebox` in the parser strips both layers.
       w.line_(`\\rotatebox{${roundMm(p.rotate)}}{%`);
-      w.indented(() => emitElementBody(w, el, ctx));
+      w.indented(() => {
+        w.line_('\\begin{minipage}{\\linewidth}');
+        w.indented(() => emitElementBody(w, el, ctx));
+        w.line_('\\end{minipage}');
+      });
       w.line_('}');
     } else {
       emitElementBody(w, el, ctx);
