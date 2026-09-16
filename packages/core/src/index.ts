@@ -5,8 +5,14 @@ export {
 } from './model/richtext.js';
 export {
   newDeck, newFrame, newTitleFrame, newTextElement, newListElement, newListItem,
-  newTableElement, defaultPreamble, plain,
+  newTableElement, newTikzElement, defaultPreamble, plain,
 } from './model/factory.js';
+export {
+  addShape, attachEndpoint, moveEndpoint, moveShape, removeShape, reorderShape,
+  resizeShape, restyleShape, setArrowHead, setCanvasSize, setNodeContent, shapeBounds,
+  shapeFromDrag, type ShapeTool,
+} from './model/shapeOps.js';
+export { TIKZ_LIBRARIES, tikzColor } from './emit/tikz.js';
 export {
   applyTableStyle, insertTableColumn, insertTableRow, removeTableColumn, removeTableRow,
   setTableColumnAlign, setTableFit, shiftMerges,

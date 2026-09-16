@@ -4,6 +4,7 @@ import type {
 } from '../model/types.js';
 import { roundMm } from '../geometry/paper.js';
 import { emitInline, isBlankRichText } from './inline.js';
+import { emitTikz } from './tikz.js';
 import type { TexWriter } from './writer.js';
 
 export interface EmitWarning {
@@ -34,7 +35,9 @@ export function emitElement(w: TexWriter, el: Element, ctx: EmitContext): void {
   // A tabular is an inline box: a newline before it in the source is just a space, so
   // without a paragraph break it lands on the same line as the text above it and the
   // canvas — which draws it as a block — would be lying. Measured: 58mm to the right.
-  const ownParagraph = el.kind === 'table' && el.placement.mode === 'flow';
+  // A tikzpicture is an inline box for the same reason a tabular is.
+  const ownParagraph =
+    (el.kind === 'table' || el.kind === 'tikz') && el.placement.mode === 'flow';
 
   if (ownParagraph) w.blank();
   w.span(el.id, `element:${el.kind}`, () => {
@@ -169,6 +172,10 @@ function emitElementBody(w: TexWriter, el: Element, ctx: EmitContext): void {
 
     case 'table':
       emitTable(w, el, ctx);
+      return;
+
+    case 'tikz':
+      emitTikz(w, el, ctx);
       return;
 
     case 'block': {

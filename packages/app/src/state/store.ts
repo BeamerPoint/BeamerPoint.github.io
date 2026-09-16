@@ -6,6 +6,19 @@ import {
   newListElement,
   newId,
   newTableElement,
+  newTikzElement,
+  addShape as addShapeOp,
+  attachEndpoint,
+  moveEndpoint,
+  moveShape as moveShapeOp,
+  removeShape,
+  reorderShape as reorderShapeOp,
+  resizeShape as resizeShapeOp,
+  restyleShape as restyleShapeOp,
+  setArrowHead,
+  setCanvasSize,
+  setNodeContent,
+  shapeFromDrag,
   // Aliased: the store exposes actions with these names, and a bare call inside a
   // shorthand method would read as recursion even though it is not.
   applyTableStyle as applyStyle,
@@ -30,9 +43,14 @@ import {
   type ResourceRef,
   type RichText,
   type SourceMap,
+  type ArrowHead,
+  type ShapeTool,
   type TableColumn,
   type TableElement,
+  type TikzElement,
+  type TikzStyle,
 } from '@beamerpoint/core';
+import type { ShapeDrag } from '../canvas/TikzView.js';
 import type { CompileResult, EngineStatus } from '@beamerpoint/engine';
 import { DEFAULT_AIDS, snapMm, type AidSettings } from '../canvas/CanvasAids.js';
 
@@ -59,6 +77,8 @@ export interface SourceHealth {
 export interface Selection {
   slideId: string | null;
   elementId: string | null;
+  /** The shape selected inside a tikz element, if any. */
+  shapeId?: string | null;
 }
 
 interface AppState {
@@ -131,6 +151,25 @@ interface AppState {
   setTableStyle(slideId: string, elementId: string, style: TableElement['style']): void;
   setTableFit(slideId: string, elementId: string, fit: TableElement['fit']): void;
   setTableCaption(slideId: string, elementId: string, caption: string | null): void;
+
+  addTikzElement(slideId: string): void;
+  shapeTool: ShapeTool | null;
+  setShapeTool(tool: ShapeTool | null): void;
+  selectShape(shapeId: string | null): void;
+  drawShape(slideId: string, elementId: string, drag: ShapeDrag): void;
+  deleteShape(slideId: string, elementId: string, shapeId: string): void;
+  moveShape(slideId: string, elementId: string, shapeId: string, dx: number, dy: number): void;
+  resizeShape(slideId: string, elementId: string, shapeId: string, dw: number, dh: number): void;
+  moveShapeEndpoint(
+    slideId: string, elementId: string, shapeId: string, which: 'from' | 'to',
+    point: { x: number; y: number },
+    over: { shapeId: string; side: 'n' | 's' | 'e' | 'w' | 'center' } | null,
+  ): void;
+  restyleShape(slideId: string, elementId: string, shapeId: string, patch: Partial<TikzStyle>): void;
+  reorderShape(slideId: string, elementId: string, shapeId: string, delta: 1 | -1): void;
+  setShapeArrowHead(slideId: string, elementId: string, shapeId: string, head: ArrowHead): void;
+  setShapeText(slideId: string, elementId: string, shapeId: string, text: string): void;
+  setTikzCanvasSize(slideId: string, elementId: string, w: number, h: number): void;
   setMathTex(slideId: string, elementId: string, tex: string): void;
   setMathEnv(slideId: string, elementId: string, env: MathEnv): void;
   setImageWidth(slideId: string, elementId: string, fraction: number): void;
@@ -263,6 +302,13 @@ export const useStore = create<AppState>()((set, get) => {
     fn: (t: TableElement) => TableElement,
   ): Deck => mapElement(deck, slideId, elementId, (el) => (el.kind === 'table' ? fn(el) : el));
 
+  const mapTikz = (
+    deck: Deck,
+    slideId: string,
+    elementId: string,
+    fn: (el: TikzElement) => TikzElement,
+  ): Deck => mapElement(deck, slideId, elementId, (el) => (el.kind === 'tikz' ? fn(el) : el));
+
   const mapFrame = (deck: Deck, slideId: string, fn: (f: FrameNode) => FrameNode): Deck => ({
     ...deck,
     nodes: deck.nodes.map((n) => (n.kind === 'frame' && n.id === slideId ? fn(n) : n)),
@@ -293,6 +339,7 @@ export const useStore = create<AppState>()((set, get) => {
     engine: { status: { s: 'uninitialised' }, result: null, compiling: false },
     history: { past: [], future: [] },
     overlayMode: 'transform',
+    shapeTool: null,
     aids: loadAids(),
 
     setOverlayMode(mode) {
@@ -353,7 +400,7 @@ export const useStore = create<AppState>()((set, get) => {
     },
 
     selectElement(slideId, elementId) {
-      set({ selection: { slideId, elementId }, overlayMode: 'transform' });
+      set({ selection: { slideId, elementId, shapeId: null }, overlayMode: 'transform' });
     },
 
     addSlide() {
@@ -607,6 +654,81 @@ export const useStore = create<AppState>()((set, get) => {
           return { ...t, caption: plain(caption), floatWrapper: 'table' };
         }),
       );
+    },
+
+    /* ------------------------------------------------------ shapes and diagrams */
+
+    addTikzElement(slideId) {
+      const el = newTikzElement();
+      mutate((deck) => mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, el] })));
+      set({
+        selection: { slideId, elementId: el.id, shapeId: null },
+        // Land on the rectangle tool: an empty canvas with no tool selected looks
+        // broken, because nothing happens when you drag on it.
+        shapeTool: 'rect',
+      });
+    },
+
+    setShapeTool(tool) {
+      set({ shapeTool: tool });
+    },
+
+    selectShape(shapeId) {
+      set({ selection: { ...get().selection, shapeId } });
+    },
+
+    drawShape(slideId, elementId, drag) {
+      const shape = shapeFromDrag(drag.tool, drag.from, drag.to);
+      mutate((deck) => mapTikz(deck, slideId, elementId, (el) => addShapeOp(el, shape)));
+      // One shape per press: staying in the tool is how you end up with a pile of
+      // rectangles after trying to move the one you just drew.
+      set({ selection: { ...get().selection, shapeId: shape.id }, shapeTool: null });
+    },
+
+    deleteShape(slideId, elementId, shapeId) {
+      mutate((deck) => mapTikz(deck, slideId, elementId, (el) => removeShape(el, shapeId)));
+      set({ selection: { ...get().selection, shapeId: null } });
+    },
+
+    moveShape(slideId, elementId, shapeId, dx, dy) {
+      mutate((deck) => mapTikz(deck, slideId, elementId, (el) => moveShapeOp(el, shapeId, dx, dy)));
+    },
+
+    resizeShape(slideId, elementId, shapeId, dw, dh) {
+      mutate((deck) =>
+        mapTikz(deck, slideId, elementId, (el) => resizeShapeOp(el, shapeId, dw, dh)));
+    },
+
+    moveShapeEndpoint(slideId, elementId, shapeId, which, point, over) {
+      mutate((deck) => mapTikz(deck, slideId, elementId, (el) => {
+        const shape = (el.shapes ?? []).find((s) => s.id === shapeId);
+        // Only an arrow can attach to a shape; a plain line just takes the point.
+        if (shape?.t === 'arrow') return attachEndpoint(el, shapeId, which, over, point);
+        return moveEndpoint(el, shapeId, which, point);
+      }));
+    },
+
+    restyleShape(slideId, elementId, shapeId, patch) {
+      mutate((deck) =>
+        mapTikz(deck, slideId, elementId, (el) => restyleShapeOp(el, shapeId, patch)));
+    },
+
+    reorderShape(slideId, elementId, shapeId, delta) {
+      mutate((deck) =>
+        mapTikz(deck, slideId, elementId, (el) => reorderShapeOp(el, shapeId, delta)));
+    },
+
+    setShapeArrowHead(slideId, elementId, shapeId, head) {
+      mutate((deck) => mapTikz(deck, slideId, elementId, (el) => setArrowHead(el, shapeId, head)));
+    },
+
+    setShapeText(slideId, elementId, shapeId, text) {
+      mutate((deck) =>
+        mapTikz(deck, slideId, elementId, (el) => setNodeContent(el, shapeId, plain(text))));
+    },
+
+    setTikzCanvasSize(slideId, elementId, w, h) {
+      mutate((deck) => mapTikz(deck, slideId, elementId, (el) => setCanvasSize(el, w, h)));
     },
 
     setMathTex(slideId, elementId, tex) {

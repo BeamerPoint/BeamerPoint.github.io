@@ -3,6 +3,8 @@ import { InlineText, MathView } from './InlineText.js';
 import { readInlineFromDom } from './domInline.js';
 import { ImageView } from './ImageView.js';
 import { TableView } from './TableView.js';
+import { TikzView } from './TikzView.js';
+import { useStore } from '../state/store.js';
 import { SelectionOverlay, type OverlayMode } from './SelectionOverlay.js';
 import { useCanvasGeometry } from './CanvasContext.js';
 import { wrapForKatex } from './mathPreview.js';
@@ -169,6 +171,9 @@ function Body(props: Props): React.ReactElement {
         <TableView el={el} theme={theme} locked={locked} onEditCell={props.onEditCell} />
       );
 
+    case 'tikz':
+      return <TikzBody el={el} theme={theme} locked={locked} />;
+
     case 'math':
       return <MathView tex={wrapForKatex(el.tex, el.env)} display />;
 
@@ -227,5 +232,57 @@ function ListView({
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * A diagram on the canvas.
+ *
+ * Shape editing is wired straight to the store rather than threaded through the
+ * canvas props: a diagram has a dozen operations of its own, and passing them all
+ * down would swamp every other element's signature for no benefit.
+ */
+function TikzBody({
+  el, theme, locked,
+}: {
+  el: Extract<Element, { kind: 'tikz' }>;
+  theme: ThemeSpec;
+  locked: boolean;
+}): React.ReactElement {
+  const slideId = useStore((s) => s.selection.slideId);
+  const elementSelected = useStore((s) => s.selection.elementId) === el.id;
+  const shapeId = useStore((s) => s.selection.shapeId ?? null);
+  const tool = useStore((s) => s.shapeTool);
+  const selectShape = useStore((s) => s.selectShape);
+  const drawShape = useStore((s) => s.drawShape);
+  const moveShape = useStore((s) => s.moveShape);
+  const resizeShape = useStore((s) => s.resizeShape);
+  const moveShapeEndpoint = useStore((s) => s.moveShapeEndpoint);
+
+  if (el.mode === 'raw') {
+    return (
+      <div className="bp-raw" title="Hand-written TikZ, preserved exactly">
+        <div className="bp-raw-label">tikzpicture</div>
+        <pre>{el.raw}</pre>
+      </div>
+    );
+  }
+
+  if (slideId === null) return <div className="bp-tikz-empty" />;
+
+  return (
+    <TikzView
+      el={el}
+      theme={theme}
+      locked={locked}
+      tool={elementSelected ? tool : null}
+      selectedShapeId={elementSelected ? shapeId : null}
+      onSelectShape={selectShape}
+      onDrawShape={(drag) => drawShape(slideId, el.id, drag)}
+      onMoveShape={(id, dx, dy) => moveShape(slideId, el.id, id, dx, dy)}
+      onResizeShape={(id, dw, dh) => resizeShape(slideId, el.id, id, dw, dh)}
+      onMoveEndpoint={(id, which, point, over) =>
+        moveShapeEndpoint(slideId, el.id, id, which, point, over)}
+    />
   );
 }

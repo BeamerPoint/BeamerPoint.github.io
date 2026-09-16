@@ -1,4 +1,5 @@
 import type { Deck, Element, PackageSpec } from '../model/types.js';
+import { TIKZ_LIBRARIES } from './tikz.js';
 
 /**
  * Compute the packages a deck's content requires, so the user never has to think
@@ -24,6 +25,7 @@ export interface DerivedPackage extends PackageSpec {
  * This set is the single source of truth for that ownership; both sides read it.
  */
 export const DERIVED_SETUP_LINES: ReadonlySet<string> = new Set([
+  TIKZ_LIBRARIES,
   '\\pgfplotsset{compat=1.18}',
   '\\setlength{\\TPHorizModule}{1mm}',
   '\\setlength{\\TPVertModule}{1mm}',
@@ -82,7 +84,9 @@ export function derivePackages(deck: Deck): DerivedPackage[] {
         if (el.backend === 'minted') add('minted');
         break;
       case 'tikz':
-        add('tikz');
+        // Verified against the engine: without these libraries an `ellipse` node
+        // fails with "I do not know the key '/tikz/ellipse'" and produces no PDF.
+        add('tikz', [], [TIKZ_LIBRARIES]);
         break;
       case 'chart':
         add('pgfplots', [], ['\\pgfplotsset{compat=1.18}']);

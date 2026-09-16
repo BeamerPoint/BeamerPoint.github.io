@@ -61,7 +61,11 @@ const doc = await pdfjs.getDocument({ data: window.bpStore.getState().engine.res
 const page = await doc.getPage(1);
 const vp = page.getViewport({ scale: 1 });
 const tc = await page.getTextContent();
-const PT = 72.27 / 25.4, mm = (p) => +(p / PT).toFixed(1);
+// PDF user space is BIG points (72/inch), not TeX points (72.27/inch). Using 72.27
+// here scaled every measurement down by 0.375% — 0.37mm at 100mm, a systematic bias
+// that leans the same way in every residual. Measured: a node placed at exactly
+// 100mm read as 99.63 under the old constant and 100.00 under this one.
+const PT = 72 / 25.4, mm = (p) => +(p / PT).toFixed(1);
 
 // Group runs into lines so the layout is legible, and so an EMPTY run cannot be
 // mistaken for a marker — that mistake once made a correct column look 45mm out.

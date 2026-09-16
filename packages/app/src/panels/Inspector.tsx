@@ -11,6 +11,7 @@ import { selectCurrentFrame, useStore } from '../state/store.js';
 import { useImageImport } from '../ui/useImageImport.js';
 import { MathEditor } from './MathEditor.js';
 import { TableEditor } from './TableEditor.js';
+import { ShapeEditor } from './ShapeEditor.js';
 
 const ASPECTS: AspectRatio[] = ['169', '43', '1610', '32'];
 const PROGRAMS: TexProgram[] = ['pdflatex', 'xelatex', 'lualatex'];
@@ -43,8 +44,10 @@ export function Inspector(): React.ReactElement {
   const selectedImage = selected?.kind === 'image' ? selected : undefined;
   const selectedMath = selected?.kind === 'math' ? selected : undefined;
   const selectedTable = selected?.kind === 'table' ? selected : undefined;
+  const selectedTikz = selected?.kind === 'tikz' ? selected : undefined;
   const addMathElement = useStore((s) => s.addMathElement);
   const addTableElement = useStore((s) => s.addTableElement);
+  const addTikzElement = useStore((s) => s.addTikzElement);
 
   return (
     <aside className="bp-inspector">
@@ -119,6 +122,13 @@ export function Inspector(): React.ReactElement {
           >
             + Table
           </button>
+          <button
+            disabled={locked || !frame}
+            title="Insert a drawing canvas for shapes, arrows and diagrams"
+            onClick={() => frame && addTikzElement(frame.id)}
+          >
+            + Diagram
+          </button>
         </div>
         {images.notice !== null && (
           <p className="bp-hint bp-hint-warn" onClick={images.dismissNotice}>
@@ -132,6 +142,10 @@ export function Inspector(): React.ReactElement {
 
         {selectedTable !== undefined && frame !== undefined && (
           <TableEditor el={selectedTable} slideId={frame.id} locked={locked} />
+        )}
+
+        {selectedTikz !== undefined && frame !== undefined && (
+          <ShapeEditor el={selectedTikz} slideId={frame.id} locked={locked} />
         )}
 
         {selectedImage !== undefined && frame !== undefined && (

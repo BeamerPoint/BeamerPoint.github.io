@@ -511,3 +511,47 @@ body.bp-dragging { user-select: none; }
   flex: none;
 }
 .bp-col-align-row .bp-btn-row button { min-width: 26px; padding: 2px 0; }
+
+/* ------------------------------------------------- shapes and diagrams */
+/*
+ * The SVG viewBox is the canvas in millimetres, so every number inside it is a model
+ * number. Only the outer width/height convert to design pixels.
+ */
+.bp-tikz { display: block; overflow: visible; touch-action: none; }
+.bp-tikz.is-drawing { cursor: crosshair; }
+.bp-tikz-empty { min-height: calc(var(--bp-mm) * 20); }
+
+.bp-tikz-draft {
+  fill: rgba(47, 91, 215, 0.12);
+  stroke: var(--bp-accent);
+  stroke-width: 0.3;
+  stroke-dasharray: 1 1;
+  pointer-events: none;
+}
+.bp-tikz-handles circle {
+  fill: #fff; stroke: var(--bp-accent); stroke-width: 0.35; cursor: pointer;
+}
+.bp-tikz-outline {
+  fill: none; stroke: var(--bp-accent); stroke-width: 0.25; stroke-dasharray: 1 1;
+  pointer-events: none;
+}
+
+.bp-shape-props {
+  border-top: 1px solid var(--bp-border); padding-top: 8px; margin-top: 8px;
+}
+.bp-tool-row button { font-size: 15px; line-height: 1; padding: 4px 0; }
+.bp-size-row { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+.bp-size-row input { width: 100%; margin-top: 0; }
+
+.bp-swatches { display: flex; flex-wrap: wrap; gap: 4px; }
+.bp-swatch {
+  width: 20px; height: 20px; padding: 0; flex: none;
+  border: 1px solid var(--bp-border); border-radius: 4px; cursor: pointer;
+}
+.bp-swatch.is-active { outline: 2px solid var(--bp-accent); outline-offset: 1px; }
+/* "None" needs to read as empty rather than as white. */
+.bp-swatch.is-none {
+  background:
+    linear-gradient(45deg, transparent 45%, var(--bp-danger) 45%,
+                    var(--bp-danger) 55%, transparent 55%) !important;
+}

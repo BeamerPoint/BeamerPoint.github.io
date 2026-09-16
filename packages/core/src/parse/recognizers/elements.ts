@@ -17,6 +17,7 @@ import type { CstGroup, CstNode } from '../cst.js';
 import { buildCst } from '../lexer.js';
 import { parseInline, trimRichText } from '../inline.js';
 import { recognizeTable } from './table.js';
+import { recognizeTikz } from './tikz.js';
 
 export interface RecognizeCtx {
   src: string;
@@ -215,6 +216,11 @@ function recognizeBlockLevel(node: CstNode, ctx: RecognizeCtx): Element {
     if (node.name === 'columns') {
       const cols = recognizeColumns(node, ctx);
       if (cols !== null) return cols;
+    }
+
+    if (node.name === 'tikzpicture') {
+      const pic = recognizeTikz(node, ctx);
+      if (pic !== null) return pic;
     }
 
     if (node.name === 'figure') {

@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 73 tests
+npm test             # vitest, 92 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -135,6 +135,25 @@ sitting 1.3mm high, and measuring showed it made every row worse (residuals went
 +1.3/−0.2/+0.1 to +2.4/+2.7/+3.0) because frame content is centred and the table then
 overshot its true height. Measure before and after, not just after.
 
+**TikZ needs its libraries declared, and the shapes are stored y-down.** An `ellipse`
+node without `\usetikzlibrary{shapes.geometric}` fails with *I do not know the key
+'/tikz/ellipse'* and produces **no PDF at all** — not a degraded one. The libraries are
+part of the derived `tikz` package setup. TikZ's y axis points up, so the model keeps
+millimetres from the top-left like everything else and the emitter negates y; verified
+by compiling a node asked for at (40mm, 20mm) and measuring 40.00mm right, 20.00mm down.
+A picture also needs `\useasboundingbox`, or TikZ shrinks it to fit its contents and
+empty space at the edge of the user's canvas silently disappears.
+
+**Deleting a shape must delete the arrows attached to it.** A `\draw (bpX.east) -- ...`
+naming a node that no longer exists aborts the whole compile rather than skipping that
+one arrow, so an orphaned arrow takes the deck down. `shapeOps.removeShape` drops them,
+and `shapeOps.spec.ts` checks the emitted source for dangling node references.
+
+**PDF user space is big points (72/inch), not TeX points (72.27/inch).** The audit
+script used 72.27 and so scaled every measurement down by 0.375% — 0.37mm at 100mm,
+leaning the same way in every residual. A node placed at exactly 100mm read as 99.63
+under the old constant.
+
 **KaTeX cannot render a bare `align` body.** `&` and `\` are only legal inside an
 environment, so a display-math body must be wrapped (`aligned`/`gathered`) before
 preview. `canvas/mathPreview.ts` does it once for both the canvas and the inspector —
@@ -161,7 +180,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Sixteen commits on `master`, ~12,500 lines across 62 source files, 73 tests passing.
+Seventeen commits on `master`, ~13,300 lines across 68 source files, 92 tests passing.
 
 ### Done
 
@@ -176,6 +195,12 @@ Sixteen commits on `master`, ~12,500 lines across 62 source files, 73 tests pass
   spans, `p` and `X` columns, vertical rules, captions in a `table` float; grid editor
   in the inspector, cells edited in place on the canvas; structure operations are pure
   functions in `core/model/tableOps.ts`
+- **Shapes and diagrams**: a TikZ drawing canvas with rectangles, rounded rectangles,
+  ellipses, lines, polygons, arrows and text labels; draw by dragging, then move, resize
+  and restyle (line/fill colour, dash, width, arrowhead, z-order). An arrow endpoint
+  dropped on a shape **attaches** to that side and follows it, which is what makes it a
+  diagram rather than loose shapes. A hand-written `tikzpicture` is kept verbatim as a
+  `mode: 'raw'` element. Operations are pure functions in `core/model/shapeOps.ts`
 - **Math**: display equations (equation/align/gather and their starred forms, plus
   `\[ \]`), body kept verbatim, KaTeX preview on the canvas and in the inspector
 - **Sections and speaker notes**: emitted and parsed (no authoring UI yet)
@@ -192,11 +217,10 @@ Roughly in the order the user and I agreed to tackle them:
 
 1. **Code blocks** — `listings`; `fragile` is already auto-derived on the frame
 2. **Citations** — `.bib` attach, `\cite` autocomplete, references frame
-3. **TikZ shapes** — fixed shape vocabulary; keep the raw escape hatch for the rest
-4. **pgfplots charts** — small data-table editor
-5. Authoring UI for sections and speaker notes (model/emit/parse already exist)
-6. Image rotation (model and emitter support `angle=`; no handle yet)
-7. Importing an arbitrary external `.tex` (the parser can already do it; needs a file
+3. **pgfplots charts** — small data-table editor
+4. Authoring UI for sections and speaker notes (model/emit/parse already exist)
+5. Image rotation (model and emitter support `angle=`; no handle yet)
+6. Importing an arbitrary external `.tex` (the parser can already do it; needs a file
    picker and a report of what degraded to raw)
 
 Model types, and in several cases the emitter, already exist for all of these — check
@@ -214,6 +238,12 @@ Model types, and in several cases the emitter, already exist for all of these �
   numeric rather than draggable. Audited against the PDF at under 2.3mm horizontally
   (cumulative font-metric divergence, worst in the rightmost column) and under 1.9mm
   vertically
+- Diagrams have no rotation, no multi-point polyline editing after drawing, no grid
+  snapping of shapes, and no rich text inside a label. A label's on-canvas box is
+  estimated from its character count, so hit-testing a label is approximate — the
+  compiled position is not. Internal diagram geometry was measured at **0.00mm** against
+  the PDF; the picture's own placement on the slide is within about 1.4mm, the same
+  vertical-centring approximation as text and tables
 - `minted` needs shell escape, which the WASM engine cannot provide; preview falls back
   to `listings` with a warning
 - The file picker, drag-drop and paste paths have not been exercised with a real mouse —

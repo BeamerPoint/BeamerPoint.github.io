@@ -9,6 +9,7 @@ import type {
   TableColumn,
   TableElement,
   TableRow,
+  TikzElement,
   TextElement,
 } from './types.js';
 import { newId } from './ids.js';
@@ -99,6 +100,23 @@ export function newTableElement(rowCount = 3, colCount = 3): TableElement {
     merges: [],
     fit: 'natural',
     floatWrapper: 'none',
+  };
+}
+
+/**
+ * An empty drawing canvas.
+ *
+ * The default is wide and short so it sits naturally in the flow under a frame title
+ * rather than pushing everything else off the slide.
+ */
+export function newTikzElement(w = 100, h = 45): TikzElement {
+  return {
+    id: newId(),
+    kind: 'tikz',
+    placement: { mode: 'flow' },
+    mode: 'shapes',
+    shapes: [],
+    canvasSize: { w, h },
   };
 }
 
