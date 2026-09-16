@@ -10,6 +10,7 @@ import {
 import { selectCurrentFrame, useStore } from '../state/store.js';
 import { useImageImport } from '../ui/useImageImport.js';
 import { MathEditor } from './MathEditor.js';
+import { TableEditor } from './TableEditor.js';
 
 const ASPECTS: AspectRatio[] = ['169', '43', '1610', '32'];
 const PROGRAMS: TexProgram[] = ['pdflatex', 'xelatex', 'lualatex'];
@@ -41,7 +42,9 @@ export function Inspector(): React.ReactElement {
   const selected = frame?.children.find((e) => e.id === selection.elementId);
   const selectedImage = selected?.kind === 'image' ? selected : undefined;
   const selectedMath = selected?.kind === 'math' ? selected : undefined;
+  const selectedTable = selected?.kind === 'table' ? selected : undefined;
   const addMathElement = useStore((s) => s.addMathElement);
+  const addTableElement = useStore((s) => s.addTableElement);
 
   return (
     <aside className="bp-inspector">
@@ -100,12 +103,21 @@ export function Inspector(): React.ReactElement {
           >
             + Example
           </button>
+        </div>
+        <div className="bp-btn-row">
           <button
             disabled={locked || !frame}
             title="Insert a display equation"
             onClick={() => frame && addMathElement(frame.id)}
           >
             + Equation
+          </button>
+          <button
+            disabled={locked || !frame}
+            title="Insert a table. Edit the cells on the slide."
+            onClick={() => frame && addTableElement(frame.id)}
+          >
+            + Table
           </button>
         </div>
         {images.notice !== null && (
@@ -116,6 +128,10 @@ export function Inspector(): React.ReactElement {
 
         {selectedMath !== undefined && frame !== undefined && (
           <MathEditor el={selectedMath} slideId={frame.id} locked={locked} />
+        )}
+
+        {selectedTable !== undefined && frame !== undefined && (
+          <TableEditor el={selectedTable} slideId={frame.id} locked={locked} />
         )}
 
         {selectedImage !== undefined && frame !== undefined && (

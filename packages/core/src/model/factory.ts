@@ -6,6 +6,9 @@ import type {
   ListItem,
   Preamble,
   RichText,
+  TableColumn,
+  TableElement,
+  TableRow,
   TextElement,
 } from './types.js';
 import { newId } from './ids.js';
@@ -58,6 +61,44 @@ export function newListElement(
     placement: { mode: 'flow' },
     listType,
     items: items.map(newListItem),
+  };
+}
+
+/**
+ * A booktabs table with a header row.
+ *
+ * The rules are stored explicitly rather than derived from `style`, so a user who
+ * edits them in the source keeps what they wrote.
+ */
+export function newTableElement(rowCount = 3, colCount = 3): TableElement {
+  const columns: TableColumn[] = Array.from({ length: Math.max(1, colCount) }, (_, i) => ({
+    id: newId(),
+    align: i === 0 ? 'l' : 'c',
+  }));
+
+  const rows: TableRow[] = Array.from({ length: Math.max(1, rowCount) }, (_, r) => ({
+    id: newId(),
+    cells: columns.map((_c, i) => ({
+      id: newId(),
+      content: plain(r === 0 ? `Column ${i + 1}` : ''),
+    })),
+    ...(r === 0 ? { isHeader: true, ruleBelow: { k: 'midrule' as const } } : {}),
+  }));
+
+  const last = rows[rows.length - 1]!;
+  last.ruleBelow = { k: 'bottomrule' };
+
+  return {
+    id: newId(),
+    kind: 'table',
+    placement: { mode: 'flow' },
+    style: 'booktabs',
+    columns,
+    topRule: { k: 'toprule' },
+    rows,
+    merges: [],
+    fit: 'natural',
+    floatWrapper: 'none',
   };
 }
 

@@ -2,6 +2,7 @@ import { PX_PER_MM, type Element, type ListElement, type ResourceRef, type RichT
 import { InlineText, MathView } from './InlineText.js';
 import { readInlineFromDom } from './domInline.js';
 import { ImageView } from './ImageView.js';
+import { TableView } from './TableView.js';
 import { SelectionOverlay, type OverlayMode } from './SelectionOverlay.js';
 import { useCanvasGeometry } from './CanvasContext.js';
 import { wrapForKatex } from './mathPreview.js';
@@ -15,6 +16,7 @@ interface Props {
   onSelect(id: string): void;
   onEditContent(elementId: string, content: RichText): void;
   onEditItem(elementId: string, itemId: string, content: RichText): void;
+  onEditCell(elementId: string, rowId: string, cellId: string, content: RichText): void;
   overlayMode: OverlayMode;
   onResizeImage(elementId: string, deltaMm: number, deltaFraction: number): void;
   onMoveImage(elementId: string, dxMm: number, dyMm: number): void;
@@ -160,6 +162,11 @@ function Body(props: Props): React.ReactElement {
             : undefined}
           showUncropped={props.selected && props.overlayMode === 'crop'}
         />
+      );
+
+    case 'table':
+      return (
+        <TableView el={el} theme={theme} locked={locked} onEditCell={props.onEditCell} />
       );
 
     case 'math':

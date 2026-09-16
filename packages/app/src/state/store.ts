@@ -5,6 +5,16 @@ import {
   newFrame,
   newListElement,
   newId,
+  newTableElement,
+  // Aliased: the store exposes actions with these names, and a bare call inside a
+  // shorthand method would read as recursion even though it is not.
+  applyTableStyle as applyStyle,
+  insertTableColumn as insertColumn,
+  insertTableRow as insertRow,
+  removeTableColumn as dropColumn,
+  removeTableRow as dropRow,
+  setTableColumnAlign as setColumnAlign,
+  setTableFit as setFit,
   newTextElement,
   parseDeck,
   plain,
@@ -20,6 +30,8 @@ import {
   type ResourceRef,
   type RichText,
   type SourceMap,
+  type TableColumn,
+  type TableElement,
 } from '@beamerpoint/core';
 import type { CompileResult, EngineStatus } from '@beamerpoint/engine';
 import { DEFAULT_AIDS, snapMm, type AidSettings } from '../canvas/CanvasAids.js';
@@ -105,6 +117,20 @@ interface AppState {
   addImageElement(slideId: string, ref: ResourceRef): void;
   addMathElement(slideId: string): void;
   addTextBox(slideId: string): void;
+  addTableElement(slideId: string): void;
+  setTableCell(
+    slideId: string, elementId: string, rowId: string, cellId: string, content: RichText,
+  ): void;
+  addTableRow(slideId: string, elementId: string, afterIndex: number): void;
+  removeTableRow(slideId: string, elementId: string, index: number): void;
+  addTableColumn(slideId: string, elementId: string, afterIndex: number): void;
+  removeTableColumn(slideId: string, elementId: string, index: number): void;
+  setTableColumnAlign(
+    slideId: string, elementId: string, index: number, align: TableColumn['align'],
+  ): void;
+  setTableStyle(slideId: string, elementId: string, style: TableElement['style']): void;
+  setTableFit(slideId: string, elementId: string, fit: TableElement['fit']): void;
+  setTableCaption(slideId: string, elementId: string, caption: string | null): void;
   setMathTex(slideId: string, elementId: string, tex: string): void;
   setMathEnv(slideId: string, elementId: string, env: MathEnv): void;
   setImageWidth(slideId: string, elementId: string, fraction: number): void;
@@ -229,6 +255,13 @@ export const useStore = create<AppState>()((set, get) => {
       history: { past: [...state.history.past, state.deck].slice(-100), future: [] },
     });
   };
+
+  const mapTable = (
+    deck: Deck,
+    slideId: string,
+    elementId: string,
+    fn: (t: TableElement) => TableElement,
+  ): Deck => mapElement(deck, slideId, elementId, (el) => (el.kind === 'table' ? fn(el) : el));
 
   const mapFrame = (deck: Deck, slideId: string, fn: (f: FrameNode) => FrameNode): Deck => ({
     ...deck,
@@ -510,6 +543,70 @@ export const useStore = create<AppState>()((set, get) => {
       };
       mutate((deck) => mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, el] })));
       set({ selection: { slideId, elementId: el.id } });
+    },
+
+    addTableElement(slideId) {
+      const el = newTableElement(3, 3);
+      mutate((deck) => mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, el] })));
+      set({ selection: { slideId, elementId: el.id } });
+    },
+
+    setTableCell(slideId, elementId, rowId, cellId, content) {
+      mutate((deck) =>
+        mapTable(deck, slideId, elementId, (t) => ({
+          ...t,
+          rows: t.rows.map((row) => (row.id !== rowId ? row : {
+            ...row,
+            cells: row.cells.map((c) => (c.id === cellId ? { ...c, content } : c)),
+          })),
+        })),
+      );
+    },
+
+    addTableRow(slideId, elementId, afterIndex) {
+      mutate((deck) => mapTable(deck, slideId, elementId, (t) => insertRow(t, afterIndex)));
+    },
+
+    removeTableRow(slideId, elementId, index) {
+      mutate((deck) => mapTable(deck, slideId, elementId, (t) => dropRow(t, index)));
+    },
+
+    addTableColumn(slideId, elementId, afterIndex) {
+      mutate((deck) =>
+        mapTable(deck, slideId, elementId, (t) => insertColumn(t, afterIndex)));
+    },
+
+    removeTableColumn(slideId, elementId, index) {
+      mutate((deck) => mapTable(deck, slideId, elementId, (t) => dropColumn(t, index)));
+    },
+
+    setTableColumnAlign(slideId, elementId, index, align) {
+      mutate((deck) =>
+        mapTable(deck, slideId, elementId, (t) => setColumnAlign(t, index, align)));
+    },
+
+    setTableStyle(slideId, elementId, style) {
+      mutate((deck) => mapTable(deck, slideId, elementId, (t) => applyStyle(t, style)));
+    },
+
+    setTableFit(slideId, elementId, fit) {
+      mutate((deck) => mapTable(deck, slideId, elementId, (t) => setFit(t, fit)));
+    },
+
+    setTableCaption(slideId, elementId, caption) {
+      mutate((deck) =>
+        mapTable(deck, slideId, elementId, (t) => {
+          if (caption === null || caption === '') {
+            const { caption: _drop, ...rest } = t;
+            // The float was adopted to carry the caption; without one it would only
+            // hand LaTeX the freedom to move the table somewhere unexpected.
+            return t.floatWrapper === 'table' ? { ...rest, floatWrapper: 'none' } : rest;
+          }
+          // A caption only prints inside a float, so adopt one rather than emitting a
+          // caption that silently disappears from the PDF.
+          return { ...t, caption: plain(caption), floatWrapper: 'table' };
+        }),
+      );
     },
 
     setMathTex(slideId, elementId, tex) {
@@ -811,3 +908,4 @@ export const selectCurrentFrame = (s: AppState): FrameNode | undefined =>
 
 /** True when the canvas must refuse edits because the source editor owns the document. */
 export const selectCanvasLocked = (s: AppState): boolean => s.source.status !== 'synced';
+

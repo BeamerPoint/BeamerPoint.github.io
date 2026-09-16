@@ -1,4 +1,7 @@
-import type { Element, Length, ListElement, ListItem, Placement, TexString } from '../model/types.js';
+import type {
+  Element, Length, ListElement, ListItem, Placement, RowRule, TableColumn, TableElement,
+  TableRow, TexString,
+} from '../model/types.js';
 import { roundMm } from '../geometry/paper.js';
 import { emitInline, isBlankRichText } from './inline.js';
 import type { TexWriter } from './writer.js';
@@ -28,6 +31,12 @@ export interface EmitContext {
  * is no conversion step to get wrong.
  */
 export function emitElement(w: TexWriter, el: Element, ctx: EmitContext): void {
+  // A tabular is an inline box: a newline before it in the source is just a space, so
+  // without a paragraph break it lands on the same line as the text above it and the
+  // canvas — which draws it as a block — would be lying. Measured: 58mm to the right.
+  const ownParagraph = el.kind === 'table' && el.placement.mode === 'flow';
+
+  if (ownParagraph) w.blank();
   w.span(el.id, `element:${el.kind}`, () => {
     for (const c of el.leadingComments ?? []) w.line_(`%${c}`);
 
@@ -37,6 +46,7 @@ export function emitElement(w: TexWriter, el: Element, ctx: EmitContext): void {
       emitElementBody(w, el, ctx);
     }
   });
+  if (ownParagraph) w.blank();
 }
 
 function emitAbsoluteWrapper(
@@ -157,6 +167,10 @@ function emitElementBody(w: TexWriter, el: Element, ctx: EmitContext): void {
       return;
     }
 
+    case 'table':
+      emitTable(w, el, ctx);
+      return;
+
     case 'block': {
       const title = el.title === undefined ? '' : emitInline(el.title);
       w.line_(`\\begin{${el.variant}}{${title}}`);
@@ -194,6 +208,158 @@ function emitElementBody(w: TexWriter, el: Element, ctx: EmitContext): void {
         nodeId: el.id,
       });
       return;
+  }
+}
+
+/* -------------------------------------------------------------------- tables */
+
+/** `l`, `c`, `r`, `p{3cm}` or `X`, prefixed by this column's vertical rule. */
+function columnSpecOf(col: TableColumn): string {
+  const rule = col.leftRule === 'single' ? '|' : col.leftRule === 'double' ? '||' : '';
+  if (col.align === 'p') return `${rule}p{${lengthToTex(col.width ?? { v: 2, u: 'cm' })}}`;
+  return `${rule}${col.align}`;
+}
+
+function ruleLine(r: RowRule): string {
+  if (r.k === 'cmidrule') {
+    const trim = r.trim === undefined || r.trim === '' ? '' : `(${r.trim})`;
+    return `\\cmidrule${trim}{${r.from}-${r.to}}`;
+  }
+  return `\\${r.k}`;
+}
+
+/** The letter `\multicolumn` takes; it carries no vertical rules of its own here. */
+function mergeAlignOf(el: TableElement, col: number, override: string | undefined): string {
+  if (override !== undefined) return override;
+  const a = el.columns[col]?.align;
+  return a === 'l' || a === 'c' || a === 'r' ? a : 'l';
+}
+
+/**
+ * One table row.
+ *
+ * A merge spans `colspan` columns, and the model keeps one cell per column so the
+ * grid stays rectangular for the editor. The covered cells therefore have no place
+ * in the output — emitting them would add stray `&` — so they are skipped, and a
+ * covered cell that is not blank is reported rather than silently dropped.
+ */
+function emitTableRow(
+  w: TexWriter,
+  el: TableElement,
+  row: TableRow,
+  rowIndex: number,
+  ctx: EmitContext,
+): void {
+  const parts: string[] = [];
+
+  for (let col = 0; col < el.columns.length;) {
+    const merge = el.merges.find((m) => m.row === rowIndex && m.col === col && m.colspan > 1);
+    const cell = row.cells[col];
+    const body = cell === undefined ? '' : emitInline(cell.content);
+
+    if (merge === undefined) {
+      parts.push(body);
+      col += 1;
+      continue;
+    }
+
+    const span = Math.min(merge.colspan, el.columns.length - col);
+    for (let k = 1; k < span; k++) {
+      const covered = row.cells[col + k];
+      if (covered !== undefined && !isBlankRichText(covered.content)) {
+        ctx.warn({
+          code: 'emit.table-covered-cell',
+          message: `Cell at row ${rowIndex + 1}, column ${col + k + 1} is hidden by a merge and will not appear`,
+          nodeId: covered.id,
+        });
+      }
+    }
+    parts.push(`\\multicolumn{${span}}{${mergeAlignOf(el, col, merge.align)}}{${body}}`);
+    col += span;
+  }
+
+  w.line_(`${parts.join(' & ')} \\\\`);
+}
+
+function emitTabularBody(w: TexWriter, el: TableElement, ctx: EmitContext): void {
+  const spec = el.columns.map(columnSpecOf).join('')
+    + (el.endRule === 'single' ? '|' : el.endRule === 'double' ? '||' : '');
+  const tabularx = el.fit === 'tabularx';
+  const width = lengthToTex(el.fitWidth ?? { v: 1, u: 'linewidth' });
+
+  w.line_(tabularx
+    ? `\\begin{tabularx}{${width}}{${spec}}`
+    : `\\begin{tabular}{${spec}}`);
+  w.indented(() => {
+    if (el.topRule !== undefined) w.line_(ruleLine(el.topRule));
+    el.rows.forEach((row, i) => {
+      w.span(row.id, 'tablerow', () => {
+        emitTableRow(w, el, row, i, ctx);
+        if (row.ruleBelow !== undefined) w.line_(ruleLine(row.ruleBelow));
+      });
+    });
+  });
+  w.line_(tabularx ? '\\end{tabularx}' : '\\end{tabular}');
+}
+
+function emitTabularStack(w: TexWriter, el: TableElement, ctx: EmitContext): void {
+  if (el.fit !== 'resizebox') {
+    emitTabularBody(w, el, ctx);
+    return;
+  }
+  // The trailing `%` matters: without it the newline after the opening brace becomes
+  // a space inside the box, and the table sits off-centre by that space's width.
+  w.line_(`\\resizebox{${lengthToTex(el.fitWidth ?? { v: 1, u: 'linewidth' })}}{!}{%`);
+  w.indented(() => emitTabularBody(w, el, ctx));
+  w.line_('}');
+}
+
+function emitTable(w: TexWriter, el: TableElement, ctx: EmitContext): void {
+  if (el.fontSize !== undefined) {
+    // A `{\small ...}` wrapper would come back from the parser as a brace group at
+    // block level, which is folded into prose — so the table would survive as raw
+    // rather than as a table. Use `fit` to make a table smaller instead.
+    ctx.warn({
+      code: 'emit.table-font-size',
+      message: 'Table font size is not emitted yet; use Fit to shrink the table',
+      nodeId: el.id,
+    });
+  }
+
+  switch (el.floatWrapper) {
+    case 'table':
+      w.line_('\\begin{table}');
+      w.indented(() => {
+        w.line_('\\centering');
+        emitTabularStack(w, el, ctx);
+        if (el.caption !== undefined) w.line_(`\\caption{${emitInline(el.caption)}}`);
+        if (el.label !== undefined) w.line_(`\\label{${el.label}}`);
+      });
+      w.line_('\\end{table}');
+      return;
+
+    case 'center':
+      if (el.caption !== undefined) {
+        ctx.warn({
+          code: 'emit.table-caption-unplaced',
+          message: 'A table caption needs the table float wrapper; it will not appear',
+          nodeId: el.id,
+        });
+      }
+      w.line_('\\begin{center}');
+      w.indented(() => emitTabularStack(w, el, ctx));
+      w.line_('\\end{center}');
+      return;
+
+    default:
+      if (el.caption !== undefined) {
+        ctx.warn({
+          code: 'emit.table-caption-unplaced',
+          message: 'A table caption needs the table float wrapper; it will not appear',
+          nodeId: el.id,
+        });
+      }
+      emitTabularStack(w, el, ctx);
   }
 }
 

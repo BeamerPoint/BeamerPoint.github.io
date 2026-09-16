@@ -16,6 +16,7 @@ import type {
 import type { CstGroup, CstNode } from '../cst.js';
 import { buildCst } from '../lexer.js';
 import { parseInline, trimRichText } from '../inline.js';
+import { recognizeTable } from './table.js';
 
 export interface RecognizeCtx {
   src: string;
@@ -50,6 +51,9 @@ const BLOCK_ENVS: Readonly<Record<string, BeamerBlockElement['variant']>> = {
 const BLOCK_COMMANDS: ReadonlySet<string> = new Set([
   'titlepage', 'maketitle', 'tableofcontents',
   'includegraphics', 'bibliography', 'bibliographystyle', 'printbibliography',
+  // A table shrunk to fit is `\resizebox{...}{!}{<tabular>}`, which has to reach the
+  // table recognizer rather than being folded into the surrounding prose.
+  'resizebox',
 ]);
 
 /** Commands handled by the frame recognizer, never emitted as elements. */
@@ -188,6 +192,11 @@ function isBlockLevel(node: CstNode): boolean {
  * partially-populated element.
  */
 function recognizeBlockLevel(node: CstNode, ctx: RecognizeCtx): Element {
+  // Tables come first: a `center` or `table` wrapper around a tabular would
+  // otherwise be read by the image or prose recognizers.
+  const table = recognizeTable(node, ctx);
+  if (table !== null) return table;
+
   if (node.n === 'env') {
     const placed = recognizeTextblock(node, ctx);
     if (placed !== null) return placed;

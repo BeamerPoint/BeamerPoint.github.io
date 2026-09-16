@@ -196,6 +196,14 @@ export interface TableElement extends ElementBase {
   kind: 'table';
   style: 'booktabs' | 'hline' | 'plain';
   columns: TableColumn[];
+  /**
+   * The rule above the first row. Every other rule hangs off the row it follows, so
+   * this is the one position `ruleBelow` cannot express — without it a `\toprule`
+   * would have nowhere to live and the table could not round-trip.
+   */
+  topRule?: RowRule;
+  /** The vertical rule after the last column; `leftRule` cannot express it. */
+  endRule?: 'single' | 'double';
   rows: TableRow[];
   merges: CellMerge[];
   caption?: RichText;

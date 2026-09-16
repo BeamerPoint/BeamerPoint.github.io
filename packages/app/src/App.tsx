@@ -41,6 +41,7 @@ export function App(): React.ReactElement {
   const selectElement = useStore((s) => s.selectElement);
   const setElementContent = useStore((s) => s.setElementContent);
   const setListItemContent = useStore((s) => s.setListItemContent);
+  const setTableCell = useStore((s) => s.setTableCell);
   const loadDeck = useStore((s) => s.loadDeck);
   const resetDeck = useStore((s) => s.resetDeck);
   const undo = useStore((s) => s.undo);
@@ -169,6 +170,11 @@ export function App(): React.ReactElement {
             onEditContent={(elementId, content) => {
               if (selection.slideId !== null) {
                 setElementContent(selection.slideId, elementId, content);
+              }
+            }}
+            onEditCell={(elementId, rowId, cellId, content) => {
+              if (selection.slideId !== null) {
+                setTableCell(selection.slideId, elementId, rowId, cellId, content);
               }
             }}
             onEditItem={(elementId, itemId, content) => {

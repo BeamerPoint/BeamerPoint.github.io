@@ -5,8 +5,12 @@ export {
 } from './model/richtext.js';
 export {
   newDeck, newFrame, newTitleFrame, newTextElement, newListElement, newListItem,
-  defaultPreamble, plain,
+  newTableElement, defaultPreamble, plain,
 } from './model/factory.js';
+export {
+  applyTableStyle, insertTableColumn, insertTableRow, removeTableColumn, removeTableRow,
+  setTableColumnAlign, setTableFit, shiftMerges,
+} from './model/tableOps.js';
 
 export { emitDeck, emitFrameStandalone, type EmitOptions, type EmitResult } from './emit/deck.js';
 export { emitInline, richTextToPlain, colorToTex, isBlankRichText } from './emit/inline.js';

@@ -270,7 +270,8 @@ body.bp-resizing iframe { pointer-events: none; }
   display: block; width: 100%; margin-top: 3px; padding: 4px 6px;
   border: 1px solid var(--bp-border); border-radius: 4px; font: inherit; color: var(--bp-text);
 }
-.bp-btn-row { display: flex; gap: 4px; margin-bottom: 8px; }
+/* Wrapping keeps a long label from pushing the whole panel into a scrollbar. */
+.bp-btn-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
 .bp-btn-row button, .bp-inspector > section > button {
   flex: 1; padding: 5px; border: 1px solid var(--bp-border);
   background: #fff; border-radius: 4px;
@@ -484,3 +485,29 @@ body.bp-dragging { user-select: none; }
 .bp-canvas-bar .bp-approx-note {
   margin-left: auto; padding: 0; background: none; border: none;
 }
+
+/* ------------------------------------------------------------------ tables */
+/*
+ * A tabular is as wide as its content and sits at the left of the text column,
+ * so the canvas must not stretch it. border-collapse keeps the booktabs rules a
+ * single line rather than two abutting borders.
+ */
+.bp-table {
+  border-collapse: collapse;
+  line-height: 1.32;
+  margin: 0;
+}
+.bp-table td { vertical-align: baseline; }
+.bp-cell-body { display: inline-block; min-width: calc(var(--bp-mm) * 3); }
+
+.bp-table-props {
+  border-top: 1px solid var(--bp-border); padding-top: 8px; margin-top: 8px;
+}
+.bp-field-row { margin-bottom: 8px; }
+.bp-col-aligns { margin-bottom: 8px; }
+.bp-col-align-row { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.bp-col-name {
+  width: 16px; text-align: right; font-size: 11px; color: var(--bp-muted);
+  flex: none;
+}
+.bp-col-align-row .bp-btn-row button { min-width: 26px; padding: 2px 0; }

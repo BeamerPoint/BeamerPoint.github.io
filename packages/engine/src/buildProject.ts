@@ -40,7 +40,10 @@ export async function buildProject(
   for (const res of deck.resources) {
     const bytes = await resolver.getBytes(res.id);
     if (bytes === undefined) {
-      warnings.push(`Missing resource: ${res.path}`);
+      // Only complain about a file the document will actually ask for. A resource
+      // whose element has been deleted is still on the deck, and reporting it made
+      // a clean compile look broken.
+      if (emitted.tex.includes(res.path)) warnings.push(`Missing resource: ${res.path}`);
       continue;
     }
     files.push({ path: res.path, content: bytes });

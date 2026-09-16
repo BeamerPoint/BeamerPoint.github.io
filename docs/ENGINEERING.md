@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 56 tests
+npm test             # vitest, 73 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -123,6 +123,18 @@ reassembles the model from the DOM. Regression-tested in
 **pdf.js needs `requestAnimationFrame`**, which does not fire in a hidden document, so
 rendering is gated on visibility. A render started while hidden hangs with no error.
 
+**A `tabular` is an inline box, not a block.** A newline before it in the source is
+just a space, so a table emitted straight after a paragraph is set *beside* that
+paragraph — measured 58mm to the right — while the canvas draws it below. The emitter
+therefore puts a blank line either side of a flow-placed table. `\includegraphics`
+has the same nature and has not been given the same treatment yet.
+
+**booktabs' rule separation is deliberately not drawn on the canvas.** Adding
+`\aboverulesep`/`\belowrulesep` as cell padding is the obvious fix for the header row
+sitting 1.3mm high, and measuring showed it made every row worse (residuals went from
++1.3/−0.2/+0.1 to +2.4/+2.7/+3.0) because frame content is centred and the table then
+overshot its true height. Measure before and after, not just after.
+
 **KaTeX cannot render a bare `align` body.** `&` and `\` are only legal inside an
 environment, so a display-math body must be wrapped (`aligned`/`gathered`) before
 preview. `canvas/mathPreview.ts` does it once for both the canvas and the inspector —
@@ -149,7 +161,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Eleven commits on `master`, ~10,500 lines across 63 source files, 56 tests passing.
+Sixteen commits on `master`, ~12,500 lines across 62 source files, 73 tests passing.
 
 ### Done
 
@@ -160,6 +172,10 @@ Eleven commits on `master`, ~10,500 lines across 63 source files, 56 tests passi
   two-column layouts, images
 - **Images**: insert by button/drag/paste, SVG+WebP rasterised at import, filename
   sanitising, resize, drag-to-absolute, align, crop, caption, zip export with assets
+- **Tables**: `tabular`/`tabularx`/`\resizebox`, booktabs and hline rules, `\multicolumn`
+  spans, `p` and `X` columns, vertical rules, captions in a `table` float; grid editor
+  in the inspector, cells edited in place on the canvas; structure operations are pure
+  functions in `core/model/tableOps.ts`
 - **Math**: display equations (equation/align/gather and their starred forms, plus
   `\[ \]`), body kept verbatim, KaTeX preview on the canvas and in the inspector
 - **Sections and speaker notes**: emitted and parsed (no authoring UI yet)
@@ -174,14 +190,13 @@ Eleven commits on `master`, ~10,500 lines across 63 source files, 56 tests passi
 
 Roughly in the order the user and I agreed to tackle them:
 
-1. **Tables** — grid editor emitting `booktabs`
-2. **Code blocks** — `listings`; `fragile` is already auto-derived on the frame
-3. **Citations** — `.bib` attach, `\cite` autocomplete, references frame
-4. **TikZ shapes** — fixed shape vocabulary; keep the raw escape hatch for the rest
-5. **pgfplots charts** — small data-table editor
-6. Authoring UI for sections and speaker notes (model/emit/parse already exist)
-7. Image rotation (model and emitter support `angle=`; no handle yet)
-8. Importing an arbitrary external `.tex` (the parser can already do it; needs a file
+1. **Code blocks** — `listings`; `fragile` is already auto-derived on the frame
+2. **Citations** — `.bib` attach, `\cite` autocomplete, references frame
+3. **TikZ shapes** — fixed shape vocabulary; keep the raw escape hatch for the rest
+4. **pgfplots charts** — small data-table editor
+5. Authoring UI for sections and speaker notes (model/emit/parse already exist)
+6. Image rotation (model and emitter support `angle=`; no handle yet)
+7. Importing an arbitrary external `.tex` (the parser can already do it; needs a file
    picker and a report of what degraded to raw)
 
 Model types, and in several cases the emitter, already exist for all of these — check
@@ -194,6 +209,11 @@ Model types, and in several cases the emitter, already exist for all of these �
   under 2mm horizontally and under 3.1mm vertically for text, lists, blocks and columns;
   vertical text boxes have been measured for Madrid, default, Warsaw, metropolis and
   Berkeley only, and other themes fall back to a derived approximation
+- Tables cannot yet be authored with row spans (`\multirow` is preserved on import but
+  not modelled), a per-table font size, or merges created from the UI; column widths are
+  numeric rather than draggable. Audited against the PDF at under 2.3mm horizontally
+  (cumulative font-metric divergence, worst in the rightmost column) and under 1.9mm
+  vertically
 - `minted` needs shell escape, which the WASM engine cannot provide; preview falls back
   to `listings` with a warning
 - The file picker, drag-drop and paste paths have not been exercised with a real mouse —

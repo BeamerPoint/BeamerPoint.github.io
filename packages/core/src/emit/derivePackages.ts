@@ -63,11 +63,16 @@ export function derivePackages(deck: Deck): DerivedPackage[] {
       case 'image':
         add('graphicx');
         break;
-      case 'table':
-        if (el.style === 'booktabs') add('booktabs');
+      case 'table': {
+        // Derive from the rules actually present, not from `style`: `style` is a UI
+        // hint, and a table whose rules were hand-edited in the source would
+        // otherwise compile with \toprule undefined.
+        const rules = [el.topRule, ...el.rows.map((r) => r.ruleBelow)];
+        if (rules.some((r) => r !== undefined && r.k !== 'hline')) add('booktabs');
         if (el.fit === 'tabularx') add('tabularx');
         if (el.fit === 'resizebox') add('graphicx');
         break;
+      }
       case 'math':
         add('amsmath');
         add('amssymb');
