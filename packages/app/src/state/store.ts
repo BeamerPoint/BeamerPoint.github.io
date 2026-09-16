@@ -7,6 +7,7 @@ import {
   newId,
   newTableElement,
   newTikzElement,
+  newSmartArtElement,
   addShape as addShapeOp,
   attachEndpoint,
   moveEndpoint,
@@ -45,6 +46,7 @@ import {
   type SourceMap,
   type ArrowHead,
   type ShapeTool,
+  type SmartArtKind,
   type TableColumn,
   type TableElement,
   type TikzElement,
@@ -153,6 +155,7 @@ interface AppState {
   setTableCaption(slideId: string, elementId: string, caption: string | null): void;
 
   addTikzElement(slideId: string): void;
+  addSmartArt(slideId: string, kind: SmartArtKind, labels: string[]): void;
   shapeTool: ShapeTool | null;
   setShapeTool(tool: ShapeTool | null): void;
   selectShape(shapeId: string | null): void;
@@ -667,6 +670,12 @@ export const useStore = create<AppState>()((set, get) => {
         // broken, because nothing happens when you drag on it.
         shapeTool: 'rect',
       });
+    },
+
+    addSmartArt(slideId, kind, labels) {
+      const el = newSmartArtElement(kind, labels);
+      mutate((deck) => mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, el] })));
+      set({ selection: { slideId, elementId: el.id, shapeId: null }, shapeTool: null });
     },
 
     setShapeTool(tool) {

@@ -89,12 +89,26 @@ export function SlideCanvas(props: Props): React.ReactElement {
   return (
     <CanvasContext.Provider value={geometry}>
     <div className="bp-canvas-wrap" ref={wrapRef}>
+      {/*
+        * The stage carries the scale and does NOT clip; the paper inside it does clip,
+        * because slide content must not spill past the page edge. The rulers live on
+        * the stage: they sit just outside the page, so when they were inside the paper
+        * its `overflow: hidden` ate them and they never appeared at all.
+        */}
+      <div
+        className="bp-stage"
+        style={{ width: designW, height: designH, transform: `scale(${scale})` }}
+      >
+      <Rulers
+        aspect={deck.preamble.documentClass.aspectRatio}
+        aids={props.aids}
+        onAddGuide={props.onAddGuide}
+      />
       <div
         className={`bp-paper${locked ? ' is-locked' : ''}`}
         style={{
           width: designW,
           height: designH,
-          transform: `scale(${scale})`,
           background: theme.background,
           color: theme.foreground,
           fontFamily: theme.fontFamily === 'serif'
@@ -218,11 +232,6 @@ export function SlideCanvas(props: Props): React.ReactElement {
           onMoveGuide={props.onMoveGuide}
           onRemoveGuide={props.onRemoveGuide}
         />
-        <Rulers
-          aspect={deck.preamble.documentClass.aspectRatio}
-          aids={props.aids}
-          onAddGuide={props.onAddGuide}
-        />
 
         {theme.footline.cells.length > 0 && !frame.options.plain && (
           <div className="bp-footline" style={{ height: mm(theme.footline.heightMm) }}>
@@ -237,6 +246,7 @@ export function SlideCanvas(props: Props): React.ReactElement {
             ))}
           </div>
         )}
+      </div>
       </div>
     </div>
     </CanvasContext.Provider>

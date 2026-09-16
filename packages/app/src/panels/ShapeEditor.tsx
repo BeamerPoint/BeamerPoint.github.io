@@ -2,7 +2,6 @@ import {
   resolveTheme,
   richTextToPlain,
   type Color,
-  type ShapeTool,
   type ThemeSpec,
   type TikzElement,
   type TikzShape,
@@ -15,15 +14,6 @@ interface Props {
   slideId: string;
   locked: boolean;
 }
-
-const TOOLS: Array<{ v: ShapeTool; label: string; title: string }> = [
-  { v: 'rect', label: '▭', title: 'Rectangle' },
-  { v: 'rounded', label: '▢', title: 'Rounded rectangle' },
-  { v: 'ellipse', label: '◯', title: 'Ellipse — hold a square drag for a circle' },
-  { v: 'line', label: '╱', title: 'Line' },
-  { v: 'arrow', label: '→', title: 'Arrow — drop an end on a shape to attach it' },
-  { v: 'text', label: 'T', title: 'Text label' },
-];
 
 /**
  * The palette a shape's colours come from.
@@ -93,23 +83,21 @@ export function ShapeEditor({ el, slideId, locked }: Props): React.ReactElement 
     <div className="bp-shape-props">
       <h4>Diagram</h4>
 
+      {/*
+        * No tool strip here: the full gallery lives on the Insert tab, and a second,
+        * shorter list of shapes in the side pane would silently offer fewer of them.
+        */}
       <div className="bp-field-row">
         <span className="bp-field-label">
-          {tool === null ? 'Pick a tool, then drag on the slide' : 'Drag on the slide to draw'}
+          {tool === null
+            ? 'Insert ▸ Shapes to pick a shape, then drag on the slide'
+            : 'Drag on the slide to draw'}
         </span>
-        <div className="bp-btn-row bp-tool-row">
-          {TOOLS.map((t) => (
-            <button
-              key={t.v}
-              title={t.title}
-              className={tool === t.v ? 'is-active' : ''}
-              disabled={locked}
-              onClick={() => setShapeTool(tool === t.v ? null : t.v)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        {tool !== null && (
+          <button className="bp-wide" onClick={() => setShapeTool(null)}>
+            Stop drawing
+          </button>
+        )}
       </div>
 
       <div className="bp-field-row">

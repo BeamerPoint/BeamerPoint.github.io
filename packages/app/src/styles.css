@@ -682,6 +682,11 @@ body.bp-dragging { user-select: none; }
 
 /* ----------------------------------------------------- rulers, grid, guides */
 .bp-grid { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.bp-grid-minor { stroke: rgba(40, 90, 200, 0.16); }
+.bp-grid-major { stroke: rgba(40, 90, 200, 0.34); }
+
+/* The stage carries the zoom and must not clip, or the rulers outside the page vanish. */
+.bp-stage { position: relative; flex: none; transform-origin: center center; }
 .bp-guides { position: absolute; inset: 0; z-index: 3; }
 .bp-guide { position: absolute; background: #e11d8f; }
 .bp-guide-v { top: 0; bottom: 0; width: 1px; cursor: ew-resize; }
@@ -698,8 +703,16 @@ body.bp-dragging { user-select: none; }
 .bp-ruler-top { left: 0; right: 0; }
 .bp-ruler-left { top: 0; bottom: 0; }
 .bp-tick { position: absolute; }
-.bp-ruler-top .bp-tick { top: 2px; transform: translateX(1px); border-left: 1px solid #b9bec6; padding-left: 2px; }
-.bp-ruler-left .bp-tick { left: 2px; transform: translateY(1px); border-top: 1px solid #b9bec6; padding-top: 1px; }
+.bp-tick { position: absolute; color: #6b7280; line-height: 1; white-space: nowrap; }
+.bp-ruler-top .bp-tick {
+  bottom: 0; border-left-style: solid; border-left-color: #a8aeb8;
+  padding-left: 0.25em; display: flex; align-items: flex-start;
+}
+.bp-ruler-left .bp-tick {
+  right: 0; border-top-style: solid; border-top-color: #a8aeb8;
+  padding-top: 0.15em; display: flex; justify-content: flex-start;
+}
+.bp-tick.is-major { color: #4b5563; border-color: #7b828e; }
 
 .bp-canvas-bar {
   display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
@@ -832,3 +845,61 @@ body.bp-dragging { user-select: none; }
   padding: 6px 14px; border: 1px solid var(--bp-border); border-radius: 4px; background: #fff;
 }
 .bp-modal-note { margin-top: 8px !important; text-align: right; font-size: 11px !important; }
+
+/* ------------------------------------------------- shape gallery / layouts */
+.bp-flyout-host { position: relative; }
+/* A scrim behind the flyout, so clicking anywhere else closes it. */
+.bp-flyout-scrim { position: fixed; inset: 0; z-index: 30; }
+.bp-flyout {
+  position: fixed; z-index: 31;
+  background: #fff; border: 1px solid var(--bp-border-strong);
+  border-radius: 6px; box-shadow: 0 8px 26px rgba(0, 0, 0, 0.2);
+  padding: 10px; width: 268px;
+}
+.bp-gallery-group + .bp-gallery-group { margin-top: 8px; }
+.bp-gallery-label {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--bp-muted); margin-bottom: 4px;
+}
+.bp-gallery-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
+.bp-gallery-btn {
+  display: grid; place-items: center; aspect-ratio: 1;
+  border: 1px solid transparent; border-radius: 4px;
+  background: transparent; color: var(--bp-text); padding: 0;
+}
+.bp-gallery-btn:hover:not(:disabled) { background: var(--bp-hover); border-color: var(--bp-border); }
+.bp-gallery-btn.is-active {
+  background: var(--bp-accent-soft); border-color: var(--bp-accent-line); color: var(--bp-accent);
+}
+.bp-gallery-note {
+  margin: 10px 0 0; font-size: 11px; line-height: 1.4; color: var(--bp-muted);
+  border-top: 1px solid var(--bp-border); padding-top: 8px;
+}
+
+.bp-smart-modal { width: min(680px, 100%); }
+.bp-smart-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 14px;
+}
+.bp-smart-card {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 7px 5px; border: 1px solid var(--bp-border); border-radius: 6px;
+  background: #fff; color: var(--bp-muted); font-size: 11px;
+}
+.bp-smart-card:hover { border-color: var(--bp-border-strong); background: var(--bp-hover); }
+.bp-smart-card.is-active {
+  border-color: var(--bp-accent); background: var(--bp-accent-soft); color: var(--bp-accent);
+  box-shadow: 0 0 0 1px var(--bp-accent);
+}
+.bp-smart-preview { width: 100%; height: 42px; color: var(--bp-text); display: block; }
+.bp-smart-card.is-active .bp-smart-preview { color: var(--bp-accent); }
+
+.bp-smart-edit { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.bp-smart-edit textarea {
+  width: 100%; padding: 6px 8px; font: inherit; resize: vertical;
+  border: 1px solid var(--bp-border-strong); border-radius: 4px;
+}
+.bp-smart-live {
+  border: 1px solid var(--bp-border); border-radius: 6px; padding: 6px;
+  background: var(--bp-hover);
+}
+.bp-smart-live .bp-smart-preview { height: 104px; }

@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 118 tests
+npm test             # vitest, 133 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -168,6 +168,31 @@ deck silently added `\setbeamertemplate{navigation symbols}{}` and changed every
 The parser now starts that flag at beamer's default and only turns it off when the file
 does.
 
+**TikZ's shape library sizes shapes to CONTAIN the box, not to fill it.** Measured
+against the engine with a 26×16mm request: `trapezium` drew 34.2×16, `star` drew
+24.7×23.5, `regular polygon sides=3` drew 22.5×19.5, `isosceles triangle` drew 31.4×26.
+Only `rectangle`, `ellipse`, `circle`, `diamond` and `signal` came out exactly. So the
+extended shapes are explicit point lists in `model/polygons.ts` — same numbers on the
+canvas and in the `\draw`, exact by construction, and no library needed. A polygon
+inscribed in the box needs `fitToBox` too: a pentagon has no bottom vertex and a hexagon
+spans only 86.6% of the width.
+
+**Only a named node can be an arrow's target.** A polygon is a bare `\draw ... -- cycle`
+with no name, so attaching an arrow to one would emit `(bpX.east)` for a node that does
+not exist and abort the compile — the same failure as an orphaned arrow. `isAttachable`
+gates it and `attachEndpoint` falls back to a plain point.
+
+**Gridlines are SVG lines with `vector-effect: non-scaling-stroke`, not a repeating
+gradient.** The page is CSS-scaled to about 0.31, so a 1px gradient stop lands on a
+third of a device pixel and each repeat rasterises independently — the lines came out
+at visibly unequal spacing. Verified after the change: every gap exactly 31.063px.
+
+**The rulers live on `.bp-stage`, not inside `.bp-paper`.** They are positioned just
+outside the page, and the page sets `overflow: hidden` to clip slide content — so while
+they were children of the paper they were clipped away and never appeared at all. The
+stage carries the zoom and does not clip; the rulers divide by the scale so they stay a
+constant size on screen while their tick positions stay in page units.
+
 **A slide thumbnail is drawn in SLIDE pixels, then scaled.** `SlideThumbs` renders the
 miniature at the deck's full 1600px width and scales it by ~0.094, so every size in
 `.bp-thumb-*` is about four times what a screen-space value would be. A 7px bar — which
@@ -222,7 +247,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Twenty commits on `master`, ~14,900 lines across 79 source files, 118 tests passing.
+Twenty-one commits on `master`, ~15,900 lines across 83 source files, 133 tests passing.
 
 ### Done
 
@@ -243,6 +268,12 @@ Twenty commits on `master`, ~14,900 lines across 79 source files, 118 tests pass
   dropped on a shape **attaches** to that side and follows it, which is what makes it a
   diagram rather than loose shapes. A hand-written `tikzpicture` is kept verbatim as a
   `mode: 'raw'` element. Operations are pure functions in `core/model/shapeOps.ts`
+- **Shape gallery and layouts**: 16 polygon shapes (triangle, diamond, pentagon through
+  octagon, stars, trapezium, parallelogram, chevron, block arrow, cross, cylinder,
+  document) drawn from `core/model/polygons.ts`, plus eight prebuilt layouts — the
+  SmartArt equivalent — in `core/model/smartArt.ts`: process, chevron process, cycle,
+  hierarchy, pyramid, matrix, overlapping circles, timeline. A layout expands to
+  ordinary shapes, so every part stays editable
 - **Import**: open an external `.tex` by button or by dropping it on the canvas. The
   dialog reports what became editable AND what stayed raw before replacing the open
   deck, checks the theme and every `\usepackage` against the bundled collections, and

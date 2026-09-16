@@ -8,10 +8,18 @@ export {
   newTableElement, newTikzElement, defaultPreamble, plain,
 } from './model/factory.js';
 export {
-  addShape, attachEndpoint, moveEndpoint, moveShape, removeShape, reorderShape,
-  resizeShape, restyleShape, setArrowHead, setCanvasSize, setNodeContent, shapeBounds,
-  shapeFromDrag, type ShapeTool,
+  addShape, attachEndpoint, isAttachable, isNodeTool, moveEndpoint, moveShape,
+  removeShape, reorderShape, resizeShape, restyleShape, setArrowHead, setCanvasSize,
+  setNodeContent, shapeBounds, shapeFromDrag,
+  type BasicTool, type ShapeTool,
 } from './model/shapeOps.js';
+export {
+  POLYGON_KINDS, POLYGON_LABEL, polygonPoints, type PolygonKind,
+} from './model/polygons.js';
+export {
+  SMART_ART, buildSmartArt, newSmartArtElement,
+  type SmartArtKind, type SmartArtSpec,
+} from './model/smartArt.js';
 export { TIKZ_LIBRARIES, tikzColor } from './emit/tikz.js';
 export {
   applyTableStyle, insertTableColumn, insertTableRow, removeTableColumn, removeTableRow,

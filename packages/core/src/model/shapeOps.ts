@@ -1,6 +1,7 @@
 import type { Anchor, Mm, TikzElement, TikzShape, TikzStyle } from './types.js';
 import { newId } from './ids.js';
 import { roundMm } from '../geometry/paper.js';
+import { POLYGON_KINDS, polygonPoints, type PolygonKind } from './polygons.js';
 
 /**
  * Drawing operations on a TikZ element.
@@ -9,8 +10,26 @@ import { roundMm } from '../geometry/paper.js';
  * are: an off-by-one here changes the emitted LaTeX, not just the screen.
  */
 
-/** The shape kinds the UI can draw. `path` covers both a plain line and a polygon. */
-export type ShapeTool = 'rect' | 'rounded' | 'ellipse' | 'line' | 'arrow' | 'text';
+/** The shapes the UI can draw directly. */
+export type BasicTool = 'rect' | 'rounded' | 'ellipse' | 'circle' | 'line' | 'arrow' | 'text';
+
+/**
+ * Everything the shape gallery offers.
+ *
+ * The basic tools map onto model shapes that TikZ sizes exactly as asked; the polygon
+ * kinds are drawn as explicit point lists for the same reason (see `polygons.ts`).
+ */
+export type ShapeTool = BasicTool | PolygonKind;
+
+/** True when the tool produces a named TikZ node, which is what an arrow can attach to. */
+export function isNodeTool(tool: ShapeTool): boolean {
+  return tool === 'rect' || tool === 'rounded' || tool === 'ellipse' || tool === 'circle';
+}
+
+/** True when a shape is a named node in the output, so an arrow may attach to it. */
+export function isAttachable(shape: TikzShape): boolean {
+  return shape.t === 'rect' || shape.t === 'ellipse' || shape.t === 'node';
+}
 
 const DEFAULT_STYLE: TikzStyle = { draw: { k: 'structure' } };
 
@@ -56,11 +75,31 @@ export function shapeFromDrag(
   const w = roundMm(Math.abs(to.x - from.x));
   const h = roundMm(Math.abs(to.y - from.y));
 
-  switch (tool) {
+  if ((POLYGON_KINDS as readonly string[]).includes(tool)) {
+    return {
+      id, t: 'path',
+      points: polygonPoints(tool as PolygonKind, x, y, Math.max(w, 2), Math.max(h, 2))
+        .map(([px, py]) => [roundMm(px), roundMm(py)] as [Mm, Mm]),
+      closed: true, smooth: false, style,
+    };
+  }
+
+  // The polygon kinds returned above; what is left is exactly a BasicTool.
+  switch (tool as BasicTool) {
     case 'rect':
       return { id, t: 'rect', x, y, w: Math.max(w, 2), h: Math.max(h, 2), style };
     case 'rounded':
       return { id, t: 'rect', x, y, w: Math.max(w, 2), h: Math.max(h, 2), rx: 2, style };
+    case 'circle': {
+      // A circle is an ellipse with one radius, so dragging any box gives a circle
+      // that fits inside it rather than an oval the user did not ask for.
+      const r = Math.max(Math.min(w, h) / 2, 1);
+      return {
+        id, t: 'ellipse',
+        cx: roundMm(x + w / 2), cy: roundMm(y + h / 2), rx: roundMm(r), ry: roundMm(r),
+        style,
+      };
+    }
     case 'ellipse':
       return {
         id, t: 'ellipse',
@@ -198,6 +237,15 @@ export function attachEndpoint(
     if (s.t !== 'arrow') return s;
     // An arrow attached to itself is a TikZ error, not a shape.
     if (target !== null && target.shapeId === shapeId) return s;
+    // Only a named node can be referenced. A polygon is a bare \draw with no name, so
+    // attaching to one would emit `(bpX.east)` for a node that does not exist and take
+    // the whole compile down.
+    if (target !== null) {
+      const to = (el.shapes ?? []).find((c) => c.id === target.shapeId);
+      if (to === undefined || !isAttachable(to)) {
+        return { ...s, [which]: { kind: 'point', x: roundMm(fallback.x), y: roundMm(fallback.y) } } as TikzShape;
+      }
+    }
     const anchor: Anchor = target === null
       ? { kind: 'point', x: roundMm(fallback.x), y: roundMm(fallback.y) }
       : { kind: 'shape', shapeId: target.shapeId, side: target.side };

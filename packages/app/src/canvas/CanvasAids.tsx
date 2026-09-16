@@ -1,4 +1,5 @@
 import { PX_PER_MM, type AspectRatio } from '@beamerpoint/core';
+import { useCanvasGeometry } from './CanvasContext.js';
 import { PAPER } from '@beamerpoint/core';
 
 /**
@@ -44,20 +45,52 @@ export function Gridlines({
   aids: AidSettings;
 }): React.ReactElement | null {
   if (!aids.grid) return null;
-  const step = Math.max(1, aids.gridMm) * PX_PER_MM;
 
-  // A repeating-linear-gradient is one element and one paint, rather than a few hundred
-  // divs that would have to re-layout on every canvas resize.
+  const paper = PAPER[aspect];
+  const step = Math.max(1, aids.gridMm);
+
+  /*
+   * Drawn as SVG lines with a non-scaling stroke, NOT as a repeating-linear-gradient.
+   *
+   * The page is CSS-scaled to fit (around 0.31), so a 1px gradient stop lands on a
+   * third of a device pixel. The browser resolves each repeat independently, so the
+   * lines came out at visibly unequal spacing and varying weight. `non-scaling-stroke`
+   * keeps every line exactly one device pixel whatever the zoom, and the positions are
+   * exact millimetres rather than accumulated repeats.
+   */
+  const verticals: number[] = [];
+  for (let mm = 0; mm <= paper.w + 0.001; mm += step) verticals.push(mm);
+  const horizontals: number[] = [];
+  for (let mm = 0; mm <= paper.h + 0.001; mm += step) horizontals.push(mm);
+
+  const major = (mm: number): boolean => Math.abs(mm % (step * 5)) < 0.001;
+
   return (
-    <div
+    <svg
       className="bp-grid"
       aria-hidden="true"
-      style={{
-        backgroundImage:
-          `repeating-linear-gradient(to right, rgba(47,91,215,0.16) 0 1px, transparent 1px ${step}px),` +
-          `repeating-linear-gradient(to bottom, rgba(47,91,215,0.16) 0 1px, transparent 1px ${step}px)`,
-      }}
-    />
+      width={paper.w * PX_PER_MM}
+      height={paper.h * PX_PER_MM}
+      viewBox={`0 0 ${paper.w} ${paper.h}`}
+      preserveAspectRatio="none"
+    >
+      {verticals.map((mm) => (
+        <line
+          key={`v${mm}`}
+          x1={mm} y1={0} x2={mm} y2={paper.h}
+          className={major(mm) ? 'bp-grid-major' : 'bp-grid-minor'}
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
+      {horizontals.map((mm) => (
+        <line
+          key={`h${mm}`}
+          x1={0} y1={mm} x2={paper.w} y2={mm}
+          className={major(mm) ? 'bp-grid-major' : 'bp-grid-minor'}
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
+    </svg>
   );
 }
 
@@ -135,18 +168,32 @@ export function Rulers({
   aids: AidSettings;
   onAddGuide(axis: 'v' | 'h', mm: number): void;
 }): React.ReactElement | null {
+  const { scale } = useCanvasGeometry();
   if (!aids.rulers) return null;
   const paper = PAPER[aspect];
 
-  const ticks = (lengthMm: number): number[] => {
+  /*
+   * The rulers sit inside the scaled stage so they line up with the page exactly, but
+   * a ruler that shrinks with the zoom is unreadable — at a typical 0.31 scale the
+   * labels would be three pixels tall. Dividing by the scale cancels it out, so the
+   * ruler is a constant size on screen while its tick POSITIONS stay in page units.
+   */
+  const inv = 1 / Math.max(scale, 0.01);
+  const thickness = RULER_PX * inv;
+  const font = 9 * inv;
+  const hair = 1 * inv;
+
+  const ticks = (lengthMm: number, stepMm: number): number[] => {
     const out: number[] = [];
-    for (let mm = 0; mm <= lengthMm; mm += 10) out.push(mm);
+    for (let mm = 0; mm <= lengthMm + 0.001; mm += stepMm) out.push(mm);
     return out;
   };
 
   const click = (axis: 'v' | 'h') => (e: React.MouseEvent<HTMLDivElement>): void => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const host = e.currentTarget.closest('.bp-paper') as HTMLElement | null;
+    // The stage, not the paper: the rulers are siblings of the page now, so the page
+    // is no longer an ancestor to walk up to.
+    const host = e.currentTarget.closest('.bp-stage') as HTMLElement | null;
     if (host === null) return;
     const scale = host.getBoundingClientRect().width / host.offsetWidth;
     const mm = axis === 'v'
@@ -159,25 +206,41 @@ export function Rulers({
     <>
       <div
         className="bp-ruler bp-ruler-top"
-        style={{ height: RULER_PX, top: -RULER_PX }}
+        style={{ height: thickness, top: -thickness, fontSize: font }}
         title="Click to add a vertical guide"
         onClick={click('v')}
       >
-        {ticks(paper.w).map((mm) => (
-          <span key={mm} className="bp-tick" style={{ left: `${mm * PX_PER_MM}px` }}>
-            {mm}
+        {ticks(paper.w, 5).map((mm) => (
+          <span
+            key={mm}
+            className={`bp-tick${mm % 10 === 0 ? ' is-major' : ''}`}
+            style={{
+              left: `${mm * PX_PER_MM}px`,
+              borderLeftWidth: hair,
+              height: mm % 10 === 0 ? thickness * 0.55 : thickness * 0.3,
+            }}
+          >
+            {mm % 10 === 0 ? mm : ''}
           </span>
         ))}
       </div>
       <div
         className="bp-ruler bp-ruler-left"
-        style={{ width: RULER_PX, left: -RULER_PX }}
+        style={{ width: thickness, left: -thickness, fontSize: font }}
         title="Click to add a horizontal guide"
         onClick={click('h')}
       >
-        {ticks(paper.h).map((mm) => (
-          <span key={mm} className="bp-tick" style={{ top: `${mm * PX_PER_MM}px` }}>
-            {mm}
+        {ticks(paper.h, 5).map((mm) => (
+          <span
+            key={mm}
+            className={`bp-tick${mm % 10 === 0 ? ' is-major' : ''}`}
+            style={{
+              top: `${mm * PX_PER_MM}px`,
+              borderTopWidth: hair,
+              width: mm % 10 === 0 ? thickness * 0.55 : thickness * 0.3,
+            }}
+          >
+            {mm % 10 === 0 ? mm : ''}
           </span>
         ))}
       </div>

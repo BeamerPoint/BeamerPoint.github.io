@@ -264,3 +264,18 @@ export const IconBackward = (p: IconProps = {}): React.ReactElement => svg(
     <rect x="6.2" y="6.2" width="8" height="8" rx="1" />
     <path d="M9.8 3.6V1.8h-8v8h1.8" />
   </>, p);
+
+export const IconShapes = (p: IconProps = {}): React.ReactElement => svg(
+  <>
+    <rect x="1.6" y="1.8" width="7" height="5.4" rx="0.8" />
+    <circle cx="11.2" cy="11" r="3.2" />
+    <path d="M5.1 8.6 1.9 14.2h6.4Z" />
+  </>, p);
+
+export const IconSmartArt = (p: IconProps = {}): React.ReactElement => svg(
+  <>
+    <rect x="5.6" y="1.6" width="4.8" height="3.4" rx="0.7" />
+    <rect x="1.2" y="10.8" width="4.6" height="3.4" rx="0.7" />
+    <rect x="10.2" y="10.8" width="4.6" height="3.4" rx="0.7" />
+    <path d="M8 5v2.8M3.5 10.8V7.8h9V10.8" />
+  </>, p);

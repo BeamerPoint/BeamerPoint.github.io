@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { THEME_IDS, themeUnavailableReason, type AspectRatio, type TexProgram } from '@beamerpoint/core';
 import { selectCanvasLocked, selectCurrentFrame, useStore } from '../state/store.js';
 import { useImageImport } from './useImageImport.js';
 import { canLinkFile, useLinkFile } from './SaveIndicator.js';
+import { ShapeGallery } from '../panels/ShapeGallery.js';
+import { SmartArtPicker } from '../panels/SmartArtPicker.js';
 import {
-  IconArrow, IconBackward, IconBlock, IconBullets, IconCompile, IconDelete, IconDiagram,
-  IconEllipse, IconEquation, IconExport, IconForward, IconGrid, IconGuides, IconImage,
-  IconLabel, IconLine, IconNew, IconOpen, IconRect, IconRedo, IconRounded, IconRuler,
-  IconSave, IconSlideAdd, IconSnap, IconTable, IconText, IconTextBox, IconUndo,
+  IconBackward, IconBlock, IconBullets, IconCompile, IconDelete, IconDiagram,
+  IconEquation, IconExport, IconForward, IconGrid, IconGuides, IconImage,
+  IconNew, IconOpen, IconRedo, IconRuler, IconSave, IconShapes, IconSlideAdd,
+  IconSmartArt, IconSnap, IconTable, IconText, IconTextBox, IconUndo,
 } from './icons.js';
 
 export type RibbonTab = 'home' | 'insert' | 'design' | 'view';
@@ -95,6 +97,9 @@ interface Props {
 
 export function Ribbon(props: Props): React.ReactElement {
   const [tab, setTab] = useState<RibbonTab>('home');
+  const [gallery, setGallery] = useState<{ top: number; left: number } | null>(null);
+  const galleryHost = useRef<HTMLDivElement>(null);
+  const [smartArt, setSmartArt] = useState(false);
   const images = useImageImport();
   const linkFile = useLinkFile();
 
@@ -130,6 +135,7 @@ export function Ribbon(props: Props): React.ReactElement {
   const shapeTool = useStore((s) => s.shapeTool);
   const setShapeTool = useStore((s) => s.setShapeTool);
   const reorderShape = useStore((s) => s.reorderShape);
+  const addSmartArt = useStore((s) => s.addSmartArt);
 
   const noFrame = locked || frame === undefined;
   const fid = frame?.id;
@@ -243,32 +249,57 @@ export function Ribbon(props: Props): React.ReactElement {
               <Big icon={<IconTable size={20} />} label="Table" disabled={noFrame} onClick={() => fid && addTableElement(fid)} />
             </Group>
 
+            <Group label="Shapes">
+              <div className="bp-flyout-host" ref={galleryHost}>
+                <Big
+                  icon={<IconShapes size={20} />}
+                  label="Shapes"
+                  title="Rectangles, arrows, stars and the rest"
+                  active={gallery !== null}
+                  disabled={noFrame}
+                  onClick={() => {
+                    // Positioned fixed from the button's own rect: the ribbon body
+                    // scrolls horizontally, and an absolutely-positioned flyout inside
+                    // it gets clipped to a single visible row.
+                    if (gallery !== null) { setGallery(null); return; }
+                    const r = galleryHost.current?.getBoundingClientRect();
+                    if (r !== undefined) setGallery({ top: r.bottom + 2, left: r.left });
+                  }}
+                />
+                {gallery !== null && (
+                  <>
+                    <div className="bp-flyout-scrim" onClick={() => setGallery(null)} />
+                    <div className="bp-flyout" style={{ top: gallery.top, left: gallery.left }}>
+                      <ShapeGallery
+                        active={shapeTool}
+                        disabled={locked}
+                        onPick={(t) => {
+                          // Drawing needs a diagram to draw into; make one if the
+                          // selection is not already a diagram.
+                          if (fid !== undefined && selectedTikz === undefined) addTikzElement(fid);
+                          setShapeTool(t);
+                          setGallery(null);
+                        }}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+              <Big
+                icon={<IconSmartArt size={20} />}
+                label="Layouts"
+                title="Prebuilt diagrams: process, cycle, hierarchy, pyramid…"
+                disabled={noFrame}
+                onClick={() => setSmartArt(true)}
+              />
+            </Group>
+
             <Group label="Symbols">
               <Big icon={<IconEquation size={20} />} label="Equation" disabled={noFrame} onClick={() => fid && addMathElement(fid)} />
             </Group>
 
             {selectedTikz !== undefined && (
-              <Group label="Shapes">
-                <div className="bp-shape-gallery">
-                  {([
-                    ['rect', <IconRect key="r" />, 'Rectangle'],
-                    ['rounded', <IconRounded key="o" />, 'Rounded rectangle'],
-                    ['ellipse', <IconEllipse key="e" />, 'Ellipse'],
-                    ['line', <IconLine key="l" />, 'Line'],
-                    ['arrow', <IconArrow key="a" />, 'Arrow — drop an end on a shape to attach it'],
-                    ['text', <IconLabel key="t" />, 'Text label'],
-                  ] as const).map(([toolId, icon, title]) => (
-                    <button
-                      key={toolId}
-                      className={`bp-shape-btn${shapeTool === toolId ? ' is-active' : ''}`}
-                      title={title}
-                      disabled={locked}
-                      onClick={() => setShapeTool(shapeTool === toolId ? null : toolId)}
-                    >
-                      {icon}
-                    </button>
-                  ))}
-                </div>
+              <Group label="Arrange">
                 <Stack>
                   <Small
                     icon={<IconForward />}
@@ -365,6 +396,16 @@ export function Ribbon(props: Props): React.ReactElement {
           </>
         )}
       </div>
+
+      {smartArt && (
+        <SmartArtPicker
+          onCancel={() => setSmartArt(false)}
+          onInsert={(kind, labels) => {
+            if (fid !== undefined) addSmartArt(fid, kind, labels);
+            setSmartArt(false);
+          }}
+        />
+      )}
     </div>
   );
 }
