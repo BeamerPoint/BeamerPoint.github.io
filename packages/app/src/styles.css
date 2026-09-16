@@ -911,11 +911,14 @@ body.bp-dragging { user-select: none; }
  * where beamer puts it rather than beside a decorative strip.
  */
 .bp-sidebar {
-  position: absolute; left: 0; top: 0; bottom: 0; z-index: 1;
+  position: absolute; top: 0; bottom: 0; z-index: 1;
   display: flex; flex-direction: column; gap: calc(var(--bp-mm) * 1.6);
   padding: calc(var(--bp-mm) * 3) calc(var(--bp-mm) * 1);
   overflow: hidden;
 }
+/* Goettingen and Marburg carry their sidebar on the right; the other three on the left. */
+.bp-sidebar-left { left: 0; }
+.bp-sidebar-right { right: 0; }
 .bp-sidebar-section {
   font-size: 0.6em; opacity: 0.92; line-height: 1.2;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -928,4 +931,27 @@ body.bp-dragging { user-select: none; }
 .bp-block.is-empty > .bp-block-body {
   min-height: calc(var(--bp-mm) * 8);
   outline: 1px dashed rgba(0, 0, 0, 0.22); outline-offset: -1px;
+}
+
+/* ------------------------------------------------------------------ title page */
+/*
+ * Drawn in PAGE millimetres from `theme.titleLayout`, which was measured off a compiled
+ * `\titlepage` for each theme -- not centred by guesswork. The block is placed by its
+ * first baseline and grows downward, so a title that wraps pushes the credits down
+ * rather than being overlapped by them.
+ */
+.bp-titlepage {
+  position: absolute;
+  max-width: calc(var(--bp-mm) * 140);
+}
+.bp-titlepage-center { text-align: center; }
+.bp-titlepage-left { text-align: left; }
+.bp-title-line { white-space: pre-wrap; }
+.bp-title-title { font-weight: 600; }
+.bp-title-placeholder { opacity: 0.35; font-style: italic; }
+
+/* The whole title page is one element, so it gets one selection frame. */
+.bp-el-titlepage.is-selected > .bp-titlepage {
+  outline: calc(var(--bp-mm) * 0.4) dashed var(--bp-accent);
+  outline-offset: calc(var(--bp-mm) * 1.5);
 }

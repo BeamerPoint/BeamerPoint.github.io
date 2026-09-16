@@ -59,3 +59,7 @@ export type {
   TitlePageSpec,
 } from './themes/spec.js';
 export { MEASURED, hasMeasuredColors, type MeasuredTheme } from './themes/measured.js';
+export {
+  TITLE_LAYOUTS, DEFAULT_TITLE_LAYOUT, titleLayoutFor,
+  type TitleLayout, type TitleLine, type TitleField,
+} from './themes/titleLayout.js';

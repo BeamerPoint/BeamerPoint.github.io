@@ -452,7 +452,6 @@ export interface DeckMeta {
   author?: RichText; shortAuthor?: RichText;
   institute?: RichText; shortInstitute?: RichText;
   date?: RichText;
-  titlegraphicResourceId?: Id;
 }
 
 export interface ResourceRef {

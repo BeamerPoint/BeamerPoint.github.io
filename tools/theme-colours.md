@@ -153,6 +153,68 @@ purpose — it holds shapes, radii, item markers and margins only. Do not put a 
 into it; measure the theme instead, or the two sources of truth will disagree and the
 measured one will lose.
 
+## Title page layout
+
+`themes/titleLayout.ts` is generated the same way, but from the PDF's text layer rather
+than the log: a `\titlepage` is compiled per theme with known sample text, and each
+line's baseline, size and horizontal anchor are read off it.
+
+```js
+window.bpTitleTex = (theme) => `\\documentclass[aspectratio=169,11pt]{beamer}
+\\usetheme{${theme}}
+\\setbeamertemplate{navigation symbols}{}
+\\title{Measured Colours}
+\\subtitle{A subtitle line}
+\\author{A. Mohebbi}
+\\institute{Polytechnique}
+\\date{September 16, 2026}
+\\begin{document}
+\\begin{frame}[plain]
+\\titlepage
+\\end{frame}
+\\end{document}
+`;
+
+// pdf.js is bundled with the app; the console needs it by path.
+const pdfjs = await import('/node_modules/.vite/deps/pdfjs-dist.js');
+pdfjs.GlobalWorkerOptions.workerSrc =
+  '/@fs/' + location.pathname.split('/@fs/')[1] ?? '';  // or the absolute path to
+  // node_modules/pdfjs-dist/build/pdf.worker.min.mjs
+
+window.bpTitleItems = async (theme) => {
+  const r = await window.bpEngine.compile({
+    jobId: 'tp-' + theme, mainFile: 'main.tex',
+    program: themeNeedsUnicodeEngine(theme) ? 'xelatex' : 'pdflatex',
+    passes: 1, runBibtex: false, timeoutMs: 120000,
+    files: [{ path: 'main.tex', content: window.bpTitleTex(theme) }],
+  });
+  const page = await (await pdfjs.getDocument({ data: r.pdf.slice(0) }).promise).getPage(1);
+  const vp = page.getViewport({ scale: 1 });
+  const BP = 72 / 25.4;   // big points, NOT TeX points
+  return (await page.getTextContent()).items.filter((i) => i.str.trim()).map((i) => ({
+    s: i.str,
+    xMm: i.transform[4] / BP,
+    yMm: (vp.height - i.transform[5]) / BP,   // baseline, from the page top
+    pt: Math.hypot(i.transform[2], i.transform[3]),
+    wMm: i.width / BP,
+  }));
+};
+```
+
+Match each item to a field by its sample text, sort by baseline, merge items whose
+baselines are within about a millimetre onto one line, and decide the alignment from the
+title's centre against the page's. Twenty-eight of the 35 themes come out on beamer's
+default layout; the interesting rows are metropolis, moloch, Nord, Cuerna, Bergen,
+SimpleDarkBlue, SimplePlus and the five sidebar themes.
+
+That same anchor is where `SIDEBARS` in `themes.ts` comes from: the block is centred on
+the TEXT area, so its offset from the page centre gives the sidebar's width and, by its
+sign, the side it is on.
+
+Rendering is checked by measuring the canvas back: each `.bp-title-line`'s baseline is
+its box top plus `0.9 × font size` at `line-height: 1.2`, and for Madrid, metropolis,
+Nord, Berkeley and SimplePlus every line lands within 0.01mm of the compiled value.
+
 ## Footline and headline kinds
 
 The sweep gives colours, not layout. The footline *kind* in `catalogue.ts` was checked

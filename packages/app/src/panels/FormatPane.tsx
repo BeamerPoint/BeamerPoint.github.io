@@ -5,10 +5,11 @@ import {
   themeUnavailableReason,
   type Element,
 } from '@beamerpoint/core';
-import { selectCurrentFrame, useStore } from '../state/store.js';
+import { selectCurrentFrame, useStore, type DeckMetaField } from '../state/store.js';
 import { MathEditor } from './MathEditor.js';
 import { TableEditor } from './TableEditor.js';
 import { ShapeEditor } from './ShapeEditor.js';
+import { isTitlePageTex } from '../canvas/TitlePage.js';
 
 const KIND_NAME: Partial<Record<Element['kind'], string>> = {
   text: 'Text', list: 'List', block: 'Block', columns: 'Columns', image: 'Picture',
@@ -38,6 +39,10 @@ export function FormatPane(): React.ReactElement {
   const returnElementToFlow = useStore((s) => s.returnElementToFlow);
 
   const selected = frame?.children.find((e) => e.id === selection.elementId);
+  // The title page's content IS the presentation's metadata, so selecting it opens the
+  // same editor that is otherwise offered when nothing in particular is selected.
+  const showPresentation = selected === undefined
+    || (selected.kind === 'raw' && isTitlePageTex(selected.tex));
   const themeName = deck.preamble.theme.name;
   const themeMissing = themeUnavailableReason(themeName);
   const needsUnicode = themeNeedsUnicodeEngine(themeName)
@@ -84,6 +89,8 @@ export function FormatPane(): React.ReactElement {
             />
           </label>
         </section>
+
+        {showPresentation && <DeckMetaEditor locked={locked} />}
 
         {selected === undefined && (
           <p className="bp-empty-hint">
@@ -196,5 +203,42 @@ export function FormatPane(): React.ReactElement {
         )}
       </div>
     </aside>
+  );
+}
+
+const META_FIELDS: readonly { key: DeckMetaField; label: string; placeholder: string }[] = [
+  { key: 'title', label: 'Title', placeholder: 'Untitled Presentation' },
+  { key: 'subtitle', label: 'Subtitle', placeholder: 'Optional' },
+  { key: 'author', label: 'Author', placeholder: 'Your name' },
+  { key: 'institute', label: 'Institute', placeholder: 'Optional' },
+  { key: 'date', label: 'Date', placeholder: '\\today' },
+];
+
+/**
+ * The presentation's own title, author and date.
+ *
+ * These drive the title page AND the footline of every other slide, and before this
+ * existed there was no way to set them except by typing in the source panel.
+ */
+function DeckMetaEditor({ locked }: { locked: boolean }): React.ReactElement {
+  const meta = useStore((s) => s.deck.meta);
+  const setDeckMeta = useStore((s) => s.setDeckMeta);
+
+  return (
+    <section className="bp-format-section">
+      <h4>Presentation</h4>
+      {META_FIELDS.map((f) => (
+        <label className="bp-field" key={f.key}>
+          <span>{f.label}</span>
+          <input
+            type="text"
+            placeholder={f.placeholder}
+            disabled={locked}
+            value={meta[f.key] ? richTextToPlain(meta[f.key]!) : ''}
+            onChange={(e) => setDeckMeta({ [f.key]: e.target.value })}
+          />
+        </label>
+      ))}
+    </section>
   );
 }

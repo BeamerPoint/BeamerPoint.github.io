@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 144 tests
+npm test             # vitest, 159 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -242,6 +242,27 @@ eight catalogued footline kinds and found AnnArbor's maize title bar (derived: n
 CambridgeUS' grey-and-red (derived: maroon) and Madrid's footline running light-dark-light
 when beamer runs it dark-to-light. Re-run the sweep after touching the theme list.
 
+**The title page is drawn from a measured layout, and it is not one layout.** `\titlepage`
+stays a `RawElement` — the emitter writes the one command and beamer builds the slide — so
+this is purely a canvas rendering, from `themes/titleLayout.ts`. Twenty-eight of the 35
+themes do agree with beamer's default, and the rest are not near it: metropolis and moloch
+are left-aligned at the text margin and put the date BEFORE the institute, Nord sets its
+title at 24.8pt and runs author and institute onto one line, Cuerna puts the author at the
+foot of the page, and the sidebar themes centre on their text area. Lines are placed by
+baseline: the block's top is the first baseline less `0.9 × font size` (the ascent at
+`line-height: 1.2`) and each following line gets the measured baseline GAP as a margin, so
+a title that wraps pushes the rest down instead of being overlapped. Beamer sets the title
+and subtitle in ONE `beamercolorbox`, so its 8pt padding is inside that box and not between
+lines — treating it as a margin put every line below the title 2.8mm low.
+
+**`\titlegraphic` was being eaten.** It was listed in `TITLE_COMMANDS`, so the parser
+consumed it, and `applyTitleCommand` had no case for it, so it vanished: importing a deck
+with a logo on its title slide silently deleted the logo. `DeckMeta.titlegraphicResourceId`
+existed but nothing ever emitted it, so it could not have come back either. Removed from
+the set, it falls through to `pushChunk` and survives byte-for-byte. Covered by
+`test/deckMeta.spec.ts`. If a command reaches `TITLE_COMMANDS`, it needs a case in
+`applyTitleCommand` AND a line in the emitter — otherwise leaving it out is the safe choice.
+
 **A sidebar theme's frame title must be inset past the sidebar.** The sidebar occupies the
 whole left text margin, and the frame title spans the full page width, so padding the title
 by `margins.hMm` put it exactly underneath — Berkeley's "Frame title bar" rendered as
@@ -268,7 +289,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Twenty-two commits on `master`, ~16,100 lines across 85 source files, 144 tests passing.
+Twenty-three commits on `master`, ~16,400 lines across 88 source files, 159 tests passing.
 
 ### Done
 
@@ -301,6 +322,12 @@ Twenty-two commits on `master`, ~16,100 lines across 85 source files, 144 tests 
   matches picked image files onto the paths the file references
 - **Math**: display equations (equation/align/gather and their starred forms, plus
   `\[ \]`), body kept verbatim, KaTeX preview on the canvas and in the inspector
+- **Title page**: `	itlepage` and `\maketitle` render as a real title page on the canvas
+  and in the thumbnails, from a per-theme measured layout, and the presentation's title,
+  subtitle, author, institute and date are edited in the format pane
+- **Title page**: `\titlepage` and `\maketitle` render as a real title page on the canvas
+  and in the thumbnails, from a per-theme measured layout; the presentation's title,
+  subtitle, author, institute and date are edited in the format pane
 - **Sections and speaker notes**: emitted and parsed (no authoring UI yet)
 - **Themes**: 35 presentation themes, each verified to compile, with measured margins and
   measured colours (`themes/measured.ts`); XeLaTeX auto-selected for
@@ -345,9 +372,11 @@ Model types, and in several cases the emitter, already exist for all of these �
   compiled position is not. Internal diagram geometry was measured at **0.00mm** against
   the PDF; the picture's own placement on the slide is within about 1.4mm, the same
   vertical-centring approximation as text and tables
-- Import understands the structure the app models; `\titlepage`, `\tableofcontents`,
-  `verbatim` and any unmodelled package land as raw blocks, editable only in the source
-  panel. A measured sample of an ordinary 8-slide deck came through with 5% raw. Import
+- Import understands the structure the app models; `\tableofcontents`, `verbatim` and any
+  unmodelled package land as raw blocks, editable only in the source panel. `\titlepage`
+  is a raw block too, but the canvas draws it as a title page. A `\titlegraphic` survives
+  as a preamble chunk, but its image file is not listed among the import's missing
+  resources, so it has to be supplied by hand. A measured sample of an ordinary 8-slide deck came through with 5% raw. Import
   also reformats: indentation, package order and a few escapes (`\ ` gains a `{}`
   terminator) change, so the output is equivalent LaTeX rather than the original bytes
 - `minted` needs shell escape, which the WASM engine cannot provide; preview falls back

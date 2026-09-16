@@ -1,5 +1,6 @@
 import type { FootlineSpec, HeadlineSpec, ThemeSpec } from './spec.js';
 import { MEASURED, hasMeasuredColors, type MeasuredTheme } from './measured.js';
+import { titleLayoutFor } from './titleLayout.js';
 import {
   ALL_THEME_NAMES,
   THEME_NAMES,
@@ -62,16 +63,36 @@ function blocksFor(structure: string): ThemeSpec['block'] {
   };
 }
 
-function headlineFor(shape: ThemeShape): HeadlineSpec {
+/**
+ * Which edge each sidebar theme's sidebar is on, and how wide it is.
+ *
+ * Measured, because assuming got it wrong twice over: the canvas drew all five on the
+ * left at the width of the text margin. A compiled `\titlepage` centres its block on the
+ * text area, so the offset of that block from the page centre gives both answers —
+ * Berkeley, Hannover and PaloAlto sit +7.9mm (a 15.8mm sidebar on the left), Goettingen
+ * and Marburg sit -10mm (a 20mm sidebar on the right).
+ */
+const SIDEBARS: Readonly<Record<string, { side: 'left' | 'right'; widthMm: number }>> = {
+  Berkeley: { side: 'left', widthMm: 15.8 },
+  Hannover: { side: 'left', widthMm: 15.8 },
+  PaloAlto: { side: 'left', widthMm: 15.8 },
+  Goettingen: { side: 'right', widthMm: 20 },
+  Marburg: { side: 'right', widthMm: 20 },
+};
+
+function headlineFor(id: string, shape: ThemeShape): HeadlineSpec {
   const bg = mix(shape.structure, '#000000', 78);
   switch (shape.headline) {
     case 'miniframes':
     case 'tree':
       return { kind: 'miniframes', heightMm: 6, bg, fg: '#ffffff', content: 'sections' };
-    case 'sidebar':
-      // A real sidebar is vertical; approximate it as a slim top band so the canvas at
-      // least reflects that the usable area is smaller.
-      return { kind: 'bar', heightMm: 4, bg, fg: '#ffffff', content: 'empty' };
+    case 'sidebar': {
+      const s = SIDEBARS[id] ?? { side: 'left' as const, widthMm: 15.8 };
+      return {
+        kind: 'bar', heightMm: 4, bg, fg: '#ffffff', content: 'empty',
+        side: s.side, widthMm: s.widthMm,
+      };
+    }
     case 'none':
       return { kind: 'none', heightMm: 0, bg, fg: '#ffffff', content: 'empty' };
   }
@@ -134,7 +155,14 @@ function applyMeasured(spec: ThemeSpec, m: MeasuredTheme): ThemeSpec {
     alertFg: fg('alertedText', '#cc0000'),
     titlePage: {
       titleFg: fg('title', structure),
-      ...(m.title?.bg !== undefined ? { titleBg: m.title.bg } : {}),
+      // Beamer's default title page puts the title in a `beamercolorbox{title}`, so a
+      // theme whose `title` colour has its own background really does draw a bar there —
+      // Madrid's is the blue one, and its title text is white, which would be invisible
+      // without it. A background equal to the page's is not a bar and is dropped.
+      ...(m.title?.bg !== undefined
+        && m.title.bg !== bg('backgroundCanvas', bg('normalText', spec.background))
+        ? { titleBg: m.title.bg }
+        : {}),
       subtitleFg: fg('subtitle', structure),
       authorFg: fg('author', spec.foreground),
       instituteFg: fg('institute', spec.foreground),
@@ -196,7 +224,7 @@ function applyMeasured(spec: ThemeSpec, m: MeasuredTheme): ThemeSpec {
 
 /** Build a canvas approximation from a theme's declared shape. */
 function specFromShape(id: string, shape: ThemeShape): ThemeSpec {
-  const headline = headlineFor(shape);
+  const headline = headlineFor(id, shape);
   const footline = footlineFor(shape);
   const background = shape.dark ? '#2e3440' : '#ffffff';
   const foreground = shape.dark ? '#eceff4' : '#000000';
@@ -207,6 +235,7 @@ function specFromShape(id: string, shape: ThemeShape): ThemeSpec {
     structure: shape.structure,
     alertFg: '#cc0000',
     measured: false,
+    titleLayout: titleLayoutFor(id),
     titlePage: {
       titleFg: shape.structure,
       subtitleFg: shape.structure,

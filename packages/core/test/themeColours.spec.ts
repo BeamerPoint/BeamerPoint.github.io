@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MEASURED, hasMeasuredColors } from '../src/themes/measured.js';
+import { TITLE_LAYOUTS, titleLayoutFor } from '../src/themes/titleLayout.js';
 import { THEME_NAMES, ALL_THEME_NAMES, THEME_SHAPES } from '../src/themes/catalogue.js';
 import { resolveTheme, isApproximateTheme } from '../src/themes/themes.js';
 
@@ -99,5 +100,51 @@ describe('measured theme colours', () => {
       expect(THEME_SHAPES[name]!.footline, name).toBe('split');
     }
     expect(THEME_SHAPES['Cuerna']!.footline).toBe('none');
+  });
+});
+
+describe('measured title page layouts', () => {
+  it('covers every theme that can compile here', () => {
+    for (const name of THEME_NAMES) {
+      expect(TITLE_LAYOUTS[name], name).toBeDefined();
+    }
+  });
+
+  it("falls back to beamer's own layout for an unmeasured theme", () => {
+    expect(titleLayoutFor('focus')).toEqual(TITLE_LAYOUTS['default']);
+  });
+
+  it('keeps every line in reading order with a sane size', () => {
+    for (const [name, layout] of Object.entries(TITLE_LAYOUTS)) {
+      let last = -Infinity;
+      for (const line of layout.lines) {
+        expect(line.baselineMm, name).toBeGreaterThan(last);
+        expect(line.sizePt, name).toBeGreaterThan(3);
+        expect(line.fields.length, name).toBeGreaterThan(0);
+        last = line.baselineMm;
+      }
+      expect(layout.lines.some((l) => l.fields.includes('title')), name).toBe(true);
+    }
+  });
+
+  it("records the themes whose title page is not beamer's default", () => {
+    // Each of these was measured, and each would be wrong under the default layout.
+    expect(TITLE_LAYOUTS['metropolis']!.align).toBe('left');
+    expect(TITLE_LAYOUTS['metropolis']!.lines.map((l) => l.fields[0]))
+      .toEqual(['title', 'subtitle', 'author', 'date', 'institute']);
+    expect(TITLE_LAYOUTS['Nord']!.lines[2]!.fields).toEqual(['author', 'institute']);
+    expect(TITLE_LAYOUTS['Nord']!.lines[0]!.sizePt).toBeGreaterThan(20);
+    // Cuerna puts the author at the FOOT of the page, below the date.
+    const cuerna = TITLE_LAYOUTS['Cuerna']!;
+    expect(cuerna.lines[cuerna.lines.length - 2]!.fields).toEqual(['author']);
+    expect(cuerna.lines[cuerna.lines.length - 2]!.baselineMm).toBeGreaterThan(70);
+  });
+
+  it('centres the sidebar themes on their text area, not on the page', () => {
+    // A left sidebar pushes the centre right; Goettingen's and Marburg's are on the right.
+    expect(TITLE_LAYOUTS['Berkeley']!.anchorMm).toBeGreaterThan(80);
+    expect(TITLE_LAYOUTS['Goettingen']!.anchorMm).toBeLessThan(80);
+    expect(resolveTheme('Berkeley').headline.side).toBe('left');
+    expect(resolveTheme('Goettingen').headline.side).toBe('right');
   });
 });

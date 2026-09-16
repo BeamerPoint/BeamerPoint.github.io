@@ -1,6 +1,7 @@
 import { PAPER, PX_PER_MM, resolveTheme, richTextToPlain, type Deck, type FrameNode } from '@beamerpoint/core';
 import { selectFrames, useStore } from '../state/store.js';
 import { InlineText } from '../canvas/InlineText.js';
+import { TitlePage, isTitlePageTex } from '../canvas/TitlePage.js';
 
 /** Thumbnail width in CSS pixels. The height follows the deck's aspect ratio. */
 const THUMB_W = 150;
@@ -19,6 +20,9 @@ function Thumb({ deck, frame }: { deck: Deck; frame: FrameNode }): React.ReactEl
   const paper = PAPER[deck.preamble.documentClass.aspectRatio];
   const scale = THUMB_W / (paper.w * PX_PER_MM);
   const hasTitle = frame.title !== undefined && !frame.options.plain;
+  // The miniature is drawn at full slide size and then scaled, so the real title page
+  // renders here unchanged -- a title slide's thumbnail is the thing it identifies.
+  const titlePages = frame.children.filter((el) => el.kind === 'raw' && isTitlePageTex(el.tex));
 
   return (
     <div
@@ -35,6 +39,7 @@ function Thumb({ deck, frame }: { deck: Deck; frame: FrameNode }): React.ReactEl
         style={{
           width: paper.w * PX_PER_MM,
           height: paper.h * PX_PER_MM,
+          position: 'relative',
           transform: `scale(${scale})`,
           fontSize: deck.preamble.documentClass.fontSize * (PX_PER_MM / 2.845),
           fontFamily: theme.fontFamily === 'serif'
@@ -69,10 +74,16 @@ function Thumb({ deck, frame }: { deck: Deck; frame: FrameNode }): React.ReactEl
           className="bp-thumb-body"
           style={{ padding: `0 ${theme.margins.hMm * PX_PER_MM}px` }}
         >
-          {frame.children.slice(0, 7).map((el) => (
-            <ThumbBlock key={el.id} el={el} accent={theme.structure} />
-          ))}
+          {frame.children
+            .filter((el) => !titlePages.some((t) => t.id === el.id))
+            .slice(0, 7)
+            .map((el) => (
+              <ThumbBlock key={el.id} el={el} accent={theme.structure} />
+            ))}
         </div>
+        {titlePages.length > 0 && (
+          <TitlePage deck={deck} theme={theme} showPlaceholders={false} />
+        )}
       </div>
     </div>
   );

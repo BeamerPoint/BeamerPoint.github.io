@@ -1,4 +1,5 @@
 import type { BeamerFontSize, Mm } from '../model/types.js';
+import type { TitleLayout } from './titleLayout.js';
 
 /**
  * Themes are DATA, not stylesheets.
@@ -18,6 +19,15 @@ export interface HeadlineSpec {
   fg: Css;
   /** What the bar shows: section navigation, or the deck title. */
   content: 'sections' | 'title' | 'empty';
+  /**
+   * For `bar`, which edge the sidebar occupies and how wide it is.
+   *
+   * Both are measured, not assumed: the canvas drew every sidebar on the left at the
+   * text margin's width, and Goettingen's and Marburg's are on the RIGHT and 20mm wide
+   * where Berkeley's, Hannover's and PaloAlto's are on the left and 15.8mm.
+   */
+  side?: 'left' | 'right';
+  widthMm?: Mm;
 }
 
 export interface FootlineCell {
@@ -71,9 +81,11 @@ export interface ThemeSpec {
   id: string;
   label: string;
   structure: Css;
-  /** `lert` and alerted blocks. */
+  /** `\alert` and alerted blocks. */
   alertFg: Css;
   titlePage: TitlePageSpec;
+  /** Where the title page puts each line, measured from a compiled `\titlepage`. */
+  titleLayout: TitleLayout;
   /** True when these colours came from the engine rather than from derivation. */
   measured: boolean;
   background: Css;

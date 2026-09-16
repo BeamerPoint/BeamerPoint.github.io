@@ -39,8 +39,18 @@ const BEAMER_SETTING_COMMANDS: ReadonlySet<string> = new Set([
   'setbeamersize', 'setbeamercovered',
 ]);
 
+/**
+ * Preamble commands whose argument becomes deck metadata.
+ *
+ * `\titlegraphic` is deliberately NOT here. It used to be, and `applyTitleCommand` had
+ * no case for it, so every `\titlegraphic` was consumed and then thrown away — the
+ * imported deck lost it and no re-emit could bring it back. Left out of the set it falls
+ * through to `pushChunk` and survives byte-for-byte as a preamble chunk, which is what
+ * Invariant 1 requires. (Its image file is not offered in the import dialog's
+ * missing-resource list, because that list is built from parsed body images.)
+ */
 const TITLE_COMMANDS: ReadonlySet<string> = new Set([
-  'title', 'subtitle', 'author', 'institute', 'date', 'titlegraphic',
+  'title', 'subtitle', 'author', 'institute', 'date',
 ]);
 
 const SECTION_LEVELS: Readonly<Record<string, SectionNode['level']>> = {

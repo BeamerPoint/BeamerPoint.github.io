@@ -69,6 +69,9 @@ export type SourceStatus = 'synced' | 'dirty' | 'error';
 /** The display-math environments the editor can author. */
 export type MathEnv = MathElement['env'];
 
+/** The presentation-level fields the format pane can edit. */
+export type DeckMetaField = 'title' | 'subtitle' | 'author' | 'institute' | 'date';
+
 export interface SourceHealth {
   balanced: boolean;
   parseErrors: number;
@@ -184,6 +187,7 @@ interface AppState {
   returnElementToFlow(slideId: string, elementId: string): void;
   moveElementToAbsolute(slideId: string, elementId: string, x: number, y: number, w: number): void;
 
+  setDeckMeta(patch: Partial<Record<DeckMetaField, string>>): void;
   setTheme(name: string): void;
   setTexProgram(program: TexProgram): void;
   setAspect(aspect: Deck['preamble']['documentClass']['aspectRatio']): void;
@@ -893,6 +897,26 @@ export const useStore = create<AppState>()((set, get) => {
           placement: { mode: 'absolute', x, y, w, z: 0, driver: 'textpos' },
         })),
       );
+    },
+
+    /**
+     * Edit the presentation's own title, author and so on.
+     *
+     * Until this existed the only way to change them was to type in the source panel,
+     * which is an odd thing to have to do for the first line of the first slide. An
+     * empty string removes the command rather than emitting an empty argument.
+     */
+    setDeckMeta(patch) {
+      mutate((deck) => {
+        const meta = { ...deck.meta };
+        for (const [k, v] of Object.entries(patch)) {
+          const key = k as DeckMetaField;
+          if (v === undefined) continue;
+          if (v.trim() === '') delete meta[key];
+          else meta[key] = plain(v);
+        }
+        return { ...deck, meta };
+      });
     },
 
     setTheme(name) {

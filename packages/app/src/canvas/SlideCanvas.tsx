@@ -13,6 +13,7 @@ import { CanvasContext } from './CanvasContext.js';
 import { Gridlines, Guides, Rulers, RULER_PX, type AidSettings } from './CanvasAids.js';
 import type { OverlayMode } from './SelectionOverlay.js';
 import { InlineText } from './InlineText.js';
+import { TitlePage, isTitlePageTex } from './TitlePage.js';
 
 interface Props {
   deck: Deck;
@@ -77,10 +78,27 @@ export function SlideCanvas(props: Props): React.ReactElement {
 
   const hasFrametitle = frame.title !== undefined && !frame.options.plain;
 
-  /** Width the sidebar occupies, or 0. Sidebar themes reserve their whole left margin. */
+  /**
+   * The sidebar's width, or 0 when this theme has none.
+   *
+   * Width and side are measured (see `SIDEBARS` in core's `themes.ts`) — the canvas used
+   * to put all five sidebars on the left at the width of the text margin, and Goettingen
+   * and Marburg carry theirs on the right.
+   */
   const sidebarMm = theme.headline.kind === 'bar' && !frame.options.plain
-    ? theme.margins.hMm
+    ? theme.headline.widthMm ?? theme.margins.hMm
     : 0;
+  const sidebarSide = theme.headline.side ?? 'left';
+
+  /**
+   * Title pages are lifted out of the flow: their layout is measured in page
+   * coordinates, so they are drawn on the absolute layer rather than in .bp-body.
+   */
+  const titlePages = frame.children.filter(
+    (el) => el.kind === 'raw' && isTitlePageTex(el.tex),
+  );
+  const isTitlePage = (el: { id: string }): boolean =>
+    titlePages.some((t) => t.id === el.id);
 
   /** Design millimetres: the canvas grid, not CSS physical millimetres. */
   const mm = (n: number): string => `${n * PX_PER_MM}px`;
@@ -148,7 +166,7 @@ export function SlideCanvas(props: Props): React.ReactElement {
           */}
         {sidebarMm > 0 && (
           <div
-            className="bp-sidebar"
+            className={`bp-sidebar bp-sidebar-${sidebarSide}`}
             style={{
               width: mm(sidebarMm),
               background: theme.headline.bg,
@@ -167,14 +185,18 @@ export function SlideCanvas(props: Props): React.ReactElement {
             style={{
               color: theme.frametitle.fg,
               background: theme.frametitle.bg ?? 'transparent',
-              // A sidebar theme's frame title has to start clear of the sidebar, which
-              // occupies the left margin; otherwise the title runs underneath it.
+              // A sidebar theme's frame title has to start clear of the sidebar;
+              // otherwise the title runs underneath it, which is how Berkeley's read
+              // "ne title bar".
               paddingTop: mm(theme.frametitle.paddingMm.y),
               paddingBottom: mm(theme.frametitle.paddingMm.y),
-              paddingRight: mm(theme.frametitle.paddingMm.x || theme.margins.hMm),
               paddingLeft: mm(Math.max(
                 theme.frametitle.paddingMm.x || theme.margins.hMm,
-                sidebarMm === 0 ? 0 : sidebarMm + 1.5,
+                sidebarSide === 'left' && sidebarMm > 0 ? sidebarMm + 1.5 : 0,
+              )),
+              paddingRight: mm(Math.max(
+                theme.frametitle.paddingMm.x || theme.margins.hMm,
+                sidebarSide === 'right' && sidebarMm > 0 ? sidebarMm + 1.5 : 0,
               )),
               fontWeight: theme.frametitle.bold ? 700 : 400,
               textAlign: theme.frametitle.align,
@@ -204,18 +226,25 @@ export function SlideCanvas(props: Props): React.ReactElement {
                   right: 0,
                   top: mm(theme.textBox.topMm),
                   bottom: mm(theme.textBox.bottomInsetMm),
-                  padding: `0 ${mm(theme.margins.hMm)}`,
+                  paddingTop: 0,
+                  paddingBottom: 0,
                 }
               : {
-                  padding: `${mm(theme.margins.topMm)} ${mm(theme.margins.hMm)} ${mm(theme.margins.bottomMm)}`,
+                  paddingTop: mm(theme.margins.topMm),
+                  paddingBottom: mm(theme.margins.bottomMm),
                 }),
+            // Frame content stops at the sidebar, on whichever side the theme puts it.
+            paddingLeft: mm(theme.margins.hMm + (sidebarSide === 'left' ? sidebarMm : 0)),
+            paddingRight: mm(theme.margins.hMm + (sidebarSide === 'right' ? sidebarMm : 0)),
             justifyContent:
               frame.options.vAlign === 't' || deck.preamble.documentClass.t
                 ? 'flex-start'
                 : frame.options.vAlign === 'b' ? 'flex-end' : 'center',
           }}
         >
-          {frame.children.filter((el) => el.placement.mode === 'flow').map((el) => (
+          {frame.children
+            .filter((el) => el.placement.mode === 'flow' && !isTitlePage(el))
+            .map((el) => (
             <ElementView
               key={el.id}
               el={el}
@@ -241,6 +270,21 @@ export function SlideCanvas(props: Props): React.ReactElement {
           * which is inset by the margins, sits below the frame title, and clips.
           */}
         <div className="bp-abs-layer">
+          {/*
+            * A title page is drawn in PAGE coordinates, because that is what its layout
+            * was measured in, so it belongs on this layer rather than inside .bp-body —
+            * which is inset by the margins and centres its content vertically.
+            */}
+          {titlePages.map((el) => (
+            <div
+              key={el.id}
+              className={`bp-el bp-el-titlepage${el.id === selectedElementId ? ' is-selected' : ''}`}
+              data-element-id={el.id}
+              onMouseDown={(e) => { e.stopPropagation(); onSelectElement(el.id); }}
+            >
+              <TitlePage deck={deck} theme={theme} showPlaceholders />
+            </div>
+          ))}
           {frame.children.filter((el) => el.placement.mode === 'absolute').map((el) => (
             <ElementView
               key={el.id}

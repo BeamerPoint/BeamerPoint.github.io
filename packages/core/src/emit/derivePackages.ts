@@ -107,7 +107,6 @@ export function derivePackages(deck: Deck): DerivedPackage[] {
     node.children.forEach(visitElement);
   }
 
-  if (deck.meta.titlegraphicResourceId !== undefined) add('graphicx');
   if (deck.preamble.bibliography !== undefined) add('');
 
   // Any inline math anywhere also wants amsmath; cheap to detect via a serialised scan
