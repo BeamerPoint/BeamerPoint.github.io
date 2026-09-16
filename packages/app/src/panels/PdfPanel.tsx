@@ -93,9 +93,9 @@ export function PdfPanel(): React.ReactElement {
           get the exact PDF Beamer produces — no LaTeX installation needed.
         </p>
         <p className="bp-muted">
-          Beamer lives in TeX Live&rsquo;s <em>extra</em> collection, so the first run
-          downloads roughly 540&nbsp;MB. It is cached afterwards, and everything else in
-          BeamerPoint works without it.
+          The first run downloads roughly 540&nbsp;MB — the basic, recommended and extra
+          TeX Live collections, all three of which a Beamer deck can reach into. It is
+          cached afterwards, and everything else in BeamerPoint works without it.
         </p>
         <button className="bp-primary" onClick={() => void install()}>
           Download the LaTeX engine

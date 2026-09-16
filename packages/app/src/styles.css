@@ -1,15 +1,29 @@
 :root {
-  --bp-bg: #f2f3f5;
+  --bp-bg: #f3f2f1;
   --bp-panel: #ffffff;
-  --bp-border: #d6d9de;
-  --bp-text: #1b1d21;
-  --bp-muted: #6b7280;
-  --bp-accent: #2f5bd7;
-  --bp-danger: #b42318;
-  --bp-warn: #b45309;
-  --bp-ok: #15803d;
+  --bp-border: #e1dfdd;
+  --bp-border-strong: #c8c6c4;
+  --bp-text: #201f1e;
+  --bp-muted: #605e5c;
+  --bp-disabled: #a19f9d;
+  --bp-hover: #f3f2f1;
+
+  /*
+   * PowerPoint's brand is a warm red-orange; using it for the title bar, the ribbon
+   * tab strip and the selection accent is most of what makes the app read as "an
+   * Office app" rather than "a web page with panels".
+   */
+  --bp-brandbar: #b7472a;
+  --bp-accent: #c43e1c;
+  --bp-accent-soft: #fdf1ee;
+  --bp-accent-line: #eab5a6;
+
+  --bp-canvas-bg: #7a7876;
+  --bp-danger: #a4262c;
+  --bp-warn: #8a6116;
+  --bp-ok: #107c10;
   --bp-splitter: 6px;
-  font-family: "Segoe UI", system-ui, sans-serif;
+  font-family: "Segoe UI", "Segoe UI Variable", system-ui, sans-serif;
   font-size: 13px;
   color: var(--bp-text);
 }
@@ -20,20 +34,128 @@ button { font: inherit; cursor: pointer; }
 
 .bp-app { display: flex; flex-direction: column; height: 100vh; }
 
+/* --------------------------------------------------------------- title bar */
+.bp-titlebar {
+  display: flex; align-items: center; gap: 10px; flex: none;
+  height: 38px; padding: 0 10px;
+  background: var(--bp-brandbar); color: #fff;
+}
+.bp-brand {
+  display: flex; align-items: center; gap: 7px;
+  font-weight: 600; font-size: 13px; letter-spacing: -0.01em;
+}
+.bp-brand-mark {
+  display: grid; place-items: center;
+  width: 20px; height: 20px; border-radius: 4px;
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 10px; font-weight: 700; letter-spacing: 0;
+}
+.bp-doctitle {
+  margin-left: 14px; font-size: 13px; color: rgba(255, 255, 255, 0.88);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40%;
+}
+.bp-titlebar-spacer { flex: 1; }
+
 /* ----------------------------------------------------------------- ribbon */
 .bp-ribbon {
-  display: flex; align-items: center; gap: 16px;
-  padding: 6px 12px; background: var(--bp-panel);
+  flex: none; background: var(--bp-panel);
   border-bottom: 1px solid var(--bp-border);
 }
-.bp-brand { font-weight: 700; letter-spacing: -0.01em; }
-.bp-ribbon-group { display: flex; gap: 4px; }
-.bp-ribbon button {
-  padding: 4px 10px; border: 1px solid var(--bp-border);
-  background: #fff; border-radius: 4px;
+.bp-ribbon-tabs {
+  display: flex; align-items: stretch; gap: 2px;
+  padding: 0 8px; background: var(--bp-brandbar);
 }
-.bp-ribbon button:hover { background: #f0f2f5; }
-.bp-lock-banner { margin-left: auto; color: var(--bp-warn); font-weight: 600; }
+.bp-ribbon-tab {
+  border: none; background: transparent; color: rgba(255, 255, 255, 0.82);
+  padding: 0 14px; height: 30px; font-size: 12.5px;
+  border-radius: 4px 4px 0 0;
+}
+.bp-ribbon-tab:hover { background: rgba(255, 255, 255, 0.14); color: #fff; }
+.bp-ribbon-tab.is-active {
+  background: var(--bp-panel); color: var(--bp-text); font-weight: 600;
+}
+.bp-ribbon-tabs-spacer { flex: 1; }
+.bp-lock-chip {
+  align-self: center; font-size: 11.5px; font-weight: 600;
+  color: #fff; background: rgba(0, 0, 0, 0.22);
+  padding: 3px 9px; border-radius: 10px;
+}
+
+.bp-ribbon-body {
+  display: flex; align-items: stretch; gap: 0;
+  padding: 6px 4px 2px; min-height: 84px; overflow-x: auto;
+}
+
+/*
+ * A ribbon group: controls above, the group's name below, a hairline between groups.
+ * The label is what turns a row of buttons into something you can scan — it is the
+ * whole reason a ribbon reads as organised where a toolbar does not.
+ */
+.bp-rgroup {
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: 0 8px; border-right: 1px solid var(--bp-border); flex: none;
+}
+.bp-rgroup:last-child { border-right: none; }
+.bp-rgroup-body { display: flex; align-items: flex-start; gap: 2px; padding-bottom: 4px; }
+.bp-rgroup-label {
+  text-align: center; font-size: 10.5px; color: var(--bp-muted);
+  padding-top: 2px; white-space: nowrap;
+}
+
+.bp-cmd {
+  display: flex; align-items: center; gap: 6px;
+  border: 1px solid transparent; border-radius: 4px;
+  background: transparent; color: var(--bp-text);
+  white-space: nowrap;
+}
+.bp-cmd:hover:not(:disabled) { background: var(--bp-hover); border-color: var(--bp-border); }
+.bp-cmd:disabled { color: var(--bp-disabled); cursor: default; }
+.bp-cmd.is-active {
+  background: var(--bp-accent-soft); border-color: var(--bp-accent-line);
+  color: var(--bp-accent);
+}
+.bp-cmd-icon { display: grid; place-items: center; flex: none; }
+
+.bp-cmd-big {
+  flex-direction: column; justify-content: center; gap: 4px;
+  width: 62px; min-height: 54px; padding: 6px 4px;
+  font-size: 11px; line-height: 1.15; text-align: center;
+}
+.bp-cmd-big .bp-cmd-label { white-space: normal; }
+.bp-cmd-small {
+  padding: 3px 7px; font-size: 11.5px; height: 22px; width: 100%;
+  justify-content: flex-start;
+}
+.bp-cmd-stack { display: flex; flex-direction: column; gap: 2px; align-items: stretch; }
+
+/* A gallery of shape tools, the way a ribbon shows a shape picker. */
+.bp-shape-gallery {
+  display: grid; grid-template-columns: repeat(3, 26px); gap: 3px;
+  padding: 2px; border: 1px solid var(--bp-border); border-radius: 5px;
+  background: #fff;
+}
+.bp-shape-btn {
+  display: grid; place-items: center; height: 24px;
+  border: 1px solid transparent; border-radius: 3px; background: transparent;
+  color: var(--bp-text);
+}
+.bp-shape-btn:hover:not(:disabled) { background: var(--bp-hover); }
+.bp-shape-btn.is-active {
+  background: var(--bp-accent-soft); border-color: var(--bp-accent-line); color: var(--bp-accent);
+}
+
+/* Segmented control, for a small set of exclusive choices. */
+.bp-seg { display: inline-flex; border: 1px solid var(--bp-border); border-radius: 5px; overflow: hidden; }
+.bp-seg button {
+  border: none; background: #fff; padding: 4px 10px; font-size: 12px;
+  border-right: 1px solid var(--bp-border); color: var(--bp-text);
+}
+.bp-seg button:last-child { border-right: none; }
+.bp-seg button:hover:not(:disabled) { background: var(--bp-hover); }
+.bp-seg button.is-active { background: var(--bp-accent); color: #fff; }
+.bp-seg button:disabled { color: var(--bp-disabled); }
+
+.bp-ribbon-warn { margin: 4px 0 0; font-size: 11px; color: var(--bp-warn); max-width: 220px; }
 
 /* ------------------------------------------------------------------- main */
 .bp-main {
@@ -71,45 +193,104 @@ body.bp-resizing { cursor: col-resize; user-select: none; }
 body.bp-resizing iframe { pointer-events: none; }
 
 /* ------------------------------------------------------------- slide list */
-.bp-slidelist {
+/* A pane header, shared by the slide rail and the format pane. */
+.bp-pane-head {
+  display: flex; align-items: center; justify-content: space-between;
+  flex: none; padding: 7px 10px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--bp-muted); border-bottom: 1px solid var(--bp-border);
+}
+.bp-pane-count {
+  background: var(--bp-hover); border-radius: 9px; padding: 1px 7px;
+  font-weight: 600; letter-spacing: 0;
+}
+
+.bp-slides {
   background: var(--bp-panel); border-right: 1px solid var(--bp-border);
-  overflow-y: auto; display: flex; flex-direction: column;
+  display: flex; flex-direction: column; min-height: 0;
 }
-.bp-slidelist-head {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 8px 10px; font-weight: 600; border-bottom: 1px solid var(--bp-border);
-  position: sticky; top: 0; background: var(--bp-panel);
+.bp-thumb-list {
+  list-style: none; margin: 0; padding: 8px; overflow-y: auto; flex: 1;
+  display: flex; flex-direction: column; gap: 6px;
 }
-.bp-slidelist-head button {
-  border: 1px solid var(--bp-border); background: #fff;
-  border-radius: 4px; width: 24px; height: 24px;
+.bp-thumb {
+  display: flex; align-items: flex-start; gap: 7px; width: 100%;
+  padding: 3px; border: none; background: transparent; border-radius: 5px;
+  text-align: left;
 }
-.bp-slidelist ol { list-style: none; margin: 0; padding: 0; }
-.bp-slidelist li {
-  display: flex; align-items: center; gap: 6px;
-  padding: 6px 10px; border-bottom: 1px solid #eef0f3; cursor: pointer;
+.bp-thumb:hover { background: var(--bp-hover); }
+.bp-thumb-num {
+  flex: none; width: 16px; padding-top: 3px; text-align: right;
+  font-size: 11px; color: var(--bp-muted);
 }
-.bp-slidelist li:hover { background: #f6f8fa; }
-.bp-slidelist li.is-selected { background: #e8efff; }
-.bp-slide-num { color: var(--bp-muted); min-width: 16px; }
-.bp-slide-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bp-slide-actions { display: none; gap: 2px; }
-.bp-slidelist li:hover .bp-slide-actions { display: flex; }
-.bp-slide-actions button {
-  border: none; background: transparent; padding: 0 3px; color: var(--bp-muted);
+.bp-thumb.is-selected .bp-thumb-num { color: var(--bp-accent); font-weight: 700; }
+.bp-thumb-frame { position: relative; display: block; flex: none; }
+/* The selected slide gets a ring, the way a slide sorter marks the current slide. */
+.bp-thumb.is-selected .bp-thumb-paper { outline: 2px solid var(--bp-accent); outline-offset: 1px; }
+.bp-thumb-paper {
+  position: relative; overflow: hidden; display: block;
+  border: 1px solid var(--bp-border-strong);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
 }
-.bp-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
-.bp-dot-error { background: var(--bp-danger); }
-.bp-dot-warn { background: var(--bp-warn); }
+/* The miniature is drawn at full size and scaled, so every proportion is the real one. */
+.bp-thumb-inner {
+  transform-origin: top left; pointer-events: none;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.bp-thumb-headline { flex: none; }
+.bp-thumb-title {
+  flex: none; font-size: 1.15em; line-height: 1.2;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+/*
+ * Everything below is measured in SLIDE pixels, not screen pixels: the miniature is
+ * drawn at the deck's full 1600px width and then scaled by ~0.094. Sizes that look
+ * right in the stylesheet (a 7px bar) come out at two thirds of a pixel and vanish,
+ * so these are all about four times what a screen-space value would be.
+ */
+.bp-thumb-body {
+  flex: 1; display: flex; flex-direction: column; gap: 34px;
+  justify-content: center; overflow: hidden;
+}
+.bp-thumb-lines { display: flex; flex-direction: column; gap: 20px; }
+.bp-thumb-line { display: flex; align-items: center; gap: 26px; }
+.bp-thumb-bullet { width: 22px; height: 22px; border-radius: 50%; flex: none; }
+.bp-thumb-bar { height: 26px; border-radius: 10px; background: currentColor; opacity: 0.3; }
+.bp-thumb-image, .bp-thumb-table, .bp-thumb-diagram, .bp-thumb-block {
+  height: 190px; border-radius: 10px; flex: none;
+}
+.bp-thumb-image { background: currentColor; opacity: 0.22; }
+.bp-thumb-table { border: 8px solid currentColor; opacity: 0.3; }
+.bp-thumb-diagram { border: 8px dashed; opacity: 0.5; }
+.bp-thumb-block { background: currentColor; opacity: 0.12; border-top: 22px solid; }
+.bp-thumb-math { font-size: 3.2em; text-align: center; line-height: 1; opacity: 0.75; }
+.bp-thumb-cols { display: flex; gap: 34px; }
+.bp-thumb-col { flex: 1; height: 170px; background: currentColor; opacity: 0.14; border-radius: 10px; }
+
+.bp-thumb-badge {
+  position: absolute; top: 3px; right: 3px;
+  width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid #fff;
+}
+.bp-thumb-badge.is-error { background: var(--bp-danger); }
+.bp-thumb-badge.is-warn { background: var(--bp-warn); }
+
+.bp-slides-add {
+  flex: none; margin: 0; padding: 9px;
+  border: none; border-top: 1px solid var(--bp-border);
+  background: var(--bp-panel); color: var(--bp-accent); font-weight: 600;
+}
+.bp-slides-add:hover:not(:disabled) { background: var(--bp-accent-soft); }
+.bp-slides-add:disabled { color: var(--bp-disabled); }
 
 /* ----------------------------------------------------------------- canvas */
 .bp-center {
   display: flex; flex-direction: column;
   border-right: 1px solid var(--bp-border); min-height: 0;
 }
+/* A dark workspace, so the slide reads as paper rather than as another panel. */
 .bp-canvas-wrap {
   flex: 1; display: flex; align-items: center; justify-content: center;
-  overflow: hidden; background: #e4e6ea; position: relative;
+  overflow: hidden; background: var(--bp-canvas-bg); position: relative;
 }
 .bp-canvas-wrap.bp-empty { color: var(--bp-muted); }
 .bp-paper {
@@ -126,8 +307,11 @@ body.bp-resizing iframe { pointer-events: none; }
   overflow: hidden; flex: none;
 }
 .bp-paper.is-locked { opacity: 0.55; pointer-events: none; }
+.bp-paper {
+  box-shadow: 0 3px 20px rgba(0, 0, 0, 0.35);
+}
 .bp-approx-note {
-  margin: 0; padding: 5px 10px; font-size: 11px; color: var(--bp-muted);
+  flex: none; margin: 0; padding: 5px 12px; font-size: 11px; color: var(--bp-muted);
   background: var(--bp-panel); border-top: 1px solid var(--bp-border);
 }
 
@@ -196,13 +380,21 @@ body.bp-resizing iframe { pointer-events: none; }
   display: flex; flex-direction: column;
   background: var(--bp-panel); border-right: 1px solid var(--bp-border); min-height: 0;
 }
-.bp-tabs { display: flex; border-bottom: 1px solid var(--bp-border); flex: none; }
-.bp-tabs button {
-  padding: 7px 14px; border: none; background: transparent;
-  border-bottom: 2px solid transparent; color: var(--bp-muted);
+.bp-tabs {
+  display: flex; flex: none; gap: 2px; padding: 4px 6px 0;
+  border-bottom: 1px solid var(--bp-border); background: var(--bp-hover);
 }
+.bp-tabs button {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 13px; border: 1px solid transparent; border-bottom: none;
+  background: transparent; color: var(--bp-muted);
+  border-radius: 5px 5px 0 0; font-size: 12px;
+}
+.bp-tabs button:hover { color: var(--bp-text); }
 .bp-tabs button.is-active {
-  color: var(--bp-text); border-bottom-color: var(--bp-accent); font-weight: 600;
+  color: var(--bp-accent); background: var(--bp-panel);
+  border-color: var(--bp-border); font-weight: 600;
+  margin-bottom: -1px; padding-bottom: 7px;
 }
 .bp-tabbody { flex: 1; min-height: 0; display: flex; }
 .bp-tabbody > * { flex: 1; min-height: 0; }
@@ -259,23 +451,56 @@ body.bp-resizing iframe { pointer-events: none; }
   padding: 8px; border-radius: 4px; font-size: 11px;
 }
 
-/* -------------------------------------------------------------- inspector */
-.bp-inspector { background: var(--bp-panel); overflow-y: auto; padding: 10px; }
-.bp-inspector h4 {
-  margin: 0 0 8px; font-size: 12px; text-transform: uppercase; color: var(--bp-muted);
+/* ------------------------------------------------------------ format pane */
+.bp-format {
+  background: var(--bp-panel); display: flex; flex-direction: column; min-height: 0;
 }
-.bp-inspector section { margin-bottom: 18px; }
-.bp-inspector label { display: block; margin-bottom: 8px; font-size: 12px; color: var(--bp-muted); }
-.bp-inspector input, .bp-inspector select {
-  display: block; width: 100%; margin-top: 3px; padding: 4px 6px;
-  border: 1px solid var(--bp-border); border-radius: 4px; font: inherit; color: var(--bp-text);
+.bp-format-body { flex: 1; overflow-y: auto; padding: 10px; }
+.bp-format h4 {
+  margin: 0 0 8px; font-size: 11px; font-weight: 600;
+  letter-spacing: 0.04em; text-transform: uppercase; color: var(--bp-muted);
 }
+.bp-format-section { margin-bottom: 16px; }
+.bp-format-section + .bp-format-section,
+.bp-table-props, .bp-shape-props, .bp-math-editor {
+  border-top: 1px solid var(--bp-border); padding-top: 12px; margin-top: 12px;
+}
+.bp-empty-hint {
+  margin: 20px 4px; font-size: 12px; line-height: 1.5; color: var(--bp-muted);
+}
+.bp-notices { margin-bottom: 12px; }
+
+/* A labelled field. The label sits above its control, as an Office task pane does. */
+.bp-field { display: block; margin-bottom: 10px; }
+.bp-field > span {
+  display: block; margin-bottom: 4px; font-size: 11.5px; color: var(--bp-muted);
+}
+.bp-field-inline { display: flex; align-items: center; gap: 6px; margin-bottom: 0; }
+.bp-field-inline > span { margin-bottom: 0; }
+
+.bp-format input, .bp-format select, .bp-field input, .bp-field select {
+  display: block; width: 100%; padding: 4px 7px;
+  border: 1px solid var(--bp-border-strong); border-radius: 4px;
+  font: inherit; color: var(--bp-text); background: #fff;
+}
+.bp-format input:focus, .bp-format select:focus {
+  outline: none; border-color: var(--bp-accent);
+  box-shadow: 0 0 0 1px var(--bp-accent);
+}
+.bp-format input[type="range"] { padding: 0; border: none; }
+.bp-field-inline select { width: auto; }
+
 /* Wrapping keeps a long label from pushing the whole panel into a scrollbar. */
 .bp-btn-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
-.bp-btn-row button, .bp-inspector > section > button {
-  flex: 1; padding: 5px; border: 1px solid var(--bp-border);
-  background: #fff; border-radius: 4px;
+.bp-btn-row button, .bp-wide {
+  flex: 1; padding: 5px 8px; border: 1px solid var(--bp-border-strong);
+  background: #fff; border-radius: 4px; color: var(--bp-text);
+  /* "+ Row" must not break after the plus; a wrapped control reads as two. */
+  white-space: nowrap;
 }
+.bp-btn-row button:hover:not(:disabled), .bp-wide:hover:not(:disabled) { background: var(--bp-hover); }
+.bp-btn-row button:disabled, .bp-wide:disabled { color: var(--bp-disabled); }
+.bp-wide { width: 100%; margin-bottom: 10px; }
 .bp-danger { color: var(--bp-danger); width: 100%; }
 .bp-primary {
   background: var(--bp-accent); color: #fff; border: 1px solid var(--bp-accent);
@@ -300,31 +525,41 @@ body.bp-resizing iframe { pointer-events: none; }
   border: 1px solid #f0d8a8; border-radius: 4px; padding: 6px 8px;
 }
 
-/* ------------------------------------------------------- save status / recovery */
-.bp-save {
-  display: flex; align-items: center; gap: 8px;
-  margin-left: auto; font-size: 12px;
+/* ----------------------------------------------------------- status / save */
+.bp-status {
+  flex: none; display: flex; align-items: center; gap: 8px;
+  height: 26px; padding: 0 12px; font-size: 11.5px;
+  background: var(--bp-panel); border-top: 1px solid var(--bp-border);
+  color: var(--bp-muted);
 }
-.bp-save-ok { color: var(--bp-muted); }
-.bp-save-busy { color: var(--bp-accent); }
-.bp-save-error { color: var(--bp-danger); font-weight: 600; }
-.bp-save-note { color: var(--bp-muted); font-size: 11px; }
-.bp-save-warn .bp-linkbtn { border-color: var(--bp-warn); color: var(--bp-warn); }
+.bp-status-item { white-space: nowrap; }
+.bp-status-item.is-ok { color: var(--bp-ok); }
+.bp-status-item.is-error { color: var(--bp-danger); font-weight: 600; }
+.bp-status-item.is-warn { color: var(--bp-warn); font-weight: 600; }
+.bp-status-sep { width: 1px; height: 12px; background: var(--bp-border); flex: none; }
+.bp-status-spacer { flex: 1; }
+
+/* The file link sits in the title bar, so it is styled for a dark background. */
 .bp-linkbtn {
-  border: 1px solid var(--bp-border); background: #fff;
-  border-radius: 4px; padding: 3px 9px; font-size: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.12);
+  color: #fff; border-radius: 4px; padding: 3px 10px; font-size: 12px;
   max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.bp-linkbtn:hover { background: #f0f2f5; }
+.bp-linkbtn:hover { background: rgba(255, 255, 255, 0.24); }
+.bp-linkbtn.is-warn { border-color: #ffd79a; color: #ffe9c7; }
+.bp-linkbtn.is-disabled { opacity: 0.7; cursor: default; }
 
-.bp-recovery {
+.bp-notice-stack { flex: none; }
+.bp-notice {
   display: flex; align-items: center; gap: 10px;
-  padding: 8px 12px; background: #fff8ec;
-  border-bottom: 1px solid #f0d8a8; color: var(--bp-warn);
+  padding: 7px 12px; background: #fff8ec;
+  border-bottom: 1px solid #f0d8a8; color: var(--bp-warn); font-size: 12px;
 }
-.bp-recovery button:not(.bp-primary) {
-  border: 1px solid var(--bp-border); background: #fff;
-  border-radius: 4px; padding: 4px 10px;
+.bp-notice.is-prompt { background: #fdf1ee; border-bottom-color: var(--bp-accent-line); color: var(--bp-text); }
+.bp-notice > span:first-child { flex: 1; }
+.bp-notice button:not(.bp-primary) {
+  border: 1px solid var(--bp-border-strong); background: #fff;
+  border-radius: 4px; padding: 3px 10px; color: var(--bp-text);
 }
 
 /* -------------------------------------------------------------------- images */
@@ -503,14 +738,19 @@ body.bp-dragging { user-select: none; }
 .bp-table-props {
   border-top: 1px solid var(--bp-border); padding-top: 8px; margin-top: 8px;
 }
-.bp-field-row { margin-bottom: 8px; }
+.bp-field-row { margin-bottom: 10px; }
+/* Row/column controls sit on one grid so they stay aligned in a narrow pane. */
+.bp-field-row .bp-btn-row:has(button:nth-child(4)) {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+}
 .bp-col-aligns { margin-bottom: 8px; }
 .bp-col-align-row { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
 .bp-col-name {
   width: 16px; text-align: right; font-size: 11px; color: var(--bp-muted);
   flex: none;
 }
-.bp-col-align-row .bp-btn-row button { min-width: 26px; padding: 2px 0; }
+.bp-col-align-row .bp-btn-row button { min-width: 24px; padding: 2px 0; }
+.bp-col-align-row .bp-btn-row { margin-bottom: 0; }
 
 /* ------------------------------------------------- shapes and diagrams */
 /*

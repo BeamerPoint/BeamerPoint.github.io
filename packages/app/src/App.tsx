@@ -1,52 +1,63 @@
 import { useEffect, useState } from 'react';
-import { emitDeck, parseDeck } from '@beamerpoint/core';
+import { emitDeck, parseDeck, richTextToPlain } from '@beamerpoint/core';
 import { SlideCanvas } from './canvas/SlideCanvas.js';
-import { SlideList } from './panels/SlideList.js';
+import { SlideThumbs } from './panels/SlideThumbs.js';
 import { SourcePanel } from './panels/SourcePanel.js';
 import { PdfPanel } from './panels/PdfPanel.js';
 import { LogPanel } from './panels/LogPanel.js';
-import { Inspector } from './panels/Inspector.js';
+import { FormatPane } from './panels/FormatPane.js';
 import { selectCanvasLocked, selectCurrentFrame, selectFrames, useStore } from './state/store.js';
 import { loadSavedDeck, readEmergencyTex, startAutosave } from './state/persist.js';
 import { useColumnLayout } from './ui/useColumnLayout.js';
 import { Splitter } from './ui/Splitter.js';
-import { SaveIndicator } from './ui/SaveIndicator.js';
+import { Ribbon } from './ui/Ribbon.js';
+import { StatusBar } from './ui/StatusBar.js';
+import { FileLinkButton } from './ui/SaveIndicator.js';
 import { useImageImport } from './ui/useImageImport.js';
 import { useTexImport, isTexFile } from './ui/useTexImport.js';
+import { useEngine } from './engine/useEngine.js';
 import { ImportDialog } from './panels/ImportDialog.js';
 import { exportDeck } from './io/exportProject.js';
+import { IconLog, IconPdf, IconSource } from './ui/icons.js';
 
 type Tab = 'source' | 'pdf' | 'log';
+
+const TABS: Array<{ id: Tab; label: string; icon: React.ReactElement }> = [
+  { id: 'source', label: 'LaTeX', icon: <IconSource /> },
+  { id: 'pdf', label: 'PDF', icon: <IconPdf /> },
+  { id: 'log', label: 'Log', icon: <IconLog /> },
+];
 
 export function App(): React.ReactElement {
   const [tab, setTab] = useState<Tab>('source');
   const layout = useColumnLayout();
   const images = useImageImport();
   const texImport = useTexImport();
+  const engine = useEngine();
   const [recovery, setRecovery] = useState<{ at: number; tex: string } | null>(null);
   const [exportNote, setExportNote] = useState<string | null>(null);
+
   const overlayMode = useStore((s) => s.overlayMode);
   const nudgeImageWidth = useStore((s) => s.nudgeImageWidth);
   const moveElementBy = useStore((s) => s.moveElementBy);
   const setImageTrim = useStore((s) => s.setImageTrim);
   const aids = useStore((s) => s.aids);
-  const setAids = useStore((s) => s.setAids);
   const addGuide = useStore((s) => s.addGuide);
   const moveGuide = useStore((s) => s.moveGuide);
   const removeGuide = useStore((s) => s.removeGuide);
-  const addTextBox = useStore((s) => s.addTextBox);
 
   const deck = useStore((s) => s.deck);
   const frame = useStore(selectCurrentFrame);
   const frames = useStore(selectFrames);
   const selection = useStore((s) => s.selection);
   const locked = useStore(selectCanvasLocked);
+  const engineStatus = useStore((s) => s.engine.status);
+  const compiling = useStore((s) => s.engine.compiling);
   const selectElement = useStore((s) => s.selectElement);
   const setElementContent = useStore((s) => s.setElementContent);
   const setListItemContent = useStore((s) => s.setListItemContent);
   const setTableCell = useStore((s) => s.setTableCell);
   const loadDeck = useStore((s) => s.loadDeck);
-  const resetDeck = useStore((s) => s.resetDeck);
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
 
@@ -78,52 +89,48 @@ export function App(): React.ReactElement {
   }, [undo, redo]);
 
   const frameNumber = frames.findIndex((f) => f.id === selection.slideId) + 1;
+  const deckTitle = deck.meta.title ? richTextToPlain(deck.meta.title) : 'Untitled presentation';
 
   const onExport = (): void => {
     void (async () => {
       const result = await exportDeck(deck);
       if (result.missing.length > 0) {
         setExportNote(
-          `Exported ${result.filename}, but ${result.missing.length} referenced ` +
-          `file${result.missing.length === 1 ? ' is' : 's are'} not stored here. ` +
-          'See MISSING-FILES.txt in the archive.',
+          `Exported ${result.filename}, but ${result.missing.length} referenced `
+          + `file${result.missing.length === 1 ? ' is' : 's are'} not stored here. `
+          + 'See MISSING-FILES.txt in the archive.',
         );
       }
     })();
   };
 
+  const onCompile = (): void => {
+    setTab('pdf');
+    if (engineStatus.s === 'uninitialised' || engineStatus.s === 'failed') {
+      void engine.install();
+      return;
+    }
+    void engine.compile();
+  };
+
   return (
     <div className="bp-app">
-      <header className="bp-ribbon">
-        <span className="bp-brand">BeamerPoint</span>
-        <div className="bp-ribbon-group">
-          <button onClick={resetDeck}>New</button>
-          <button
-            onClick={texImport.choose}
-            title="Open a Beamer .tex file and work on it here"
-          >
-            Import .tex
-          </button>
-          <button
-            onClick={onExport}
-            title={deck.resources.length > 0
-              ? 'Export a zip with the source and every image it uses'
-              : 'Export the LaTeX source'}
-          >
-            {deck.resources.length > 0 ? 'Export project' : 'Export .tex'}
-          </button>
-        </div>
-        <div className="bp-ribbon-group">
-          <button onClick={undo} title="Undo (Ctrl+Z)">Undo</button>
-          <button onClick={redo} title="Redo (Ctrl+Y)">Redo</button>
-        </div>
-        <SaveIndicator />
-        {locked && (
-          <span className="bp-lock-banner">
-            Source editor has unapplied changes — the canvas is read-only
-          </span>
-        )}
+      <header className="bp-titlebar">
+        <span className="bp-brand">
+          <span className="bp-brand-mark">BP</span>
+          BeamerPoint
+        </span>
+        <span className="bp-doctitle" title={deckTitle}>{deckTitle}</span>
+        <span className="bp-titlebar-spacer" />
+        <FileLinkButton />
       </header>
+
+      <Ribbon
+        onImportTex={texImport.choose}
+        onExport={onExport}
+        onCompile={onCompile}
+        compileDisabled={compiling}
+      />
 
       {texImport.pending !== null && (
         <ImportDialog
@@ -134,42 +141,47 @@ export function App(): React.ReactElement {
         />
       )}
 
-      {texImport.notice !== null && (
-        <div className="bp-recovery">
-          <span>{texImport.notice}</span>
-          <button onClick={texImport.dismissNotice}>Dismiss</button>
-        </div>
-      )}
-
-      {exportNote !== null && (
-        <div className="bp-recovery">
-          <span>{exportNote}</span>
-          <button onClick={() => setExportNote(null)}>Dismiss</button>
-        </div>
-      )}
-
-      {recovery !== null && (
-        <div className="bp-recovery">
-          <span>
-            Unsaved changes were found from{' '}
-            {new Date(recovery.at).toLocaleString()} — the tab probably closed before
-            they were written.
-          </span>
-          <button
-            className="bp-primary"
-            onClick={() => {
-              loadDeck(parseDeck(recovery.tex).deck);
-              setRecovery(null);
-            }}
-          >
-            Recover them
-          </button>
-          <button onClick={() => setRecovery(null)}>Discard</button>
-        </div>
-      )}
+      <div className="bp-notice-stack">
+        {texImport.notice !== null && (
+          <div className="bp-notice">
+            <span>{texImport.notice}</span>
+            <button onClick={texImport.dismissNotice}>Dismiss</button>
+          </div>
+        )}
+        {exportNote !== null && (
+          <div className="bp-notice">
+            <span>{exportNote}</span>
+            <button onClick={() => setExportNote(null)}>Dismiss</button>
+          </div>
+        )}
+        {images.notice !== null && (
+          <div className="bp-notice">
+            <span>{images.notice}</span>
+            <button onClick={images.dismissNotice}>Dismiss</button>
+          </div>
+        )}
+        {recovery !== null && (
+          <div className="bp-notice is-prompt">
+            <span>
+              Unsaved changes were found from {new Date(recovery.at).toLocaleString()} —
+              the tab probably closed before they were written.
+            </span>
+            <button
+              className="bp-primary"
+              onClick={() => {
+                loadDeck(parseDeck(recovery.tex).deck);
+                setRecovery(null);
+              }}
+            >
+              Recover them
+            </button>
+            <button onClick={() => setRecovery(null)}>Discard</button>
+          </div>
+        )}
+      </div>
 
       <div className="bp-main" style={{ gridTemplateColumns: layout.gridTemplate }}>
-        <SlideList />
+        <SlideThumbs />
 
         <Splitter
           label="Resize slide list"
@@ -197,6 +209,7 @@ export function App(): React.ReactElement {
           {images.dragging && (
             <div className="bp-drop-overlay">Drop to add the image to this slide</div>
           )}
+
           <SlideCanvas
             deck={deck}
             frame={frame}
@@ -236,61 +249,10 @@ export function App(): React.ReactElement {
               if (selection.slideId !== null) setImageTrim(selection.slideId, elementId, trim);
             }}
           />
-          <div className="bp-canvas-bar">
-            <button
-              className={aids.rulers ? 'is-active' : ''}
-              title="Rulers — click one to drop a guide"
-              onClick={() => setAids({ rulers: !aids.rulers })}
-            >
-              Rulers
-            </button>
-            <button
-              className={aids.grid ? 'is-active' : ''}
-              title="Gridlines"
-              onClick={() => setAids({ grid: !aids.grid })}
-            >
-              Grid
-            </button>
-            <select
-              title="Grid spacing"
-              value={aids.gridMm}
-              onChange={(e) => setAids({ gridMm: Number(e.target.value) })}
-            >
-              {[5, 10, 20].map((n) => <option key={n} value={n}>{n}mm</option>)}
-            </select>
-            <button
-              className={aids.guides ? 'is-active' : ''}
-              title="Show guides"
-              onClick={() => setAids({ guides: !aids.guides })}
-            >
-              Guides
-            </button>
-            <button
-              className={aids.snap ? 'is-active' : ''}
-              title="Snap dragged elements to the grid and guides"
-              onClick={() => setAids({ snap: !aids.snap })}
-            >
-              Snap
-            </button>
-            {(aids.vertical.length > 0 || aids.horizontal.length > 0) && (
-              <button
-                title="Remove every guide"
-                onClick={() => setAids({ vertical: [], horizontal: [] })}
-              >
-                Clear guides
-              </button>
-            )}
-            <button
-              disabled={locked || !frame}
-              title="Insert a text box you can position anywhere"
-              onClick={() => frame && addTextBox(frame.id)}
-            >
-              + Text box
-            </button>
-            <span className="bp-approx-note">
-              Approximation — use the PDF tab for the exact result.
-            </span>
-          </div>
+
+          <p className="bp-approx-note">
+            The canvas is an approximation — use the PDF tab for the exact result.
+          </p>
         </div>
 
         <Splitter
@@ -302,13 +264,14 @@ export function App(): React.ReactElement {
 
         <div className="bp-right">
           <nav className="bp-tabs">
-            {(['source', 'pdf', 'log'] as Tab[]).map((t) => (
+            {TABS.map((t) => (
               <button
-                key={t}
-                className={tab === t ? 'is-active' : ''}
-                onClick={() => setTab(t)}
+                key={t.id}
+                className={tab === t.id ? 'is-active' : ''}
+                onClick={() => setTab(t.id)}
               >
-                {t === 'source' ? 'LaTeX source' : t === 'pdf' ? 'PDF' : 'Log'}
+                {t.icon}
+                {t.label}
               </button>
             ))}
           </nav>
@@ -326,8 +289,10 @@ export function App(): React.ReactElement {
           onReset={() => layout.reset('inspector')}
         />
 
-        <Inspector />
+        <FormatPane />
       </div>
+
+      <StatusBar />
     </div>
   );
 }

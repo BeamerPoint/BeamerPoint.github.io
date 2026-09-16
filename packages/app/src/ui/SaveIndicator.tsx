@@ -14,14 +14,15 @@ function agoLabel(at: number | null): string {
 }
 
 /**
- * Save status, and the control for linking a real file on disk.
+ * Save status text.
  *
- * Autosave to browser storage always runs. Linking a file is the part that makes the
- * work recoverable outside this browser, so it is surfaced rather than buried.
+ * Autosave to browser storage always runs; this says whether it has. The control for
+ * linking a real file lives in `FileLinkButton` so the two can sit in different parts
+ * of the chrome — status in the footer, the file link up by the document title, which
+ * is where a desktop app puts it.
  */
 export function SaveIndicator(): React.ReactElement {
-  const { status, lastSavedAt, fileName, needsPermission, error } = useSaveState();
-  const deck = useStore((s) => s.deck);
+  const { status, lastSavedAt, error } = useSaveState();
   const [, forceTick] = useState(0);
 
   // Keep the "saved 12s ago" label honest without re-rendering the whole app.
@@ -30,13 +31,42 @@ export function SaveIndicator(): React.ReactElement {
     return () => window.clearInterval(t);
   }, []);
 
-  const onLink = async (): Promise<void> => {
+  if (status === 'error') {
+    return <span className="bp-status-item is-error" title={error ?? ''}>Save failed</span>;
+  }
+  return (
+    <span className="bp-status-item">
+      {status === 'saving' ? 'Saving…'
+        : lastSavedAt !== null ? `Saved ${agoLabel(lastSavedAt)}`
+        : 'Autosave on'}
+    </span>
+  );
+}
+
+/**
+ * Link the deck to a real file on disk.
+ *
+ * Shared so the ribbon and the title bar run the same code. The ribbon used to reach
+ * into the DOM and click the other button, which works right up until the markup moves.
+ */
+export function useLinkFile(): () => Promise<void> {
+  const deck = useStore((s) => s.deck);
+  return async () => {
     const suggested = deck.meta.title
       ? `${richTextToPlain(deck.meta.title).replace(/[^\w -]+/g, '').trim() || 'presentation'}.tex`
       : 'presentation.tex';
     const name = await linkFile(suggested);
     if (name !== null) await flushSave();
   };
+}
+
+/** Whether this browser can write files directly at all. */
+export const canLinkFile = isSupported;
+
+/** The link-a-real-file control, and the reconnect prompt when permission lapses. */
+export function FileLinkButton(): React.ReactElement {
+  const { fileName, needsPermission } = useSaveState();
+  const onLink = useLinkFile();
 
   const onRegrant = async (): Promise<void> => {
     if (await ensureWritable()) await flushSave();
@@ -49,52 +79,42 @@ export function SaveIndicator(): React.ReactElement {
 
   if (needsPermission && fileName !== null) {
     return (
-      <span className="bp-save bp-save-warn">
-        <button className="bp-linkbtn" onClick={() => void onRegrant()}>
-          Reconnect {fileName}
-        </button>
-        <span className="bp-save-note">browser needs permission again after reload</span>
+      <button className="bp-linkbtn is-warn bp-save-link" onClick={() => void onRegrant()}>
+        Reconnect {fileName}
+      </button>
+    );
+  }
+
+  if (fileName !== null) {
+    return (
+      <button
+        className="bp-linkbtn is-linked bp-save-link"
+        title="Autosaving to this file. Click to stop."
+        onClick={() => void onUnlink()}
+      >
+        {fileName}
+      </button>
+    );
+  }
+
+  if (!isSupported()) {
+    return (
+      <span
+        className="bp-linkbtn is-disabled"
+        title="This browser cannot write files directly. Use Export .tex to save a copy."
+      >
+        Browser storage only
       </span>
     );
   }
 
   return (
-    <span className="bp-save">
-      {status === 'error' && (
-        <span className="bp-save-error" title={error ?? ''}>Save failed</span>
-      )}
-      {status !== 'error' && (
-        <span className={status === 'saving' ? 'bp-save-busy' : 'bp-save-ok'}>
-          {status === 'saving' ? 'Saving…'
-            : lastSavedAt !== null ? `Saved ${agoLabel(lastSavedAt)}`
-            : 'Autosave on'}
-        </span>
-      )}
-
-      {fileName !== null ? (
-        <button
-          className="bp-linkbtn"
-          title="Autosaving to this file. Click to stop."
-          onClick={() => void onUnlink()}
-        >
-          → {fileName}
-        </button>
-      ) : isSupported() ? (
-        <button
-          className="bp-linkbtn"
-          title="Autosave straight to a .tex file on disk, so a crash cannot lose it"
-          onClick={() => void onLink()}
-        >
-          Save to file…
-        </button>
-      ) : (
-        <span
-          className="bp-save-note"
-          title="This browser cannot write files directly. Use Export .tex to save a copy."
-        >
-          browser storage only
-        </span>
-      )}
-    </span>
+    <button
+      className="bp-linkbtn bp-save-link"
+      title="Autosave straight to a .tex file on disk, so a crash cannot lose it"
+      onClick={() => void onLink()}
+    >
+      Save to file…
+    </button>
   );
 }

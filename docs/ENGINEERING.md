@@ -44,7 +44,8 @@ There is no build/lint step beyond these.
 packages/
   core/     Document model, LaTeX emitter, LaTeX parser, theme catalogue. Pure TS, NO DOM.
   engine/   LatexEngine abstraction, busytex WASM backend, TeX log parsing.
-  app/      React UI: canvas, slide sorter, source editor, PDF preview, inspector.
+  app/      React UI: Office-style shell (title bar, ribbon, thumbnail rail, format
+            pane, status bar), canvas, source editor, PDF preview.
 ```
 
 `core` must stay DOM-free — that is what lets the round-trip property tests run fast and
@@ -167,6 +168,18 @@ deck silently added `\setbeamertemplate{navigation symbols}{}` and changed every
 The parser now starts that flag at beamer's default and only turns it off when the file
 does.
 
+**A slide thumbnail is drawn in SLIDE pixels, then scaled.** `SlideThumbs` renders the
+miniature at the deck's full 1600px width and scales it by ~0.094, so every size in
+`.bp-thumb-*` is about four times what a screen-space value would be. A 7px bar — which
+looks right in a stylesheet — comes out at two thirds of a pixel and the thumbnails
+render blank.
+
+**A hook's `useState` is per call site.** `useImageImport` is used by both the ribbon
+and the canvas drop target; its `notice` lived in `useState`, so a message raised by
+the ribbon went into the ribbon's own copy and never reached the banner the app
+renders. Shared UI state that any caller can raise belongs outside React — that one is
+a module-level store read through `useSyncExternalStore`.
+
 **Never tell the user a package is not bundled without checking.** The missing-file
 banner used to assert "not part of the bundled TeX Live collections" for every missing
 `.sty`. For `textpos` — which the app emits for every text box, and which ships in the
@@ -209,7 +222,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Nineteen commits on `master`, ~14,100 lines across 75 source files, 118 tests passing.
+Twenty commits on `master`, ~14,900 lines across 79 source files, 118 tests passing.
 
 ### Done
 
@@ -241,8 +254,11 @@ Nineteen commits on `master`, ~14,100 lines across 75 source files, 118 tests pa
   fontspec themes via a `% !TEX program` magic comment
 - **Engine**: busytex WASM (TeX Live 2026), log parsing with diagnostics mapped back to
   slides and elements, overfull-box fidelity warnings
-- **UI**: resizable columns, LaTeX syntax highlighting, three-layer autosave with
-  crash recovery and optional save-to-real-file, undo/redo
+- **UI**: an Office-style shell — title bar, ribbon with Home/Insert/Design/View tabs
+  and labelled command groups, slide-thumbnail rail, contextual format pane, status
+  bar. Commands that CREATE live in the ribbon; the format pane holds only properties
+  of what is selected. Plus resizable columns, LaTeX syntax highlighting, three-layer
+  autosave with crash recovery and optional save-to-real-file, undo/redo
 
 ### Not done
 

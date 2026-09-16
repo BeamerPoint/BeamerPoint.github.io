@@ -1,6 +1,27 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { useStore } from '../state/store.js';
 import { importImageFile, isImageFile } from '../state/images.js';
+
+/**
+ * The last conversion or failure, shared across every caller of the hook.
+ *
+ * The hook is used in two places — the ribbon's Picture command and the canvas drop
+ * target — and React state inside a hook is per-call-site. A notice raised by the
+ * ribbon would have gone into the ribbon's own copy and never reached the banner the
+ * app renders, so this one piece of state lives outside React.
+ */
+let currentNotice: string | null = null;
+const noticeListeners = new Set<() => void>();
+
+function setNotice(value: string | null): void {
+  currentNotice = value;
+  for (const fn of noticeListeners) fn();
+}
+
+function subscribeNotice(fn: () => void): () => void {
+  noticeListeners.add(fn);
+  return () => { noticeListeners.delete(fn); };
+}
 
 /**
  * Bringing images into the deck: file picker, drag-and-drop, and paste.
@@ -25,7 +46,7 @@ export interface ImageImport {
 
 export function useImageImport(): ImageImport {
   const [dragging, setDragging] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const notice = useSyncExternalStore(subscribeNotice, () => currentNotice, () => null);
 
   const addFiles = useCallback(async (files: readonly File[]): Promise<void> => {
     const state = useStore.getState();
