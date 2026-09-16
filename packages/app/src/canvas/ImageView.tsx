@@ -68,6 +68,7 @@ export function ImageView({
       x: toMm(a.left - b.left),
       y: toMm(a.top - b.top),
       w: toMm(a.width),
+      h: toMm(a.height),
     });
   });
 

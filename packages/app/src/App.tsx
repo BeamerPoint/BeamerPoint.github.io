@@ -40,6 +40,7 @@ export function App(): React.ReactElement {
   const overlayMode = useStore((s) => s.overlayMode);
   const nudgeImageWidth = useStore((s) => s.nudgeImageWidth);
   const moveElementBy = useStore((s) => s.moveElementBy);
+  const resizeElementBy = useStore((s) => s.resizeElementBy);
   const setImageTrim = useStore((s) => s.setImageTrim);
   const aids = useStore((s) => s.aids);
   const addGuide = useStore((s) => s.addGuide);
@@ -242,8 +243,13 @@ export function App(): React.ReactElement {
                 nudgeImageWidth(selection.slideId, elementId, deltaMm, deltaFraction);
               }
             }}
-            onMoveImage={(elementId, dx, dy) => {
+            onMoveElement={(elementId, dx, dy) => {
               if (selection.slideId !== null) moveElementBy(selection.slideId, elementId, dx, dy);
+            }}
+            onResizeElement={(elementId, dx, dy, grip) => {
+              if (selection.slideId !== null) {
+                resizeElementBy(selection.slideId, elementId, dx, dy, grip);
+              }
             }}
             onTrimImage={(elementId, trim) => {
               if (selection.slideId !== null) setImageTrim(selection.slideId, elementId, trim);

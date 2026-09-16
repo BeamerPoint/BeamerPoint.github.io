@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 159 tests
+npm test             # vitest, 166 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -263,6 +263,39 @@ the set, it falls through to `pushChunk` and survives byte-for-byte. Covered by
 `test/deckMeta.spec.ts`. If a command reaches `TITLE_COMMANDS`, it needs a case in
 `applyTitleCommand` AND a line in the emitter — otherwise leaving it out is the safe choice.
 
+**The store's element lookup has to recurse, because elements nest.** `mapElement` and
+`findElement` walked the frame's own child list only, so an edit to something inside a
+block or a column was applied to a list that did not contain it and was then silently
+dropped -- typing into a block's body did nothing at all, and deleting a nested element
+did nothing either. They walk the tree now, via `mapTree`/`removeFromTree`, and the
+canvas passes `selectedId` down instead of the `selected={false}` it used to hardcode for
+children.
+
+**Freeing a nested element must lift it out of its container.** An absolutely-placed
+element is positioned from the page corner by textpos, so it is no longer inside
+anything; leaving it in a block's child list would have the canvas draw it inside a box
+the PDF puts it nowhere near. `liftToFrame` moves it onto the frame, which is also what
+dragging something out of a placeholder does in PowerPoint.
+
+**A drag delta is the POINTER's movement; the grip says what it means.** Sign-correcting
+in the overlay AND in the store made one westward drag grow the box by twice the distance
+and move it the wrong way at the same time. The overlay passes millimetres straight
+through and `resizeElementBy` decides: an east grip moves the right edge, a west grip
+moves the left edge and the width with it.
+
+**Only an image and a diagram can be resized vertically.** `Placement.h` exists in the
+model and is emitted by NOTHING -- `textblock*` takes a width only -- so a height stored
+there would be a control that silently does nothing and a canvas that claims a size the
+PDF does not have. An image has `height=` and a diagram has its canvas; those two get the
+north and south handles and nothing else does.
+
+**The selection overlay must not swallow the element it covers.** `.bp-overlay` spans the
+element, so once every element could be selected, selecting a list or a block made its
+text uneditable: every click landed on the overlay. The overlay's own box is
+`pointer-events: none` and only its handles and drag bands take the pointer. For the same
+reason the move target is a BAND around the edge, not a sheet over the middle, for
+anything that is typed into in place.
+
 **A sidebar theme's frame title must be inset past the sidebar.** The sidebar occupies the
 whole left text margin, and the frame title spans the full page width, so padding the title
 by `margins.hMm` put it exactly underneath — Berkeley's "Frame title bar" rendered as
@@ -289,7 +322,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Twenty-three commits on `master`, ~16,400 lines across 88 source files, 159 tests passing.
+Twenty-four commits on `master`, ~16,700 lines across 89 source files, 166 tests passing.
 
 ### Done
 
@@ -328,6 +361,10 @@ Twenty-three commits on `master`, ~16,400 lines across 88 source files, 159 test
 - **Title page**: `\titlepage` and `\maketitle` render as a real title page on the canvas
   and in the thumbnails, from a per-theme measured layout; the presentation's title,
   subtitle, author, institute and date are edited in the format pane
+- **Direct manipulation**: every element -- text, list, block, columns, table, picture,
+  equation, diagram, at any depth -- is selectable, draggable and resizable on the
+  canvas. Dragging one out of the flow converts it to a free position at the place it
+  was already drawn, and dragging one out of a block or a column lifts it onto the frame
 - **Sections and speaker notes**: emitted and parsed (no authoring UI yet)
 - **Themes**: 35 presentation themes, each verified to compile, with measured margins and
   measured colours (`themes/measured.ts`); XeLaTeX auto-selected for

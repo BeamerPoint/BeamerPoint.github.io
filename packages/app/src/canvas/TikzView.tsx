@@ -28,6 +28,8 @@ interface Props {
   /** The active drawing tool, or null when the pointer selects instead of draws. */
   tool: ShapeTool | null;
   selectedShapeId: string | null;
+  /** Draw the diagram's canvas outline, which is otherwise invisible. */
+  showBounds: boolean;
   onSelectShape(shapeId: string | null): void;
   onDrawShape(drag: ShapeDrag): void;
   onMoveShape(shapeId: string, dx: Mm, dy: Mm): void;
@@ -273,6 +275,18 @@ export function TikzView(props: Props): React.ReactElement {
           }}
         />
       ))}
+
+      {/*
+        * The diagram's own canvas, which is what the shapes are positioned inside and
+        * what the picture reserves on the slide. Invisible until the element is
+        * selected, at which point not seeing it makes the diagram impossible to size.
+        */}
+      {props.showBounds && (
+        <rect
+          className="bp-tikz-bounds"
+          x={0} y={0} width={w} height={h}
+        />
+      )}
 
       {selected !== undefined && (
         <SelectionHandles

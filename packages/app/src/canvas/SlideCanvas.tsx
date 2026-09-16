@@ -31,7 +31,11 @@ interface Props {
   onMoveGuide(axis: 'v' | 'h', index: number, mm: number): void;
   onRemoveGuide(axis: 'v' | 'h', index: number): void;
   onResizeImage(elementId: string, deltaMm: number, deltaFraction: number): void;
-  onMoveImage(elementId: string, dxMm: number, dyMm: number): void;
+  onResizeElement(
+    elementId: string, dxMm: number, dyMm: number,
+    grip: import('../state/store.js').ResizeGrip,
+  ): void;
+  onMoveElement(elementId: string, dxMm: number, dyMm: number): void;
   onTrimImage(elementId: string, trim: ImageTrim): void;
 }
 
@@ -251,14 +255,15 @@ export function SlideCanvas(props: Props): React.ReactElement {
               theme={theme}
               resources={deck.resources}
               locked={locked}
-              selected={el.id === selectedElementId}
+              selectedId={selectedElementId}
               onSelect={onSelectElement}
               onEditContent={props.onEditContent}
               onEditItem={props.onEditItem}
               onEditCell={props.onEditCell}
               overlayMode={props.overlayMode}
               onResizeImage={props.onResizeImage}
-              onMoveImage={props.onMoveImage}
+              onResizeElement={props.onResizeElement}
+              onMoveElement={props.onMoveElement}
               onTrimImage={props.onTrimImage}
             />
           ))}
@@ -292,14 +297,15 @@ export function SlideCanvas(props: Props): React.ReactElement {
               theme={theme}
               resources={deck.resources}
               locked={locked}
-              selected={el.id === selectedElementId}
+              selectedId={selectedElementId}
               onSelect={onSelectElement}
               onEditContent={props.onEditContent}
               onEditItem={props.onEditItem}
               onEditCell={props.onEditCell}
               overlayMode={props.overlayMode}
               onResizeImage={props.onResizeImage}
-              onMoveImage={props.onMoveImage}
+              onResizeElement={props.onResizeElement}
+              onMoveElement={props.onMoveElement}
               onTrimImage={props.onTrimImage}
             />
           ))}

@@ -594,7 +594,16 @@ body.bp-resizing iframe { pointer-events: none; }
 .bp-image-props input[type="range"] { padding: 0; }
 
 /* ------------------------------------------------- image selection handles */
-.bp-overlay { position: absolute; inset: 0; z-index: 4; }
+/*
+ * The overlay covers the element, so it must not SWALLOW the element.
+ *
+ * Its own box is inert and only its handles and drag bands take the pointer; otherwise
+ * selecting a block or a list made the text inside it uneditable, because every click
+ * landed on the overlay instead of on the contenteditable underneath.
+ */
+.bp-overlay { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.bp-overlay > * { pointer-events: auto; }
+.bp-overlay-label { pointer-events: none; }
 .bp-overlay-label {
   position: absolute; top: -18px; left: 0;
   background: var(--bp-accent); color: #fff;
@@ -609,14 +618,32 @@ body.bp-resizing iframe { pointer-events: none; }
 
 .bp-move-target { position: absolute; inset: 8px; cursor: move; }
 
+/*
+ * A frame to grab, rather than a sheet over the element.
+ *
+ * Text, lists, blocks, columns and tables are all typed into in place, so a move target
+ * covering the interior would swallow every click meant for the text. These four bands
+ * sit on the edges, which is where PowerPoint puts the grab area too.
+ */
+.bp-move-band { position: absolute; cursor: move; }
+.bp-move-band-n { top: -5px; left: -5px; right: -5px; height: 10px; }
+.bp-move-band-s { bottom: -5px; left: -5px; right: -5px; height: 10px; }
+.bp-move-band-w { left: -5px; top: -5px; bottom: -5px; width: 10px; }
+.bp-move-band-e { right: -5px; top: -5px; bottom: -5px; width: 10px; }
+
 .bp-handle {
   position: absolute; width: 11px; height: 11px;
   background: #fff; border: 1.5px solid var(--bp-accent); border-radius: 2px;
+  z-index: 1;
 }
 .bp-handle-nw { top: -6px; left: -6px; cursor: nwse-resize; }
 .bp-handle-ne { top: -6px; right: -6px; cursor: nesw-resize; }
 .bp-handle-sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
 .bp-handle-se { bottom: -6px; right: -6px; cursor: nwse-resize; }
+.bp-handle-w { top: 50%; left: -6px; margin-top: -5.5px; cursor: ew-resize; }
+.bp-handle-e { top: 50%; right: -6px; margin-top: -5.5px; cursor: ew-resize; }
+.bp-handle-n { left: 50%; top: -6px; margin-left: -5.5px; cursor: ns-resize; }
+.bp-handle-s { left: 50%; bottom: -6px; margin-left: -5.5px; cursor: ns-resize; }
 
 /* Crop: the element shows the full image, and these mark the kept region. */
 .bp-overlay-crop { outline: 1px dashed var(--bp-warn); outline-offset: -1px; }
@@ -783,6 +810,10 @@ body.bp-dragging { user-select: none; }
 }
 .bp-tikz-handles circle {
   fill: #fff; stroke: var(--bp-accent); stroke-width: 0.35; cursor: pointer;
+}
+.bp-tikz-bounds {
+  fill: none; stroke: var(--bp-accent); stroke-width: 0.2; stroke-dasharray: 1.5 1.5;
+  opacity: 0.55; pointer-events: none;
 }
 .bp-tikz-outline {
   fill: none; stroke: var(--bp-accent); stroke-width: 0.25; stroke-dasharray: 1 1;
@@ -954,4 +985,24 @@ body.bp-dragging { user-select: none; }
 .bp-el-titlepage.is-selected > .bp-titlepage {
   outline: calc(var(--bp-mm) * 0.4) dashed var(--bp-accent);
   outline-offset: calc(var(--bp-mm) * 1.5);
+}
+
+/* ------------------------------------------------- selection and empty elements */
+/*
+ * An element with no content had NO BOX: a new block rendered a near-white body with
+ * no title and no children, which is zero pixels high, and empty columns drew nothing
+ * whatsoever. Nothing to see, and nothing to grab and drag.
+ */
+.bp-el-columns .bp-column:empty,
+.bp-el-tikz .bp-tikz-empty {
+  min-height: calc(var(--bp-mm) * 10);
+}
+.bp-el-columns.is-selected .bp-column,
+.bp-columns:hover > .bp-column {
+  outline: 1px dashed rgba(0, 0, 0, 0.25); outline-offset: -1px;
+}
+.bp-column:empty::after,
+.bp-block.is-empty > .bp-block-body:empty::after {
+  content: 'empty'; display: block; text-align: center;
+  font-size: 0.6em; font-style: italic; opacity: 0.4;
 }

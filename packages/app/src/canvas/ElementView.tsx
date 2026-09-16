@@ -1,10 +1,11 @@
+import { useLayoutEffect, useRef } from 'react';
 import { PX_PER_MM, type Element, type ListElement, type ResourceRef, type RichText, type ThemeSpec } from '@beamerpoint/core';
 import { InlineText, MathView } from './InlineText.js';
 import { readInlineFromDom } from './domInline.js';
 import { ImageView } from './ImageView.js';
 import { TableView } from './TableView.js';
 import { TikzView } from './TikzView.js';
-import { useStore } from '../state/store.js';
+import { measuredRects, useStore, type ResizeGrip } from '../state/store.js';
 import { SelectionOverlay, type OverlayMode } from './SelectionOverlay.js';
 import { useCanvasGeometry } from './CanvasContext.js';
 import { wrapForKatex } from './mathPreview.js';
@@ -13,7 +14,13 @@ interface Props {
   el: Element;
   theme: ThemeSpec;
   resources: readonly ResourceRef[];
-  selected: boolean;
+  /**
+   * The selected element's id, not a boolean.
+   *
+   * A boolean was hardcoded to `false` for children of blocks and columns, so a nested
+   * element could never appear selected however hard it was clicked.
+   */
+  selectedId: string | null;
   locked: boolean;
   onSelect(id: string): void;
   onEditContent(elementId: string, content: RichText): void;
@@ -21,9 +28,16 @@ interface Props {
   onEditCell(elementId: string, rowId: string, cellId: string, content: RichText): void;
   overlayMode: OverlayMode;
   onResizeImage(elementId: string, deltaMm: number, deltaFraction: number): void;
-  onMoveImage(elementId: string, dxMm: number, dyMm: number): void;
+  onResizeElement(elementId: string, dxMm: number, dyMm: number, grip: ResizeGrip): void;
+  onMoveElement(elementId: string, dxMm: number, dyMm: number): void;
   onTrimImage(elementId: string, trim: import('@beamerpoint/core').ImageTrim): void;
 }
+
+/** Kinds whose whole interior can be grabbed, because nothing inside is typed into. */
+const SOLID_KINDS: ReadonlySet<Element['kind']> = new Set(['image', 'math', 'raw']);
+
+/** Kinds with a height LaTeX can actually be told about. */
+const HEIGHT_KINDS: ReadonlySet<Element['kind']> = new Set(['image', 'tikz']);
 
 /**
  * One element on the canvas.
@@ -32,8 +46,35 @@ interface Props {
  * makes the surface feel like PowerPoint rather than a form.
  */
 export function ElementView(props: Props): React.ReactElement {
-  const { el, selected, onSelect } = props;
-  const { bodyWidthMm } = useCanvasGeometry();
+  const { el, onSelect } = props;
+  const selected = el.id === props.selectedId;
+  const geometry = useCanvasGeometry();
+  const { bodyWidthMm } = geometry;
+  const ref = useRef<HTMLDivElement>(null);
+
+  /**
+   * Record where this element is actually drawn, so lifting it out of the flow starts
+   * from there.
+   *
+   * Only `ImageView` used to do this, which is why dragging a block, a table or a set
+   * of columns teleported it to a hardcoded (20, 30). An image keeps its own, more
+   * precise measurement of the picture rather than of the row it sits in.
+   */
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (node === null || el.kind === 'image') return;
+    const paper = node.closest('.bp-paper');
+    if (paper === null) return;
+    const a = node.getBoundingClientRect();
+    const b = paper.getBoundingClientRect();
+    const toMm = (px: number): number => px / (geometry.scale * geometry.pxPerMm);
+    measuredRects.set(el.id, {
+      x: toMm(a.left - b.left),
+      y: toMm(a.top - b.top),
+      w: toMm(a.width),
+      h: toMm(a.height),
+    });
+  });
 
   const absolute = el.placement.mode === 'absolute' ? el.placement : null;
   const style: React.CSSProperties = absolute
@@ -48,8 +89,11 @@ export function ElementView(props: Props): React.ReactElement {
       }
     : {};
 
+  const rect = measuredRects.get(el.id);
+
   return (
     <div
+      ref={ref}
       className={`bp-el bp-el-${el.kind}${selected ? ' is-selected' : ''}`}
       style={style}
       onMouseDown={(e) => { e.stopPropagation(); onSelect(el.id); }}
@@ -57,22 +101,26 @@ export function ElementView(props: Props): React.ReactElement {
     >
       {el.overlay !== undefined && <span className="bp-overlay-badge">{el.overlay}</span>}
       <Body {...props} />
-      {selected && (el.kind === 'image' || el.placement.mode === 'absolute') && (
+      {selected && (
         <SelectionOverlay
           el={el}
           resource={el.kind === 'image'
             ? props.resources.find((r) => r.id === el.resourceId)
             : undefined}
           mode={props.overlayMode}
-          onResize={(deltaPx) => {
-            // Convert here, where the text column width is known, and hand the store
-            // document units. The store should never see screen pixels.
-            const bodyPx =
-              document.querySelector('.bp-body')?.getBoundingClientRect().width ?? 1;
-            const fraction = deltaPx / bodyPx;
-            props.onResizeImage(el.id, fraction * bodyWidthMm, fraction);
+          canResizeHeight={HEIGHT_KINDS.has(el.kind)}
+          grabWholeBody={SOLID_KINDS.has(el.kind)}
+          sizeMm={rect === undefined ? null : { w: rect.w, h: rect.h }}
+          onResize={(dxMm, dyMm, grip) => {
+            // An image in the flow is sized as a fraction of the text column and stays
+            // there; everything else resizes as a box, which lifts it out of the flow.
+            if (el.kind === 'image' && el.placement.mode === 'flow') {
+              props.onResizeImage(el.id, dxMm, dxMm / bodyWidthMm);
+            } else {
+              props.onResizeElement(el.id, dxMm, dyMm, grip);
+            }
           }}
-          onMove={(dx, dy) => props.onMoveImage(el.id, dx, dy)}
+          onMove={(dx, dy) => props.onMoveElement(el.id, dx, dy)}
           onTrim={(t) => props.onTrimImage(el.id, t)}
         />
       )}
@@ -132,7 +180,7 @@ function Body(props: Props): React.ReactElement {
             }}
           >
             {el.children.map((child) => (
-              <ElementView key={child.id} {...props} el={child} selected={false} />
+              <ElementView key={child.id} {...props} el={child} />
             ))}
           </div>
         </div>
@@ -155,7 +203,7 @@ function Body(props: Props): React.ReactElement {
               }}
             >
               {col.children.map((child) => (
-                <ElementView key={child.id} {...props} el={child} selected={false} />
+                <ElementView key={child.id} {...props} el={child} />
               ))}
             </div>
           ))}
@@ -169,7 +217,7 @@ function Body(props: Props): React.ReactElement {
           resource={el.kind === 'image'
             ? props.resources.find((r) => r.id === el.resourceId)
             : undefined}
-          showUncropped={props.selected && props.overlayMode === 'crop'}
+          showUncropped={props.el.id === props.selectedId && props.overlayMode === 'crop'}
         />
       );
 
@@ -283,6 +331,7 @@ function TikzBody({
       theme={theme}
       locked={locked}
       tool={elementSelected ? tool : null}
+      showBounds={elementSelected}
       selectedShapeId={elementSelected ? shapeId : null}
       onSelectShape={selectShape}
       onDrawShape={(drag) => drawShape(slideId, el.id, drag)}

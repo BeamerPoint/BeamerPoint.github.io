@@ -184,6 +184,14 @@ interface AppState {
   setImageTrim(slideId: string, elementId: string, trim: ImageTrim | null): void;
   nudgeImageWidth(slideId: string, elementId: string, deltaMm: number, deltaFraction: number): void;
   moveElementBy(slideId: string, elementId: string, dxMm: number, dyMm: number): void;
+  resizeElementBy(
+    slideId: string, elementId: string, dxMm: number, dyMm: number, grip: ResizeGrip,
+  ): void;
+  setElementBox(
+    slideId: string, elementId: string,
+    box: { x?: number; y?: number; w?: number },
+  ): void;
+  setImageHeightMm(slideId: string, elementId: string, mm: number | null): void;
   returnElementToFlow(slideId: string, elementId: string): void;
   moveElementToAbsolute(slideId: string, elementId: string, x: number, y: number, w: number): void;
 
@@ -231,13 +239,93 @@ function frames(deck: Deck): FrameNode[] {
  * Recorded by the canvas as it renders. Lifting an element out of the text flow needs
  * its present position, or it would jump to an arbitrary spot the moment it is dragged.
  */
-export const measuredRects = new Map<string, { x: number; y: number; w: number }>();
+export const measuredRects = new Map<string, MeasuredRect>();
 
-/** Find a top-level element of a frame, for comparing an edit against current state. */
-function findElement(deck: Deck, slideId: string, elementId: string): Element | undefined {
+export interface MeasuredRect { x: number; y: number; w: number; h: number }
+
+/** Smallest box a drag may leave behind, so an element can never be lost. */
+const MIN_BOX_MM = 5;
+
+/**
+ * Where an element lands if nothing measured it.
+ *
+ * Only reachable for an element that has never been rendered, since the canvas records
+ * every element's rect as it draws. It used to be the ONLY path for anything that was
+ * not an image, which is why dragging a block sent it to (20, 30).
+ */
+const FALLBACK_RECT: MeasuredRect = { x: 20, y: 30, w: 80, h: 20 };
+
+/** Which corner or edge a resize is pulling. */
+export type ResizeGrip = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+
+/**
+ * Find an element of a frame, at any depth.
+ *
+ * Elements nest: a block and a set of columns both hold children. This used to look at
+ * the frame's own list only, which — together with the equally shallow `mapElement` —
+ * is why typing into a block's body did nothing at all. The edit was applied to a list
+ * that did not contain the element, and the result was silently discarded.
+ */
+export function findElement(
+  deck: Deck, slideId: string, elementId: string,
+): Element | undefined {
   const frame = deck.nodes.find((n) => n.kind === 'frame' && n.id === slideId);
   if (frame === undefined || frame.kind !== 'frame') return undefined;
-  return frame.children.find((el) => el.id === elementId);
+
+  const search = (els: readonly Element[]): Element | undefined => {
+    for (const el of els) {
+      if (el.id === elementId) return el;
+      const inner = el.kind === 'block'
+        ? search(el.children)
+        : el.kind === 'columns'
+          ? el.columns.map((c) => search(c.children)).find((x) => x !== undefined)
+          : undefined;
+      if (inner !== undefined) return inner;
+    }
+    return undefined;
+  };
+  return search(frame.children);
+}
+
+/** Apply `fn` to every element at any depth, keeping the tree's shape. */
+function mapTree(els: readonly Element[], fn: (el: Element) => Element): Element[] {
+  return els.map((el) => {
+    const mapped = fn(el);
+    if (mapped.kind === 'block') return { ...mapped, children: mapTree(mapped.children, fn) };
+    if (mapped.kind === 'columns') {
+      return {
+        ...mapped,
+        columns: mapped.columns.map((c) => ({ ...c, children: mapTree(c.children, fn) })),
+      };
+    }
+    return mapped;
+  });
+}
+
+/** True when this element is inside a block or a column rather than the frame itself. */
+function isNested(deck: Deck, slideId: string, elementId: string): boolean {
+  const frame = deck.nodes.find((n) => n.kind === 'frame' && n.id === slideId);
+  if (frame === undefined || frame.kind !== 'frame') return false;
+  return frame.children.every((el) => el.id !== elementId)
+    && findElement(deck, slideId, elementId) !== undefined;
+}
+
+/** Drop `elementId` wherever it is, at any depth. */
+function removeFromTree(els: readonly Element[], elementId: string): Element[] {
+  return els
+    .filter((el) => el.id !== elementId)
+    .map((el) => {
+      if (el.kind === 'block') return { ...el, children: removeFromTree(el.children, elementId) };
+      if (el.kind === 'columns') {
+        return {
+          ...el,
+          columns: el.columns.map((c) => ({
+            ...c, children: removeFromTree(c.children, elementId),
+          })),
+        };
+      }
+      return el;
+    });
 }
 
 function countRaw(deck: Deck): number {
@@ -321,6 +409,23 @@ export const useStore = create<AppState>()((set, get) => {
     nodes: deck.nodes.map((n) => (n.kind === 'frame' && n.id === slideId ? fn(n) : n)),
   });
 
+  /**
+   * Move an element out of its block or column and onto the frame itself.
+   *
+   * A freely-placed element is positioned from the page corner by `textpos`, so it is
+   * not inside anything any more — leaving it in the block's child list would make the
+   * canvas draw it inside a box the PDF puts it nowhere near. Dragging something out of
+   * a container is how PowerPoint frees it too.
+   */
+  const liftToFrame = (deck: Deck, slideId: string, elementId: string): Deck => {
+    const el = findElement(deck, slideId, elementId);
+    if (el === undefined || !isNested(deck, slideId, elementId)) return deck;
+    return mapFrame(deck, slideId, (f) => ({
+      ...f,
+      children: [...removeFromTree(f.children, elementId), el],
+    }));
+  };
+
   const mapElement = (
     deck: Deck,
     slideId: string,
@@ -329,7 +434,7 @@ export const useStore = create<AppState>()((set, get) => {
   ): Deck =>
     mapFrame(deck, slideId, (f) => ({
       ...f,
-      children: f.children.map((el) => (el.id === elementId ? fn(el) : el)),
+      children: mapTree(f.children, (el) => (el.id === elementId ? fn(el) : el)),
     }));
 
   return {
@@ -465,7 +570,7 @@ export const useStore = create<AppState>()((set, get) => {
       mutate((deck) =>
         mapFrame(deck, slideId, (f) => ({
           ...f,
-          children: f.children.filter((el) => el.id !== elementId),
+          children: removeFromTree(f.children, elementId),
         })),
       );
       set({ selection: { slideId, elementId: null } });
@@ -864,10 +969,9 @@ export const useStore = create<AppState>()((set, get) => {
         return;
       }
 
-      const measured = measuredRects.get(elementId);
-      const start = measured ?? { x: 20, y: 30, w: 80 };
+      const start = measuredRects.get(elementId) ?? FALLBACK_RECT;
       mutate((deck) =>
-        mapElement(deck, slideId, elementId, (e) => ({
+        mapElement(liftToFrame(deck, slideId, elementId), slideId, elementId, (e) => ({
           ...e,
           placement: {
             mode: 'absolute',
@@ -878,6 +982,120 @@ export const useStore = create<AppState>()((set, get) => {
             driver: 'textpos',
           },
         })),
+      );
+    },
+
+    /**
+     * Resize by dragging a handle.
+     *
+     * `dxMm`/`dyMm` are the POINTER's movement, not a width delta — the grip decides
+     * what that means. Sign-correcting in the overlay as well as here is how dragging
+     * the west handle once grew the box by twice the distance and moved it the wrong
+     * way at the same time.
+     *
+     * A flow element has no box of its own to pull on — a beamer block is as wide as
+     * the text column and that is that — so resizing one lifts it out of the flow at
+     * the place it is already drawn, exactly as dragging it does. The one exception is
+     * an image still in the flow, whose width is a fraction of the text column and
+     * stays that way.
+     *
+     * Height is only applied where LaTeX can express it: an image has `height=` and a
+     * diagram has its canvas. `Placement.h` is emitted by nothing, so a height stored
+     * there would make the canvas claim a size the PDF does not have.
+     */
+    resizeElementBy(slideId, elementId, dxMm, dyMm, grip) {
+      const el = findElement(get().deck, slideId, elementId);
+      if (el === undefined) return;
+      if (el.placement.mode === 'flow' && el.kind === 'image') return;
+
+      const hasHeight = el.kind === 'image' || el.kind === 'tikz';
+      const base = el.placement.mode === 'absolute'
+        ? { x: el.placement.x, y: el.placement.y, w: el.placement.w }
+        : measuredRects.get(elementId) ?? FALLBACK_RECT;
+
+      let { x, y, w } = base;
+      if (grip.includes('e')) w += dxMm;
+      if (grip.includes('w')) { x += dxMm; w -= dxMm; }
+      if (w < MIN_BOX_MM) {
+        // Refuse to invert: hold the edge that is NOT being dragged where it is.
+        if (grip.includes('w')) x = base.x + base.w - MIN_BOX_MM;
+        w = MIN_BOX_MM;
+      }
+      if (hasHeight && grip.includes('n')) y += dyMm;
+
+      const round = (n: number): number => Math.round(n * 10) / 10;
+      const aids = get().aids;
+      mutate((deck) =>
+        mapElement(liftToFrame(deck, slideId, elementId), slideId, elementId, (e) => ({
+          ...e,
+          placement: {
+            ...(e.placement.mode === 'absolute' ? e.placement : {}),
+            mode: 'absolute',
+            x: snapMm(round(x), aids, 'v'),
+            y: snapMm(round(y), aids, 'h'),
+            w: round(w),
+            z: e.placement.mode === 'absolute' ? e.placement.z : 0,
+            driver: 'textpos',
+          },
+        })),
+      );
+
+      if (!hasHeight || dyMm === 0 || !(grip.includes('n') || grip.includes('s'))) return;
+      const dh = grip.includes('n') ? -dyMm : dyMm;
+
+      if (el.kind === 'image') {
+        const current = el.height?.u === 'mm'
+          ? el.height.v
+          : measuredRects.get(elementId)?.h ?? MIN_BOX_MM;
+        const next = Math.max(MIN_BOX_MM, round(current + dh));
+        mutate((deck) =>
+          mapElement(deck, slideId, elementId, (e) =>
+            e.kind === 'image' ? { ...e, height: { v: next, u: 'mm' } } : e,
+          ),
+        );
+      } else if (el.kind === 'tikz' && el.mode !== 'raw') {
+        const h = Math.max(MIN_BOX_MM, round(el.canvasSize.h + dh));
+        mutate((deck) =>
+          mapTikz(deck, slideId, elementId, (e) => setCanvasSize(e, e.canvasSize.w, h)),
+        );
+      }
+    },
+
+    /** Absolute box setter, for the numeric Position and Size fields. */
+    setElementBox(slideId, elementId, box) {
+      const el = findElement(get().deck, slideId, elementId);
+      if (el === undefined) return;
+      const base = el.placement.mode === 'absolute'
+        ? el.placement
+        : { ...(measuredRects.get(elementId) ?? FALLBACK_RECT), z: 0 };
+
+      const round = (n: number): number => Math.round(n * 10) / 10;
+      mutate((deck) =>
+        mapElement(liftToFrame(deck, slideId, elementId), slideId, elementId, (e) => ({
+          ...e,
+          placement: {
+            ...(e.placement.mode === 'absolute' ? e.placement : {}),
+            mode: 'absolute',
+            x: round(box.x ?? base.x),
+            y: round(box.y ?? base.y),
+            w: Math.max(MIN_BOX_MM, round(box.w ?? base.w)),
+            z: e.placement.mode === 'absolute' ? e.placement.z : 0,
+            driver: 'textpos',
+          },
+        })),
+      );
+    },
+
+    setImageHeightMm(slideId, elementId, mm) {
+      mutate((deck) =>
+        mapElement(deck, slideId, elementId, (el) => {
+          if (el.kind !== 'image') return el;
+          if (mm === null) {
+            const { height: _drop, ...rest } = el;
+            return rest;
+          }
+          return { ...el, height: { v: Math.max(MIN_BOX_MM, Math.round(mm * 10) / 10), u: 'mm' } };
+        }),
       );
     },
 

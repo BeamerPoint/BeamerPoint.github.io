@@ -5,7 +5,7 @@ import {
   themeUnavailableReason,
   type Element,
 } from '@beamerpoint/core';
-import { selectCurrentFrame, useStore, type DeckMetaField } from '../state/store.js';
+import { findElement, selectCurrentFrame, useStore, type DeckMetaField } from '../state/store.js';
 import { MathEditor } from './MathEditor.js';
 import { TableEditor } from './TableEditor.js';
 import { ShapeEditor } from './ShapeEditor.js';
@@ -38,7 +38,11 @@ export function FormatPane(): React.ReactElement {
   const setOverlayMode = useStore((s) => s.setOverlayMode);
   const returnElementToFlow = useStore((s) => s.returnElementToFlow);
 
-  const selected = frame?.children.find((e) => e.id === selection.elementId);
+  // At any depth: a text box inside a block or a column is as selectable as one in
+  // the frame's own list, and the pane has to be able to format it.
+  const selected = frame === undefined || selection.slideId === null
+    ? undefined
+    : findElement(deck, selection.slideId, selection.elementId ?? '');
   // The title page's content IS the presentation's metadata, so selecting it opens the
   // same editor that is otherwise offered when nothing in particular is selected.
   const showPresentation = selected === undefined
