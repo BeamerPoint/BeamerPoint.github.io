@@ -7,8 +7,11 @@
  *  - Every structure that can hold user content has a raw escape hatch at its own level
  *    (`RawElement` for blocks, `{ t: 'raw' }` for inlines, `RawDocNode` for document level).
  *    This is what makes content loss structurally impossible rather than merely unlikely.
- *  - `overlay` is preserved everywhere it can legally appear even though v1 cannot author
- *    overlays. Dropping it would destroy animated decks on import.
+ *  - An overlay spec lives where something can actually carry it: `ListItem.overlay`, which
+ *    is authored and parsed, and the `pause` element. It is NOT on `ElementBase` or
+ *    `FrameNode` -- it used to be on both, emitted by one and read by neither, which read
+ *    as a guarantee the model did not keep. `\onslide`, `\only` and `\uncover` are still
+ *    preserved as raw, which is where an imported animated deck's overlays survive.
  */
 
 export type Id = string;
@@ -102,8 +105,7 @@ export type Placement =
   | { mode: 'flow' }
   | {
       mode: 'absolute';
-      x: Mm; y: Mm; w: Mm; h?: Mm;
-      z: number;
+      x: Mm; y: Mm; w: Mm;
       rotate?: Deg;
       driver: 'textpos' | 'tikz';
     };
@@ -111,8 +113,6 @@ export type Placement =
 export interface ElementBase {
   id: Id;
   placement: Placement;
-  /** Verbatim beamer overlay spec, e.g. "<2->". Preserved, not authored, in v1. */
-  overlay?: TexString;
   /** Comments immediately preceding this element in the source, kept verbatim. */
   leadingComments?: string[];
   /** Provenance from the last parse. Advisory only; invalidated by any model edit. */
@@ -126,7 +126,6 @@ export interface TextElement extends ElementBase {
   content: RichText;
   align?: 'left' | 'center' | 'right' | 'justify';
   size?: BeamerFontSize;
-  color?: Color;
 }
 
 export interface ListItem {
@@ -237,7 +236,7 @@ export interface TableRow {
   id: Id; cells: TableCell[]; ruleBelow?: RowRule; isHeader?: boolean; fill?: Color;
 }
 export interface CellMerge {
-  row: number; col: number; colspan: number; rowspan: number;
+  row: number; col: number; colspan: number;
   align?: 'l' | 'c' | 'r';
 }
 
@@ -426,7 +425,6 @@ export interface FrameNode {
   title?: RichText;
   shortTitle?: RichText;
   subtitle?: RichText;
-  overlay?: TexString;
   /**
    * How the title was written in the source.
    *
@@ -466,7 +464,7 @@ export type AspectRatio = '43' | '169' | '1610' | '54' | '32' | '141';
 export type TexProgram = 'pdflatex' | 'xelatex' | 'lualatex';
 
 export interface ThemeRef { name: string; options: string[] }
-export interface PackageSpec { name: string; options: string[]; derived?: boolean; comment?: string }
+export interface PackageSpec { name: string; options: string[]; derived?: boolean }
 export interface ColorDef {
   id: Id; name: string;
   model: 'rgb' | 'RGB' | 'HTML' | 'cmyk' | 'gray' | 'named';

@@ -208,11 +208,9 @@ function emitFrame(w: TexWriter, frame: FrameNode, ctx: EmitContext): void {
 
     const opts = frameOptionList(frame, ctx);
     const optPart = opts.length > 0 ? `[${opts.join(',')}]` : '';
-    const overlay = frame.overlay ?? '';
-
     // `\frame{...}` takes no options, so an imported command-form frame that has
     // since acquired any must be written as an environment instead.
-    const asCommand = frame.form === 'command' && optPart === '' && overlay === '';
+    const asCommand = frame.form === 'command' && optPart === '';
 
     // The title is either an argument on the opening line or a \frametitle in the
     // body, depending on how the source wrote it. See FrameNode.titleStyle.
@@ -250,7 +248,7 @@ function emitFrame(w: TexWriter, frame: FrameNode, ctx: EmitContext): void {
       return;
     }
 
-    w.line_(`\\begin{frame}${overlay}${optPart}${titleArgs}`);
+    w.line_(`\\begin{frame}${optPart}${titleArgs}`);
     w.indented(body);
     w.line_('\\end{frame}');
   });

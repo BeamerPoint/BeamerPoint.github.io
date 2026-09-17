@@ -372,10 +372,6 @@ body.bp-resizing iframe { pointer-events: none; }
   font-family: monospace; font-size: 0.85em;
   background: #eef0f3; border-radius: 2px; padding: 0 2px; color: #4b5563;
 }
-.bp-overlay-badge {
-  position: absolute; top: -2px; right: -2px; font-size: 0.55em;
-  background: #4b5563; color: #fff; border-radius: 2px; padding: 0 3px;
-}
 .bp-unsupported { color: var(--bp-muted); font-style: italic; }
 
 .bp-size-tiny { font-size: 0.5em; } .bp-size-scriptsize { font-size: 0.6em; }

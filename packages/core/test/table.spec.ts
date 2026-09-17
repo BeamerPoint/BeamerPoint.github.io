@@ -80,7 +80,7 @@ describe('tables', () => {
 
   it('round-trips a multicolumn merge', () => {
     const table = newTableElement(2, 3);
-    table.merges = [{ row: 0, col: 0, colspan: 3, rowspan: 1, align: 'c' }];
+    table.merges = [{ row: 0, col: 0, colspan: 3, align: 'c' }];
     table.rows[0]!.cells[0]!.content = plain('Spanning header');
     table.rows[0]!.cells[1]!.content = [];
     table.rows[0]!.cells[2]!.content = [];
@@ -90,7 +90,7 @@ describe('tables', () => {
 
     const parsed = firstTable(round);
     expect(parsed).toBeDefined();
-    expect(parsed!.merges).toEqual([{ row: 0, col: 0, colspan: 3, rowspan: 1, align: 'c' }]);
+    expect(parsed!.merges).toEqual([{ row: 0, col: 0, colspan: 3, align: 'c' }]);
     // The grid stays rectangular: one cell per column, covered cells empty.
     expect(parsed!.rows[0]!.cells).toHaveLength(3);
   });

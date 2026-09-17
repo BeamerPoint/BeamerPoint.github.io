@@ -955,7 +955,6 @@ function recognizeTextblock(
     x: Number.parseFloat(pm[1]!),
     y: Number.parseFloat(pm[2]!),
     w: Number.parseFloat(wm[1]!),
-    z: 0,
     ...(rotated === null ? {} : { rotate: rotated.deg }),
     driver: 'textpos',
   };

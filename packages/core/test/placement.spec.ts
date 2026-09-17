@@ -18,7 +18,7 @@ function deckWithPlacement(rotate?: number): Deck {
     ...newTextElement('Free text'),
     placement: {
       mode: 'absolute' as const,
-      x: 10, y: 20, w: 60, z: 0,
+      x: 10, y: 20, w: 60,
       driver: 'textpos' as const,
       ...(rotate === undefined ? {} : { rotate }),
     },
@@ -63,7 +63,7 @@ describe('absolute placement', () => {
 
 describe('an element with children, placed freely', () => {
   const ABS = {
-    mode: 'absolute', x: 20, y: 30, w: 70, z: 0, driver: 'textpos',
+    mode: 'absolute', x: 20, y: 30, w: 70, driver: 'textpos',
   } as const satisfies Placement;
 
   function deckWithBlock(rotate?: number): Deck {

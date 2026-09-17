@@ -101,7 +101,9 @@ export function ElementView(props: Props): React.ReactElement {
         left: `${absolute.x * PX_PER_MM}px`,
         top: `${absolute.y * PX_PER_MM}px`,
         width: `${absolute.w * PX_PER_MM}px`,
-        zIndex: absolute.z,
+        // No z-index: positioned siblings paint in DOM order, which is `frame.children`
+        // order, which is the order the emitter writes -- so the canvas stacks the way the
+        // PDF does by construction. A stored z could only ever make the two disagree.
         // `\rotatebox` turns anticlockwise and CSS turns clockwise, so the sign flips.
         ...(absolute.rotate ? { transform: `rotate(${-absolute.rotate}deg)` } : {}),
       }
@@ -117,7 +119,6 @@ export function ElementView(props: Props): React.ReactElement {
       onMouseDown={(e) => { e.stopPropagation(); onSelect(el.id); }}
       data-element-id={el.id}
     >
-      {el.overlay !== undefined && <span className="bp-overlay-badge">{el.overlay}</span>}
       <Body {...props} />
       {selected && (
         <SelectionOverlay

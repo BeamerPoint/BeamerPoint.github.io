@@ -57,23 +57,23 @@ describe('table structure operations', () => {
 
   it('moves merges with the rows and columns they cover', () => {
     const base = newTableElement(3, 4);
-    base.merges = [{ row: 1, col: 1, colspan: 3, rowspan: 1 }];
+    base.merges = [{ row: 1, col: 1, colspan: 3 }];
 
     // A row inserted above pushes the merge down.
     expect(insertTableRow(base, 0).merges).toEqual([
-      { row: 2, col: 1, colspan: 3, rowspan: 1 },
+      { row: 2, col: 1, colspan: 3 },
     ]);
 
     // A column removed from inside the span shortens it.
     expect(removeTableColumn(base, 2).merges).toEqual([
-      { row: 1, col: 1, colspan: 2, rowspan: 1 },
+      { row: 1, col: 1, colspan: 2 },
     ]);
 
     // Removing the anchor's own row drops the merge rather than leaving it dangling.
     expect(removeTableRow(base, 1).merges).toEqual([]);
 
     // A merge shortened to a single column is no longer a merge.
-    const narrow = { ...base, merges: [{ row: 1, col: 1, colspan: 2, rowspan: 1 }] };
+    const narrow = { ...base, merges: [{ row: 1, col: 1, colspan: 2 }] };
     expect(removeTableColumn(narrow, 2).merges).toEqual([]);
   });
 

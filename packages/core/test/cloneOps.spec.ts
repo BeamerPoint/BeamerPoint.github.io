@@ -132,7 +132,7 @@ describe('cloning an element', () => {
   it('offsets an absolutely-placed copy, and leaves a flow one alone', () => {
     const abs: Element = {
       id: 'x', kind: 'text', content: [],
-      placement: { mode: 'absolute', x: 20, y: 30, w: 40, z: 0, driver: 'textpos' },
+      placement: { mode: 'absolute', x: 20, y: 30, w: 40, driver: 'textpos' },
     };
     expect(offsetElement(abs, 5, 5).placement).toMatchObject({ x: 25, y: 35 });
 

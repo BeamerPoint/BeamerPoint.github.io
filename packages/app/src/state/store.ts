@@ -299,7 +299,6 @@ interface AppState {
   restyleShape(slideId: string, elementId: string, shapeId: string, patch: Partial<TikzStyle>): void;
   reorderShape(slideId: string, elementId: string, shapeId: string, delta: 1 | -1): void;
   setShapeArrowHead(slideId: string, elementId: string, shapeId: string, head: ArrowHead): void;
-  setShapeText(slideId: string, elementId: string, shapeId: string, text: string): void;
   /** The text written INSIDE a rectangle or an ellipse. */
   setShapeLabel(slideId: string, elementId: string, shapeId: string, text: string): void;
   setShapeOption(
@@ -336,7 +335,6 @@ interface AppState {
   setImageOpacity(slideId: string, elementId: string, opacity: number): void;
   setElementRotate(slideId: string, elementId: string, deg: number): void;
   returnElementToFlow(slideId: string, elementId: string): void;
-  moveElementToAbsolute(slideId: string, elementId: string, x: number, y: number, w: number): void;
 
   setDeckMeta(patch: Partial<Record<DeckMetaField, string>>): void;
   setTheme(name: string): void;
@@ -1392,7 +1390,6 @@ export const useStore = create<AppState>()((set, get) => {
           x: 25 + offset,
           y: 30 + offset,
           w: 70,
-          z: 0,
           driver: 'textpos',
         },
         content: plain('Text box'),
@@ -1704,11 +1701,6 @@ export const useStore = create<AppState>()((set, get) => {
 
     setShapeArrowHead(slideId, elementId, shapeId, head) {
       mutate((deck) => mapTikz(deck, slideId, elementId, (el) => setArrowHead(el, shapeId, head)));
-    },
-
-    setShapeText(slideId, elementId, shapeId, text) {
-      mutate((deck) =>
-        mapTikz(deck, slideId, elementId, (el) => setNodeContent(el, shapeId, plain(text))));
     },
 
     /**
@@ -2056,7 +2048,6 @@ export const useStore = create<AppState>()((set, get) => {
             x: snapMm(round1(box.x), aids, 'v'),
             y: snapMm(round1(box.y), aids, 'h'),
             w: round1(box.w),
-            z: e.placement.mode === 'absolute' ? e.placement.z : 0,
             driver: 'textpos',
           },
         })),
@@ -2100,7 +2091,7 @@ export const useStore = create<AppState>()((set, get) => {
       if (el === undefined) return;
       const base = el.placement.mode === 'absolute'
         ? el.placement
-        : { ...(measuredRects.get(elementId) ?? FALLBACK_RECT), z: 0 };
+        : measuredRects.get(elementId) ?? FALLBACK_RECT;
 
       const round = (n: number): number => Math.round(n * 10) / 10;
       mutate((deck) =>
@@ -2112,7 +2103,6 @@ export const useStore = create<AppState>()((set, get) => {
             x: round(box.x ?? base.x),
             y: round(box.y ?? base.y),
             w: Math.max(MIN_BOX_MM, round(box.w ?? base.w)),
-            z: e.placement.mode === 'absolute' ? e.placement.z : 0,
             driver: 'textpos',
           },
         })),
@@ -2173,7 +2163,7 @@ export const useStore = create<AppState>()((set, get) => {
             : { ...(measuredRects.get(elementId) ?? FALLBACK_RECT), z: 0 };
           const placement = {
             mode: 'absolute' as const,
-            x: base.x, y: base.y, w: base.w, z: base.z,
+            x: base.x, y: base.y, w: base.w,
             driver: 'textpos' as const,
             ...(normalised === 0 ? {} : { rotate: normalised }),
           };
@@ -2200,15 +2190,6 @@ export const useStore = create<AppState>()((set, get) => {
         mapElement(deck, slideId, elementId, (el) => ({
           ...el,
           placement: { mode: 'flow' },
-        })),
-      );
-    },
-
-    moveElementToAbsolute(slideId, elementId, x, y, w) {
-      mutate((deck) =>
-        mapElement(deck, slideId, elementId, (el) => ({
-          ...el,
-          placement: { mode: 'absolute', x, y, w, z: 0, driver: 'textpos' },
         })),
       );
     },

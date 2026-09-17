@@ -118,7 +118,7 @@ describe('round trip fixpoint', () => {
         {
           id: 'a1',
           kind: 'text',
-          placement: { mode: 'absolute', x: 20, y: 35.5, w: 60, z: 0, driver: 'textpos' },
+          placement: { mode: 'absolute', x: 20, y: 35.5, w: 60, driver: 'textpos' },
           content: plain('I was dragged here.'),
         },
       ]),

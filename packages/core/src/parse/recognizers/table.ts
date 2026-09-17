@@ -350,7 +350,6 @@ function recognizeTabularShape(
           row: r,
           col,
           colspan: read.colspan,
-          rowspan: 1,
           ...(read.align !== undefined ? { align: read.align } : {}),
         });
         // Keep one cell per column so the grid stays rectangular for the editor.
