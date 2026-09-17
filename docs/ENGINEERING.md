@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 313 tests
+npm test             # vitest, 325 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -296,6 +296,31 @@ for the same reason. It also has to reach BOTH kinds of corner handle: the first
 constrained elements and not the shapes inside a diagram, so the feature looked simply
 broken to anyone who tried it on a rectangle -- reported as exactly that.
 
+**A node GROWS to fit its text, so a label has to bring `text width` with it.** Measured
+by reading the node's own anchors out of the log: a 40x20mm rectangle came out 40.14mm
+empty and **56.26mm** carrying "A rather long label that will not fit" -- the canvas would
+have drawn 40 and the PDF 56. With `text width=40mm,align=center` it held at 40.14. An
+ellipse needs a NARROWER box than its own width, because the shape library sizes a shape
+to CONTAIN its text box rather than fill it (the same measurement that put the polygons in
+`polygons.ts`): `text width=40mm` grew a 40mm ellipse to 56.71mm, and `rx * sqrt(2)`, the
+widest rectangle that fits inside it, held it at 40.14. Those options are written ONLY
+when there is a label, so an unlabelled shape emits exactly what it always did, and the
+recognizer declines a node whose text width is not the one it would write rather than
+re-emitting someone else's shape at a different size.
+
+**`preventDefault()` on pointerdown suppresses the compatibility mouse events**, so the
+browser's `dblclick` never arrives for anything that also starts a drag. The canvas counts
+the second press itself, from the pointer events. The other half of the same coin: a
+pointerdown that is NOT prevented produces a mousedown that keeps bubbling, which
+re-selected the diagram over the top of the shape that had just been clicked and blurred
+the label editor as it opened. `selectElement` also keeps the shape selection when it is
+the same element — changing element is what makes a shape selection meaningless.
+
+**A `foreignObject` takes the pointer even when its child does not.** The shape label is
+inert HTML over the drawing, and `pointer-events: none` on the div inside was not enough:
+a labelled rectangle could not be dragged at all until the wrapper got it too. The
+full-bleed-layer rule, in SVG.
+
 **A draggable row cannot be an HTML5 drag source AND a listbox option.** Making a
 thumbnail `draggable` hands the browser the gesture: it swallows the click, paints its
 own ghost image, and fires `dragover` only over registered targets. The rail reorders on
@@ -559,7 +584,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Thirty-eight commits on `master`, ~21,800 lines across 120 source files, 313 tests passing.
+Thirty-nine commits on `master`, ~22,100 lines across 120 source files, 325 tests passing.
 
 ### Done
 
@@ -576,7 +601,8 @@ Thirty-eight commits on `master`, ~21,800 lines across 120 source files, 313 tes
   functions in `core/model/tableOps.ts`
 - **Shapes and diagrams**: a TikZ drawing canvas with rectangles, rounded rectangles,
   ellipses, lines, polygons, arrows and text labels; draw by dragging, then move, resize
-  and restyle (line/fill colour, dash, width, arrowhead, z-order). An arrow endpoint
+  and restyle. A rectangle or an ellipse holds TEXT — double-click it and type, straight
+  into the node it already was, so an arrow still attaches to the one shape (line/fill colour, dash, width, arrowhead, z-order). An arrow endpoint
   dropped on a shape **attaches** to that side and follows it, which is what makes it a
   diagram rather than loose shapes. A hand-written `tikzpicture` is kept verbatim as a
   `mode: 'raw'` element. Operations are pure functions in `core/model/shapeOps.ts`
@@ -690,6 +716,12 @@ Model types, and in several cases the emitter, already exist for all of these �
 - A chart on the canvas is a sketch of the real one: pgfplots chooses the ticks, the axis
   limits and the label placement, so the shape and the colours are right and the exact
   geometry is not. Unlike the rest of the canvas it has not been audited against the PDF
+- A shape's label is plain text, and only a rectangle, an ellipse or a text node can
+  hold one — a polygon is a bare `\draw ... -- cycle` with no node to put words in, which
+  is also why an arrow cannot attach to one. A label taller than its ELLIPSE makes the
+  ellipse grow in the PDF (measured: 20mm became 30.96mm) while the canvas draws it at
+  the size it was given; a rectangle holds its size and lets the text spill, which the
+  canvas shows faithfully
 - Diagrams have no multi-point polyline editing after drawing, no grid
   snapping of shapes, and no rich text inside a label. A label's on-canvas box is
   estimated from its character count, so hit-testing a label is approximate — the
