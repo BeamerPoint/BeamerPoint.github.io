@@ -1286,3 +1286,41 @@ body.bp-dragging { user-select: none; }
 }
 .bp-ribbon-field > span { margin-bottom: 0; }
 .bp-ribbon-field select { width: auto; min-width: 92px; }
+
+/*
+ * Home > Font: formatting for the words that are selected.
+ *
+ * Compact because a ribbon group is one row tall and this needs two: the toggles and a
+ * size on top, the colours underneath.
+ */
+.bp-font-grid { display: flex; flex-direction: column; gap: 4px; padding: 2px 0; }
+.bp-font-row { display: flex; align-items: center; gap: 3px; }
+.bp-font-btn {
+  min-width: 24px; height: 24px; padding: 0 5px;
+  border: 1px solid transparent; border-radius: 4px;
+  background: transparent; color: var(--bp-text);
+  font-size: 12px; line-height: 1; cursor: pointer;
+}
+.bp-font-btn:hover:not(:disabled) { background: var(--bp-hover); }
+.bp-font-btn:disabled { color: var(--bp-muted); opacity: 0.5; cursor: default; }
+.bp-font-btn.is-active {
+  background: var(--bp-accent-soft, var(--bp-hover));
+  border-color: var(--bp-accent); color: var(--bp-accent);
+}
+.bp-font-bf { font-weight: 800; }
+.bp-font-it { font-style: italic; font-family: Georgia, serif; }
+.bp-font-ul { text-decoration: underline; }
+.bp-font-tt { font-family: Consolas, monospace; }
+.bp-font-sc { font-size: 10px; letter-spacing: 0.4px; }
+.bp-font-alert { color: #b42318; font-weight: 700; }
+.bp-font-size {
+  height: 24px; padding: 0 4px; font: inherit; font-size: 11.5px;
+  border: 1px solid var(--bp-border-strong); border-radius: 4px; background: #fff;
+  max-width: 104px;
+}
+.bp-font-swatch {
+  width: 18px; height: 18px; padding: 0;
+  border: 1px solid var(--bp-border-strong); border-radius: 3px; cursor: pointer;
+}
+.bp-font-swatch:disabled { opacity: 0.4; cursor: default; }
+.bp-font-swatch-custom { background: #fff; }

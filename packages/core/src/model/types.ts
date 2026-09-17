@@ -46,6 +46,12 @@ export type BeamerFontSize =
   | 'tiny' | 'scriptsize' | 'footnotesize' | 'small' | 'normalsize'
   | 'large' | 'Large' | 'LARGE' | 'huge' | 'Huge';
 
+/** The ten sizes, smallest first, which is the order a picker has to offer them in. */
+export const FONT_SIZES_ORDERED: readonly BeamerFontSize[] = [
+  'tiny', 'scriptsize', 'footnotesize', 'small', 'normalsize',
+  'large', 'Large', 'LARGE', 'huge', 'Huge',
+];
+
 /* ------------------------------------------------------------------- inline */
 
 export type InlineStyle =

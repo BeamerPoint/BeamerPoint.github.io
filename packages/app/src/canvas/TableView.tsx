@@ -11,6 +11,8 @@ import { InlineText } from './InlineText.js';
 import { readInlineFromDom } from './domInline.js';
 import { useCanvasGeometry } from './CanvasContext.js';
 import { colorToCss } from './shapeColors.js';
+import { HOST_CELL_ATTR, HOST_EL_ATTR, HOST_ROW_ATTR } from './textSelection.js';
+import { onFormatKey } from './formatKeys.js';
 
 interface Props {
   el: TableElement;
@@ -139,6 +141,12 @@ export function TableView({ el, theme, locked, onEditCell }: Props): React.React
                     className="bp-cell-body"
                     contentEditable={!locked}
                     suppressContentEditableWarning
+                    {...(cell === undefined ? {} : {
+                      [HOST_EL_ATTR]: el.id,
+                      [HOST_ROW_ATTR]: row.id,
+                      [HOST_CELL_ATTR]: cell.id,
+                    })}
+                    onKeyDown={onFormatKey}
                     onBlur={(e) => cell !== undefined && onEditCell(
                       el.id, row.id, cell.id, readInlineFromDom(e.currentTarget, cell.content),
                     )}

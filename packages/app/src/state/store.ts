@@ -19,6 +19,8 @@ import {
   setChartCell as setChartCellOp,
   setChartSeries as setChartSeriesOp,
   newTocElement,
+  DECK_FONT_PACKAGES,
+  deckFontByPackage,
   newTableElement,
   newTikzElement,
   newSmartArtElement,
@@ -288,6 +290,8 @@ interface AppState {
   setDeckMeta(patch: Partial<Record<DeckMetaField, string>>): void;
   setTheme(name: string): void;
   setTexProgram(program: TexProgram): void;
+  /** The deck's font family, by package name; `null` is beamer's own default. */
+  setDeckFont(pkg: string | null): void;
   setAspect(aspect: Deck['preamble']['documentClass']['aspectRatio']): void;
 
   editSource(text: string): void;
@@ -1898,6 +1902,32 @@ export const useStore = create<AppState>()((set, get) => {
         ...deck,
         preamble: { ...deck.preamble, texProgram: program },
       }));
+    },
+
+    /**
+     * Set the deck's font family.
+     *
+     * A serif family also needs `\usefonttheme{serif}`, because beamer typesets in SANS
+     * and `mathptmx` only touches `\rmdefault` -- measured, and the reason Times could
+     * not be offered honestly before: loading the package on its own changes nothing at
+     * all on the slide. Switching back to a sans family clears that font theme again,
+     * but only when it is the one this control set -- an imported deck's
+     * `professionalfonts` or `structurebold` is the user's and stays.
+     */
+    setDeckFont(pkg) {
+      const font = deckFontByPackage(pkg);
+      if (font === undefined) return;
+      mutate((deck) => {
+        const packages = deck.preamble.packages.filter(
+          (p) => !DECK_FONT_PACKAGES.includes(p.name),
+        );
+        if (font.pkg !== null) packages.push({ name: font.pkg, options: [] });
+
+        const preamble = { ...deck.preamble, packages };
+        if (font.serif) preamble.fontTheme = { name: 'serif', options: [] };
+        else if (preamble.fontTheme?.name === 'serif') delete preamble.fontTheme;
+        return { ...deck, preamble };
+      });
     },
 
     setAspect(aspect) {

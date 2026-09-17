@@ -1,9 +1,15 @@
 import { useRef, useState } from 'react';
-import { THEME_IDS, themeUnavailableReason, type AspectRatio, type TexProgram } from '@beamerpoint/core';
+import {
+  DECK_FONTS, DECK_FONT_PACKAGES, FONT_SIZES_ORDERED, THEME_IDS, resolveTheme,
+  themeUnavailableReason,
+  type AspectRatio, type BeamerFontSize, type Color, type InlineStyle, type TexProgram,
+} from '@beamerpoint/core';
 import { selectCanvasLocked, selectCurrentFrame, useStore } from '../state/store.js';
 import { useImageImport } from './useImageImport.js';
 import { canLinkFile, useLinkFile } from './SaveIndicator.js';
 import { ShapeGallery } from '../panels/ShapeGallery.js';
+import { colorToCss } from '../canvas/shapeColors.js';
+import { useInlineFormat } from './useInlineFormat.js';
 import { SmartArtPicker } from '../panels/SmartArtPicker.js';
 import {
   IconBackward, IconBlock, IconBullets, IconCompile, IconDelete, IconDiagram,
@@ -34,6 +40,136 @@ const PROGRAMS: TexProgram[] = ['pdflatex', 'xelatex', 'lualatex'];
 /* ------------------------------------------------------------- primitives */
 
 /** A group of related commands with its name underneath, as a ribbon does. */
+/**
+ * Text colours worth one click.
+ *
+ * Strong and legible, unlike the shape palette's 20% mixes: this colours words, not
+ * fills. `structure` follows the deck's theme, which is the one that stays right when
+ * the theme changes.
+ */
+const TEXT_SWATCHES: Array<{ label: string; color: Color }> = [
+  { label: 'Theme', color: { k: 'structure' } },
+  { label: 'Black', color: { k: 'named', name: 'black' } },
+  { label: 'Grey', color: { k: 'named', name: 'gray' } },
+  { label: 'Red', color: { k: 'named', name: 'red' } },
+  { label: 'Blue', color: { k: 'named', name: 'blue' } },
+  { label: 'Green', color: { k: 'named', name: 'green' } },
+  { label: 'Orange', color: { k: 'named', name: 'orange' } },
+  { label: 'Purple', color: { k: 'named', name: 'violet' } },
+];
+
+const TOGGLES: Array<{ style: InlineStyle; label: string; title: string }> = [
+  { style: 'bf', label: 'B', title: 'Bold (Ctrl+B)' },
+  { style: 'it', label: 'I', title: 'Italic (Ctrl+I)' },
+  { style: 'ul', label: 'U', title: 'Underline (Ctrl+U)' },
+  { style: 'tt', label: 'M', title: 'Monospace' },
+  { style: 'sc', label: 'SC', title: 'Small caps' },
+  { style: 'alert', label: 'A', title: "Alert -- the theme's emphasis colour" },
+];
+
+/**
+ * Formatting for the words that are selected.
+ *
+ * Every control here takes `onMouseDown` and cancels it. Clicking a button moves the
+ * focus, which destroys the browser's selection before the click handler ever runs, and
+ * then there is nothing left to format. Preventing the default on mousedown keeps the
+ * focus — and the selection — inside the text box.
+ */
+function FontGroup(): React.ReactElement {
+  const fmt = useInlineFormat();
+  const themeName = useStore((s) => s.deck.preamble.theme.name);
+  const theme = resolveTheme(themeName);
+  const hold = (e: React.MouseEvent): void => e.preventDefault();
+
+  return (
+    <Group label="Font">
+      <div className="bp-font-grid">
+        <div className="bp-font-row">
+          {TOGGLES.map((t) => (
+            <button
+              key={t.style}
+              className={`bp-font-btn bp-font-${t.style}${
+                fmt.active.styles.includes(t.style) ? ' is-active' : ''}`}
+              title={t.title}
+              disabled={!fmt.enabled}
+              onMouseDown={hold}
+              onClick={() => fmt.apply({ style: t.style })}
+            >
+              {t.label}
+            </button>
+          ))}
+          <select
+            className="bp-font-size"
+            title="Size of the selected text"
+            disabled={!fmt.enabled}
+            value={fmt.active.size ?? ''}
+            onMouseDown={hold}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === '') fmt.clear('size');
+              else fmt.apply({ style: 'size', size: v as BeamerFontSize });
+            }}
+          >
+            <option value="">Size</option>
+            {FONT_SIZES_ORDERED.map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="bp-font-row">
+          {TEXT_SWATCHES.map((sw) => (
+            <button
+              key={sw.label}
+              className="bp-font-swatch"
+              style={{ background: colorToCss(sw.color, theme, 'transparent') }}
+              title={sw.label}
+              disabled={!fmt.enabled}
+              onMouseDown={hold}
+              onClick={() => fmt.apply({ style: 'color', color: sw.color })}
+            />
+          ))}
+          <input
+            className="bp-font-swatch bp-font-swatch-custom"
+            type="color"
+            title="Any colour"
+            disabled={!fmt.enabled}
+            onMouseDown={hold}
+            onChange={(e) => fmt.apply({ style: 'color', color: hexToRgb(e.target.value) })}
+          />
+          <button
+            className="bp-font-btn bp-font-clear"
+            title="Remove the colour"
+            disabled={!fmt.enabled}
+            onMouseDown={hold}
+            onClick={() => fmt.clear('color')}
+          >
+            &#8709;
+          </button>
+        </div>
+      </div>
+    </Group>
+  );
+}
+
+/**
+ * Which of the offered families the deck is using.
+ *
+ * Read from the preamble's package list rather than stored separately: the packages
+ * already round-trip, so there is nothing new in the file and an imported deck that
+ * happens to load `helvet` shows up here correctly.
+ */
+function currentDeckFont(packages: readonly { name: string }[]): string | null {
+  return packages.map((p) => p.name).find((n) => DECK_FONT_PACKAGES.includes(n)) ?? null;
+}
+
+/** `#rrggbb` to the model's 0..1 triple. The parser reads this form back as a colour. */
+function hexToRgb(hex: string): Color {
+  const n = parseInt(hex.slice(1), 16);
+  const to1 = (v: number): number => Math.round((v / 255) * 1000) / 1000;
+  return { k: 'rgb', r: to1((n >> 16) & 255), g: to1((n >> 8) & 255), b: to1(n & 255) };
+}
+
 function Group({ label, children }: { label: string; children: React.ReactNode }): React.ReactElement {
   return (
     <div className="bp-rgroup">
@@ -132,6 +268,7 @@ export function Ribbon(props: Props): React.ReactElement {
   const setTheme = useStore((s) => s.setTheme);
   const setAspect = useStore((s) => s.setAspect);
   const setTexProgram = useStore((s) => s.setTexProgram);
+  const setDeckFont = useStore((s) => s.setDeckFont);
 
   const aids = useStore((s) => s.aids);
   const setAids = useStore((s) => s.setAids);
@@ -222,6 +359,8 @@ export function Ribbon(props: Props): React.ReactElement {
                 />
               </Stack>
             </Group>
+
+            <FontGroup />
 
             <Group label="Selection">
               <Stack>
@@ -381,6 +520,22 @@ export function Ribbon(props: Props): React.ReactElement {
               {themeWarning !== undefined && (
                 <p className="bp-ribbon-warn">Needs {themeWarning}, which is not bundled.</p>
               )}
+            </Group>
+
+            <Group label="Font">
+              <label className="bp-field">
+                <span>Font family</span>
+                <select
+                  value={currentDeckFont(deck.preamble.packages) ?? ''}
+                  onChange={(e) => setDeckFont(e.target.value === '' ? null : e.target.value)}
+                  disabled={locked}
+                  title="One family for the whole deck"
+                >
+                  {DECK_FONTS.map((f) => (
+                    <option key={f.label} value={f.pkg ?? ''}>{f.label}</option>
+                  ))}
+                </select>
+              </label>
             </Group>
 
             <Group label="Slide size">

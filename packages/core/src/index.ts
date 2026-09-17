@@ -4,6 +4,11 @@ export {
   normalizeRichText, trimRichText, richTextEquals,
 } from './model/richtext.js';
 export {
+  applyInlineStyle, removeInlineStyle, toggleInlineStyle, hasInlineStyle,
+  inlineMarksIn, inlineLength, richTextLength, isRoundTrippableColor,
+  type CharRange, type StyleSpec, type InlineMarks,
+} from './model/richtextOps.js';
+export {
   newDeck, newFrame, newTitleFrame, newTextElement, newListElement, newListItem,
   newTableElement, newTikzElement, newCodeElement, newTocElement, newChartElement,
   defaultPreamble, plain,
@@ -64,6 +69,9 @@ export {
   themeNeedsUnicodeEngine, themeShape, themeUnavailableReason,
   type ThemeShape, type HeadlineKind, type FootlineKind,
 } from './themes/catalogue.js';
+export {
+  DECK_FONTS, DECK_FONT_PACKAGES, deckFontByPackage, type DeckFont,
+} from './themes/fonts.js';
 export type {
   ThemeSpec, HeadlineSpec, FootlineSpec, FootlineCell, FrametitleSpec, BlockSpec, BlockStyle,
   TitlePageSpec,

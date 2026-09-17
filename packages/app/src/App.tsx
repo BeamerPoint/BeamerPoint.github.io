@@ -11,6 +11,7 @@ import { selectCanvasLocked, selectCurrentFrame, selectFrames, useStore } from '
 import { loadSavedDeck, readEmergencyTex, startAutosave } from './state/persist.js';
 import { useColumnLayout } from './ui/useColumnLayout.js';
 import { useShortcuts } from './ui/useShortcuts.js';
+import { useTextSelectionTracking } from './canvas/textSelection.js';
 import { Splitter } from './ui/Splitter.js';
 import { Ribbon } from './ui/Ribbon.js';
 import { StatusBar } from './ui/StatusBar.js';
@@ -83,6 +84,9 @@ export function App(): React.ReactElement {
   }, [loadDeck]);
 
   useShortcuts();
+  // The ribbon's Font group formats whatever is selected, so something has to watch
+  // the browser's selection; it changes far more often than anything re-renders.
+  useTextSelectionTracking();
 
   const frameNumber = frames.findIndex((f) => f.id === selection.slideId) + 1;
   const deckTitle = deck.meta.title ? richTextToPlain(deck.meta.title) : 'Untitled presentation';

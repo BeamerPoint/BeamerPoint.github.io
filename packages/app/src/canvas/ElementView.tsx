@@ -13,6 +13,8 @@ import { TocView } from './TocView.js';
 import { ChartView } from './ChartView.js';
 import { TikzView } from './TikzView.js';
 import { measuredRects, useStore, type ResizeGrip } from '../state/store.js';
+import { HOST_EL_ATTR, HOST_ITEM_ATTR } from './textSelection.js';
+import { onFormatKey } from './formatKeys.js';
 import { SelectionOverlay, type OverlayMode } from './SelectionOverlay.js';
 import { useCanvasGeometry } from './CanvasContext.js';
 import { wrapForKatex } from './mathPreview.js';
@@ -160,6 +162,10 @@ function Body(props: Props): React.ReactElement {
           style={{ textAlign: el.align === 'justify' ? 'justify' : el.align }}
           contentEditable={!locked}
           suppressContentEditableWarning
+          // Identifies this box to the selection tracker, which is how the ribbon knows
+          // which words a format button should act on.
+          {...{ [HOST_EL_ATTR]: el.id }}
+          onKeyDown={onFormatKey}
           onBlur={(e) => onEditContent(el.id, readInlineFromDom(e.currentTarget, el.content))}
         >
           <InlineText content={el.content} />
@@ -334,6 +340,8 @@ function ListView({
             className="bp-item-body"
             contentEditable={!locked}
             suppressContentEditableWarning
+            {...{ [HOST_EL_ATTR]: el.id, [HOST_ITEM_ATTR]: item.id }}
+            onKeyDown={onFormatKey}
             onBlur={(e) => onEditItem(el.id, item.id, readInlineFromDom(e.currentTarget, item.content))}
           >
             <InlineText content={item.content} />

@@ -1,4 +1,4 @@
-import type { BeamerFontSize, Inline, RichText } from '../model/types.js';
+import type { BeamerFontSize, Color, Inline, RichText } from '../model/types.js';
 import type { CstGroup, CstNode } from './cst.js';
 import { normalizeRichText, trimRichText } from '../model/richtext.js';
 
@@ -86,7 +86,7 @@ function convert(node: CstNode, src: string): Inline | Inline[] {
           t: 'style',
           style: 'size',
           size: first.name as BeamerFontSize,
-          children: parseInline(rest, src),
+          children: dropMacroSpace(parseInline(rest, src)),
         };
       }
       return raw(node, src);
@@ -119,13 +119,22 @@ function convertCommand(
     return { t: 'style', style, children: groupToInline(args[0]!, src) };
   }
 
-  if (name === 'textcolor' && args.length === 2 && opts.length === 0) {
-    return {
-      t: 'style',
-      style: 'color',
-      color: { k: 'mix', expr: groupToLiteral(args[0]!, src) },
-      children: groupToInline(args[1]!, src),
-    };
+  if (name === 'textcolor' && args.length === 2 && opts.length <= 1) {
+    const spec = groupToLiteral(args[0]!, src);
+    // No model given: keep the expression verbatim, so `blue!20!white` and every
+    // named colour re-emit byte-for-byte.
+    const color: Color | null = opts.length === 0
+      ? { k: 'mix', expr: spec }
+      : parseColorModel(groupToLiteral(opts[0]!, src), spec);
+    if (color !== null) {
+      return {
+        t: 'style',
+        style: 'color',
+        color,
+        children: groupToInline(args[1]!, src),
+      };
+    }
+    // An unknown colour model falls through to the raw island below, unchanged.
   }
 
   if (name === 'href' && args.length === 2) {
@@ -165,6 +174,40 @@ function convertCommand(
   }
 
   return raw(node, src);
+}
+
+/**
+ * `\textcolor[model]{spec}{...}`, for the one model the document model has.
+ *
+ * The emitter has always written `\textcolor[rgb]{r,g,b}{...}` for a `{k:'rgb'}`
+ * colour and the parser accepted only the zero-option form, so a colour picked from the
+ * RGB picker came back as an inert raw island: preserved in the file, no longer
+ * editable as a colour, and counted against `health.demoted`. `[HTML]`, `[cmyk]` and
+ * `[gray]` are not modelled and still decline, which is the honest answer.
+ */
+function parseColorModel(model: string, spec: string): Color | null {
+  if (model.trim() !== 'rgb') return null;
+  const parts = spec.split(',').map((p) => Number(p.trim()));
+  if (parts.length !== 3) return null;
+  if (parts.some((n) => !Number.isFinite(n) || n < 0 || n > 1)) return null;
+  return { k: 'rgb', r: parts[0]!, g: parts[1]!, b: parts[2]! };
+}
+
+/**
+ * Drop the whitespace that merely terminates a font-size command.
+ *
+ * TeX skips ALL whitespace after a control word, so the space in `{\large big}` is not
+ * content. Keeping it made the round trip grow: the parser put it in the child text and
+ * the emitter added its own, so `{\large big}` re-emitted as `{\large  big}`, then
+ * three spaces, then four. The guard never caught it because whitespace between tokens
+ * is insignificant to the comparison — the source simply got wider on every pass.
+ */
+function dropMacroSpace(rt: RichText): RichText {
+  const first = rt[0];
+  if (first === undefined || first.t !== 'text') return rt;
+  const trimmed = first.s.replace(/^\s+/, '');
+  if (trimmed === first.s) return rt;
+  return normalizeRichText([{ t: 'text', s: trimmed }, ...rt.slice(1)]);
 }
 
 function push(out: Inline[], v: Inline | Inline[]): void {
