@@ -4,6 +4,7 @@ import {
 } from '@beamerpoint/core';
 import { useEffect, useRef } from 'react';
 import { selectFrames, selectOutline, useStore } from '../state/store.js';
+import { useSlideReorder } from './useSlideReorder.js';
 import { InlineText } from '../canvas/InlineText.js';
 import { TitlePage, isTitlePageTex } from '../canvas/TitlePage.js';
 
@@ -151,14 +152,17 @@ function ThumbBlock({
  * typed in place here, which is the whole authoring UI a `\section` needs.
  */
 function SectionRow({
-  node, locked,
-}: { node: SectionNode; locked: boolean }): React.ReactElement {
+  node, locked, dropBefore,
+}: { node: SectionNode; locked: boolean; dropBefore: boolean }): React.ReactElement {
   const setSectionTitle = useStore((s) => s.setSectionTitle);
   const deleteSection = useStore((s) => s.deleteSection);
   const moveSection = useStore((s) => s.moveSection);
 
   return (
-    <li className={`bp-section-row bp-section-${node.level}`}>
+    <li
+      className={`bp-section-row bp-section-${node.level}${dropBefore ? ' is-drop-target' : ''}`}
+      data-node-id={node.id}
+    >
       <input
         className="bp-section-title"
         value={richTextToPlain(node.title)}
@@ -215,6 +219,7 @@ export function SlideThumbs(): React.ReactElement {
   const deleteSlide = useStore((s) => s.deleteSlide);
   const result = useStore((s) => s.engine.result);
   const listRef = useRef<HTMLOListElement>(null);
+  const reorder = useSlideReorder(listRef);
   /** Set by the rail's own actions, so focus comes back after the list re-renders. */
   const refocus = useRef(false);
 
@@ -293,22 +298,37 @@ export function SlideThumbs(): React.ReactElement {
       >
         {outline.map((node) => {
           if (node.kind === 'section') {
-            return <SectionRow key={node.id} node={node} locked={locked} />;
+            return (
+              <SectionRow
+                key={node.id}
+                node={node}
+                locked={locked}
+                dropBefore={reorder.dropBeforeId === node.id}
+              />
+            );
           }
           const f = node;
           const i = frames.indexOf(f);
           const title = f.title ? richTextToPlain(f.title) : 'Untitled slide';
           const hasError = errorFrames.has(f.id);
           const selected = f.id === selectedId;
+          const classes = [
+            'bp-thumb-row',
+            reorder.draggingId === f.id ? 'is-dragging' : '',
+            reorder.dropBeforeId === f.id ? 'is-drop-target' : '',
+          ].filter(Boolean).join(' ');
           return (
-            <li key={f.id} className="bp-thumb-row">
+            <li key={f.id} className={classes} data-node-id={f.id}>
               <button
                 className={`bp-thumb${selected ? ' is-selected' : ''}`}
+                // Press and move to reorder; press and release still selects. The
+                // threshold is in the hook, so a click is never mistaken for a drag.
+                onPointerDown={(e) => reorder.onPointerDown(e, f.id)}
                 // Roving tabIndex: one stop for the whole rail, then the arrow keys.
                 tabIndex={selected ? 0 : -1}
                 role="option"
                 aria-selected={selected}
-                onClick={() => selectSlide(f.id)}
+                onClick={() => { if (!reorder.consumeClick()) selectSlide(f.id); }}
                 title={title}
               >
                 <span className="bp-thumb-num">{i + 1}</span>
@@ -340,6 +360,14 @@ export function SlideThumbs(): React.ReactElement {
             </li>
           );
         })}
+        {/* The drop indicator has nowhere to sit when the slide is going to the very
+            end, so the list carries one last row for it. */}
+        {reorder.active && (
+          <li
+            className={`bp-drop-end${reorder.dropBeforeId === null ? ' is-drop-target' : ''}`}
+            aria-hidden="true"
+          />
+        )}
       </ol>
 
       <div className="bp-slides-add-row">

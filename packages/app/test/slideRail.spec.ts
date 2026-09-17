@@ -81,6 +81,38 @@ describe('the slide rail', () => {
     expect(shape()).toBe('B A [Two]');
   });
 
+  it('drops a slide in front of another one', () => {
+    useStore.getState().moveSlideBefore('f3', 'f1');
+    expect(shape()).toBe('C A B');
+  });
+
+  it('drops a slide at the end when there is nothing to go in front of', () => {
+    useStore.getState().moveSlideBefore('f1', null);
+    expect(shape()).toBe('B C A');
+  });
+
+  it('drops a slide in front of a section heading, changing which section owns it', () => {
+    // The rail shows headings and slides in one list, so "put it here" has to be able
+    // to mean either side of a heading -- that is the whole point of dragging.
+    load(deckOf(frame('f1', 'A'), sec('s1', 'Two'), frame('f2', 'B')));
+    useStore.getState().moveSlideBefore('f2', 's1');
+    expect(shape()).toBe('A B [Two]');
+  });
+
+  it('is a no-op when a slide is dropped on itself', () => {
+    const before = useStore.getState().deck;
+    useStore.getState().moveSlideBefore('f2', 'f2');
+    expect(useStore.getState().deck).toBe(before);
+  });
+
+  it('finds the neighbour AFTER removing the slide, however far it travelled', () => {
+    // Computing the landing index before the splice puts a forward move one place off,
+    // which reads as the drag being ignored for adjacent slides and wrong for the rest.
+    load(deckOf(frame('f1', 'A'), frame('f2', 'B'), frame('f3', 'C'), frame('f4', 'D')));
+    useStore.getState().moveSlideBefore('f1', 'f4');
+    expect(shape()).toBe('B C A D');
+  });
+
   it('refuses to move the first slide up or the last one down', () => {
     const before = useStore.getState().deck;
     useStore.getState().moveSlide('f1', -1);

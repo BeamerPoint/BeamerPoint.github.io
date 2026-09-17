@@ -39,6 +39,7 @@ import {
   setCanvasSize,
   setNodeContent,
   setShapeOption as setShapeOptionOp,
+  shapeBounds,
   shapeFromDrag,
   // Aliased: the store exposes actions with these names, and a bare call inside a
   // shorthand method would read as recursion even though it is not.
@@ -163,6 +164,14 @@ interface AppState {
   addTitleSlide(): void;
   deleteSlide(slideId: string): void;
   moveSlide(slideId: string, delta: number): void;
+  /**
+   * Drop a slide in front of another node, or at the end when `beforeId` is null.
+   *
+   * Takes an ID rather than an index because the rail shows frames and section headings
+   * together while `deck.nodes` may also hold `rawdoc` nodes it does not show, so a row
+   * number and a node index are not the same thing.
+   */
+  moveSlideBefore(slideId: string, beforeId: string | null): void;
   setSlideTitle(slideId: string, title: string): void;
   addOutlineSlide(): void;
 
@@ -267,6 +276,8 @@ interface AppState {
   resizeShape(
     slideId: string, elementId: string, shapeId: string,
     dw: number, dh: number, corner: ShapeCorner,
+    /** Shift was held: invert the lock-aspect preference for this gesture. */
+    invertLock?: boolean,
   ): void;
   moveShapeEndpoint(
     slideId: string, elementId: string, shapeId: string, which: 'from' | 'to',
@@ -385,6 +396,8 @@ interface Gesture {
   box: MeasuredRect | null;
   /** Raw \textwidth fraction, for a picture still in the text flow. */
   frac: number | null;
+  /** The same, for a shape inside a diagram; a drag touches one or the other. */
+  shapeRatio: number | null;
   /**
    * Width over height as the drag BEGAN, for a locked-aspect corner drag.
    *
@@ -1093,6 +1106,21 @@ export const useStore = create<AppState>()((set, get) => {
       });
     },
 
+    moveSlideBefore(slideId, beforeId) {
+      if (slideId === beforeId) return;
+      mutate((deck) => {
+        const from = deck.nodes.findIndex((n) => n.id === slideId);
+        if (from === -1) return deck;
+        const nodes = [...deck.nodes];
+        const [node] = nodes.splice(from, 1);
+        // Located AFTER the removal, so the index still points at the right neighbour
+        // however far the slide travelled.
+        const at = beforeId === null ? -1 : nodes.findIndex((n) => n.id === beforeId);
+        nodes.splice(at === -1 ? nodes.length : at, 0, node!);
+        return { ...deck, nodes };
+      });
+    },
+
     setSlideTitle(slideId, title) {
       mutate((deck) =>
         mapFrame(deck, slideId, (f) => ({
@@ -1541,9 +1569,33 @@ export const useStore = create<AppState>()((set, get) => {
       mutate((deck) => mapTikz(deck, slideId, elementId, (el) => moveShapeOp(el, shapeId, dx, dy)));
     },
 
-    resizeShape(slideId, elementId, shapeId, dw, dh, corner) {
+    /**
+     * Resize a shape by a corner, keeping its proportions when asked to.
+     *
+     * The same rule as an element's corner handle, and it has to be here rather than in
+     * `shapeOps` because the ratio is a property of the GESTURE: captured once, when the
+     * drag begins. Recomputing it from the current box on every move feeds rounding back
+     * in and a long drag slowly changes the shape.
+     */
+    resizeShape(slideId, elementId, shapeId, dw, dh, corner, invertLock = false) {
+      const aids = get().aids;
+      let ratio: number | undefined;
+
+      if (aids.lockAspect !== invertLock) {
+        if (gesture !== null && gesture.shapeRatio === null) {
+          const el = findElement(get().deck, slideId, elementId);
+          const shape = el?.kind === 'tikz'
+            ? (el.shapes ?? []).find((s) => s.id === shapeId)
+            : undefined;
+          const box = shape === undefined ? null : shapeBounds(shape);
+          if (box !== null && box.h > 0) gesture.shapeRatio = box.w / box.h;
+        }
+        ratio = gesture?.shapeRatio ?? undefined;
+      }
+
       mutate((deck) =>
-        mapTikz(deck, slideId, elementId, (el) => resizeShapeOp(el, shapeId, dw, dh, corner)));
+        mapTikz(deck, slideId, elementId, (el) =>
+          resizeShapeOp(el, shapeId, dw, dh, corner, ratio)));
     },
 
     moveShapeEndpoint(slideId, elementId, shapeId, which, point, over) {
@@ -1739,7 +1791,7 @@ export const useStore = create<AppState>()((set, get) => {
     beginGesture() {
       const state = get();
       if (state.source.status !== 'synced') return;
-      gesture = { base: state.deck, box: null, frac: null, ratio: null };
+      gesture = { base: state.deck, box: null, frac: null, ratio: null, shapeRatio: null };
       set({ history: { past: [...state.history.past, state.deck].slice(-100), future: [] } });
     },
 

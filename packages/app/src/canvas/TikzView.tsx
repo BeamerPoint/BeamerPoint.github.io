@@ -35,7 +35,7 @@ interface Props {
   onSelectShape(shapeId: string | null): void;
   onDrawShape(drag: ShapeDrag): void;
   onMoveShape(shapeId: string, dx: Mm, dy: Mm): void;
-  onResizeShape(shapeId: string, dw: Mm, dh: Mm, corner: ShapeCorner): void;
+  onResizeShape(shapeId: string, dw: Mm, dh: Mm, corner: ShapeCorner, shift: boolean): void;
   onMoveEndpoint(
     shapeId: string,
     which: 'from' | 'to',
@@ -219,12 +219,13 @@ export function TikzView(props: Props): React.ReactElement {
    */
   const beginShapeDrag = (
     e: React.PointerEvent,
-    onMove: (dxMm: Mm, dyMm: Mm) => void,
+    onMove: (dxMm: Mm, dyMm: Mm, shift: boolean) => void,
   ): void => {
     if (locked) return;
     props.onDragStart();
     startPointerDrag(e, {
-      onMove: (dx, dy) => onMove(dx * perPx, dy * perPx),
+      // Shift is read per MOVE, so it can be pressed or released mid-drag.
+      onMove: (dx, dy, mods) => onMove(dx * perPx, dy * perPx, mods.shift),
       onEnd: props.onDragEnd,
     });
   };
@@ -340,7 +341,8 @@ export function TikzView(props: Props): React.ReactElement {
           shapes={shapes}
           scale={scale}
           onResizeDown={(corner) => (e) =>
-            beginShapeDrag(e, (dx, dy) => props.onResizeShape(selected.id, dx, dy, corner))}
+            beginShapeDrag(e, (dx, dy, shift) =>
+              props.onResizeShape(selected.id, dx, dy, corner, shift))}
           onEndpointDown={(which) => beginEndpointDrag(selected.id, which)}
         />
       )}

@@ -411,7 +411,8 @@ function TikzBody({
       onSelectShape={selectShape}
       onDrawShape={(drag) => drawShape(slideId, el.id, drag)}
       onMoveShape={(id, dx, dy) => moveShape(slideId, el.id, id, dx, dy)}
-      onResizeShape={(id, dw, dh, corner) => resizeShape(slideId, el.id, id, dw, dh, corner)}
+      onResizeShape={(id, dw, dh, corner, shift) =>
+        resizeShape(slideId, el.id, id, dw, dh, corner, shift)}
       onMoveEndpoint={(id, which, point, over) =>
         moveShapeEndpoint(slideId, el.id, id, which, point, over)}
       onDragStart={beginGesture}

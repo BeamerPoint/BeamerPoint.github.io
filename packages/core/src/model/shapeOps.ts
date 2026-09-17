@@ -208,6 +208,14 @@ export function resizeShape(
   dw: Mm,
   dh: Mm,
   corner: ShapeCorner = 'se',
+  /**
+   * Width over height to hold, or `undefined` to let both move freely.
+   *
+   * Passed in rather than derived here, because it has to be the ratio the shape had
+   * when the DRAG began: recomputing it from the current box on every pointermove feeds
+   * rounding back in and the proportions walk away over a long drag.
+   */
+  ratio?: number,
 ): TikzElement {
   return mapShape(el, shapeId, (s) => {
     // An arrow or a two-point line is resized by dragging its endpoints, and a text
@@ -228,6 +236,16 @@ export function resizeShape(
     if (h < MIN_SHAPE_MM) {
       if (corner.includes('n')) y = from.y + from.h - MIN_SHAPE_MM;
       h = MIN_SHAPE_MM;
+    }
+
+    // Width leads and height follows, then the anchored corner is re-derived from the
+    // new size -- otherwise constraining a north-west drag stretches it from the wrong
+    // corner and the shape crawls across the canvas.
+    if (ratio !== undefined && ratio > 0) {
+      h = Math.max(MIN_SHAPE_MM, w / ratio);
+      w = h * ratio;
+      if (corner.includes('w')) x = from.x + from.w - w;
+      if (corner.includes('n')) y = from.y + from.h - h;
     }
 
     switch (s.t) {

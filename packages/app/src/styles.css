@@ -1324,3 +1324,19 @@ body.bp-dragging { user-select: none; }
 }
 .bp-font-swatch:disabled { opacity: 0.4; cursor: default; }
 .bp-font-swatch-custom { background: #fff; }
+
+/*
+ * Dragging a slide to a new place in the rail.
+ *
+ * The indicator is a border on the row the slide would land IN FRONT OF, so it always
+ * has somewhere to be — except at the very end of the list, which is why the rail
+ * grows one empty row while a drag is in progress.
+ */
+.bp-thumb-row.is-dragging { opacity: 0.4; }
+.bp-thumb-row, .bp-section-row { border-top: 2px solid transparent; }
+.bp-thumb-row.is-drop-target,
+.bp-section-row.is-drop-target { border-top-color: var(--bp-accent); }
+.bp-drop-end { height: 2px; list-style: none; border-top: 2px solid transparent; }
+.bp-drop-end.is-drop-target { border-top-color: var(--bp-accent); }
+/* The thumbnails are draggable, so a press must not select the text under it. */
+.bp-thumb { touch-action: none; }

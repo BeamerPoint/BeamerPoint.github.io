@@ -101,6 +101,37 @@ describe('lock aspect ratio', () => {
     expect(h).toBeCloseTo(40, 1);
   });
 
+  it('constrains a SHAPE inside a diagram too', () => {
+    // The lock was applied to element handles and not to shape handles, so dragging a
+    // rectangle's corner inside a diagram stretched it: 2:1 became 2.9:1. Reported as
+    // "the lock aspect ratio thing is still not working", and it was.
+    const s = useStore.getState();
+    s.drawShape('f1', 'd1', { tool: 'rect', from: { x: 10, y: 10 }, to: { x: 50, y: 30 } });
+    const shape = diagram().shapes![0]!;
+
+    s.beginGesture();
+    for (let i = 0; i < 8; i++) s.resizeShape('f1', 'd1', shape.id, 2, 0, 'se', false);
+    s.endGesture();
+
+    const box = diagram().shapes![0]! as Extract<typeof shape, { t: 'rect' }>;
+    expect(box.w / box.h).toBeCloseTo(2, 2);
+    expect(box.w).toBeCloseTo(56, 0);
+  });
+
+  it('lets Shift free a shape corner as well', () => {
+    const s = useStore.getState();
+    s.drawShape('f1', 'd1', { tool: 'rect', from: { x: 10, y: 10 }, to: { x: 50, y: 30 } });
+    const shape = diagram().shapes![0]!;
+
+    s.beginGesture();
+    for (let i = 0; i < 8; i++) s.resizeShape('f1', 'd1', shape.id, 2, 0, 'se', true);
+    s.endGesture();
+
+    const box = diagram().shapes![0]! as Extract<typeof shape, { t: 'rect' }>;
+    expect(box.h).toBeCloseTo(20, 1);
+    expect(box.w).toBeCloseTo(56, 0);
+  });
+
   it('never constrains below the minimum box', () => {
     dragCorner('se', -500, -500);
     const { w, h } = diagram().canvasSize;
