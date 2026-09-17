@@ -2,6 +2,7 @@ import {
   PAPER, PX_PER_MM, resolveTheme, richTextToPlain,
   type Deck, type FrameNode, type SectionNode,
 } from '@beamerpoint/core';
+import { useEffect, useRef } from 'react';
 import { selectFrames, selectOutline, useStore } from '../state/store.js';
 import { InlineText } from '../canvas/InlineText.js';
 import { TitlePage, isTitlePageTex } from '../canvas/TitlePage.js';
@@ -194,7 +195,14 @@ function SectionRow({
   );
 }
 
-/** The slide sorter: navigation, reordering, and per-slide compile status. */
+/**
+ * The slide sorter: navigation, reordering, and per-slide compile status.
+ *
+ * A real listbox, because it is one. It used to be a list of buttons with no delete
+ * control at ALL — section rows had up, down and a cross, and a slide had nothing, so
+ * the only way to remove one was the ribbon — and no keyboard beyond Tab, because the
+ * app's single key handler returned early unless Ctrl or Meta was held.
+ */
 export function SlideThumbs(): React.ReactElement {
   const deck = useStore((s) => s.deck);
   const frames = useStore(selectFrames);
@@ -204,7 +212,61 @@ export function SlideThumbs(): React.ReactElement {
   const selectSlide = useStore((s) => s.selectSlide);
   const addSlide = useStore((s) => s.addSlide);
   const addSection = useStore((s) => s.addSection);
+  const deleteSlide = useStore((s) => s.deleteSlide);
   const result = useStore((s) => s.engine.result);
+  const listRef = useRef<HTMLOListElement>(null);
+  /** Set by the rail's own actions, so focus comes back after the list re-renders. */
+  const refocus = useRef(false);
+
+  // Follow the selection, wherever it was changed from -- the ribbon's next/previous,
+  // a compile error jumping to its slide, undo. A selected thumbnail off-screen looks
+  // exactly like no selection at all.
+  useEffect(() => {
+    const thumb = listRef.current?.querySelector<HTMLElement>('.bp-thumb.is-selected');
+    thumb?.scrollIntoView({ block: 'nearest' });
+    // Deleting a slide unmounts the button that had the focus, which drops focus to
+    // the body -- so the FIRST Delete worked and every key after it went nowhere.
+    // Measured with real keystrokes; the store was right the whole time.
+    if (refocus.current) {
+      refocus.current = false;
+      thumb?.focus();
+    }
+  }, [selectedId]);
+
+  /**
+   * Arrow keys move the selection; Delete removes a slide; Enter inserts one.
+   *
+   * On the list rather than on each thumbnail, so it works wherever focus is inside the
+   * rail, and `isTypingTarget`-style guarding is unnecessary here because a section
+   * row's title input stops these keys itself.
+   */
+  const onKeyDown = (e: React.KeyboardEvent): void => {
+    if (e.target instanceof HTMLInputElement) return;
+    if (locked || selectedId === null) return;
+    const at = frames.findIndex((f) => f.id === selectedId);
+
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const next = frames[at + (e.key === 'ArrowDown' ? 1 : -1)];
+      if (next === undefined) return;
+      e.preventDefault();
+      selectSlide(next.id);
+      return;
+    }
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      refocus.current = true;
+      // Stop the window handler acting on it too: from here Delete always means the
+      // slide, even when something on it happens to be selected.
+      e.stopPropagation();
+      deleteSlide(selectedId);
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      refocus.current = true;
+      addSlide();
+    }
+  };
 
   const bad = (severity: string): Set<string> => new Set(
     (result?.diagnostics ?? [])
@@ -221,7 +283,14 @@ export function SlideThumbs(): React.ReactElement {
         <span className="bp-pane-count">{frames.length}</span>
       </div>
 
-      <ol className="bp-thumb-list">
+      <ol
+        className="bp-thumb-list"
+        ref={listRef}
+        role="listbox"
+        aria-label="Slides"
+        tabIndex={-1}
+        onKeyDown={onKeyDown}
+      >
         {outline.map((node) => {
           if (node.kind === 'section') {
             return <SectionRow key={node.id} node={node} locked={locked} />;
@@ -230,10 +299,15 @@ export function SlideThumbs(): React.ReactElement {
           const i = frames.indexOf(f);
           const title = f.title ? richTextToPlain(f.title) : 'Untitled slide';
           const hasError = errorFrames.has(f.id);
+          const selected = f.id === selectedId;
           return (
-            <li key={f.id}>
+            <li key={f.id} className="bp-thumb-row">
               <button
-                className={`bp-thumb${f.id === selectedId ? ' is-selected' : ''}`}
+                className={`bp-thumb${selected ? ' is-selected' : ''}`}
+                // Roving tabIndex: one stop for the whole rail, then the arrow keys.
+                tabIndex={selected ? 0 : -1}
+                role="option"
+                aria-selected={selected}
                 onClick={() => selectSlide(f.id)}
                 title={title}
               >
@@ -245,6 +319,23 @@ export function SlideThumbs(): React.ReactElement {
                     <span className="bp-thumb-badge is-warn" title="Content overflows in the real output" />
                   )}
                 </span>
+              </button>
+              {/* The same cross a section row has had all along. Deleting the LAST
+                  slide replaces it with a blank one rather than leaving an empty deck,
+                  so this is never disabled for want of somewhere to land. */}
+              <button
+                className="bp-thumb-delete"
+                disabled={locked}
+                title={`Delete slide ${i + 1}`}
+                aria-label={`Delete slide ${i + 1}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // Keep the keyboard in the rail: this button is about to unmount.
+                  refocus.current = true;
+                  deleteSlide(f.id);
+                }}
+              >
+                ×
               </button>
             </li>
           );

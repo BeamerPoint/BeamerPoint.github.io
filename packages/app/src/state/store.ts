@@ -934,21 +934,56 @@ export const useStore = create<AppState>()((set, get) => {
       );
     },
 
+    /**
+     * Delete a slide, and land on the one next to it.
+     *
+     * Two things this used to get wrong. It selected the FIRST slide rather than the
+     * neighbour of the one deleted, so deleting slide 30 of 40 threw you back to the
+     * top. And deleting the last slide was a silent no-op with the button still
+     * enabled — a deck with no frames is legal LaTeX but is not a deck anyone wants, so
+     * the last slide is REPLACED by a blank one instead.
+     */
     deleteSlide(slideId) {
-      const remaining = frames(get().deck).filter((f) => f.id !== slideId);
-      if (remaining.length === 0) return;
+      const all = frames(get().deck);
+      const gone = all.findIndex((f) => f.id === slideId);
+      if (gone === -1) return;
+
+      if (all.length === 1) {
+        const fresh = newFrame('New slide', [newTextElement('')]);
+        mutate((deck) => ({
+          ...deck,
+          nodes: deck.nodes.map((n) => (n.id === slideId ? fresh : n)),
+        }));
+        set({ selection: { slideId: fresh.id, elementId: null } });
+        return;
+      }
+
+      const next = all[gone + 1] ?? all[gone - 1]!;
       mutate((deck) => ({ ...deck, nodes: deck.nodes.filter((n) => n.id !== slideId) }));
-      set({ selection: { slideId: remaining[0]!.id, elementId: null } });
+      set({ selection: { slideId: next.id, elementId: null } });
     },
 
+    /**
+     * Move a slide one place up or down among the SLIDES.
+     *
+     * `deck.nodes` holds frames and section headings in one flat list, so stepping by
+     * one index there swapped a slide with a heading — the slide appeared not to move
+     * while the section it belonged to silently changed. The step is taken over the
+     * frames and translated back to a node index.
+     */
     moveSlide(slideId, delta) {
       mutate((deck) => {
-        const idx = deck.nodes.findIndex((n) => n.id === slideId);
-        const target = idx + delta;
-        if (idx === -1 || target < 0 || target >= deck.nodes.length) return deck;
+        const order = deck.nodes.filter((n) => n.kind === 'frame');
+        const at = order.findIndex((n) => n.id === slideId);
+        const to = at + delta;
+        if (at === -1 || to < 0 || to >= order.length) return deck;
+
         const nodes = [...deck.nodes];
-        const [node] = nodes.splice(idx, 1);
-        nodes.splice(target, 0, node!);
+        const from = nodes.findIndex((n) => n.id === slideId);
+        const [node] = nodes.splice(from, 1);
+        // Where the slide it is trading places with now sits, after the removal.
+        const anchor = nodes.findIndex((n) => n.id === order[to]!.id);
+        nodes.splice(delta > 0 ? anchor + 1 : anchor, 0, node!);
         return { ...deck, nodes };
       });
     },

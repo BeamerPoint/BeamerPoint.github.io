@@ -10,6 +10,7 @@ import { NotesPane } from './panels/NotesPane.js';
 import { selectCanvasLocked, selectCurrentFrame, selectFrames, useStore } from './state/store.js';
 import { loadSavedDeck, readEmergencyTex, startAutosave } from './state/persist.js';
 import { useColumnLayout } from './ui/useColumnLayout.js';
+import { useShortcuts } from './ui/useShortcuts.js';
 import { Splitter } from './ui/Splitter.js';
 import { Ribbon } from './ui/Ribbon.js';
 import { StatusBar } from './ui/StatusBar.js';
@@ -63,8 +64,6 @@ export function App(): React.ReactElement {
   const setListItemContent = useStore((s) => s.setListItemContent);
   const setTableCell = useStore((s) => s.setTableCell);
   const loadDeck = useStore((s) => s.loadDeck);
-  const undo = useStore((s) => s.undo);
-  const redo = useStore((s) => s.redo);
 
   // Restore the last session, then keep autosaving.
   useEffect(() => {
@@ -83,15 +82,7 @@ export function App(): React.ReactElement {
     return startAutosave();
   }, [loadDeck]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (!(e.ctrlKey || e.metaKey)) return;
-      if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
-      else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [undo, redo]);
+  useShortcuts();
 
   const frameNumber = frames.findIndex((f) => f.id === selection.slideId) + 1;
   const deckTitle = deck.meta.title ? richTextToPlain(deck.meta.title) : 'Untitled presentation';
