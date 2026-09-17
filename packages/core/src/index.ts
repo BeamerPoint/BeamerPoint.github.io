@@ -35,7 +35,7 @@ export {
 } from './emit/lstLanguages.js';
 export {
   addChartColumn, addChartRow, cellText, isNumericColumn, removeChartColumn,
-  removeChartRow, removeChartSeries, renameChartColumn, replaceChartData, setChartCell,
+  removeChartRow, renameChartColumn, replaceChartData, setChartCell,
   setChartSeries, symbolicCoords, type Cell,
 } from './model/chartOps.js';
 export {

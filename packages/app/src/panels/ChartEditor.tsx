@@ -186,6 +186,20 @@ export function ChartEditor({ el, slideId, locked }: Props): React.ReactElement 
               />
               <span>– –</span>
             </label>
+            {/* Removes the COLUMN, not just the series. `emitChart` writes only the two
+                columns each `\addplot` names, so a column no series plots is not in the
+                `.tex` at all -- dropping the series alone would keep its numbers in memory
+                and lose them at the next parse, after a reload or a source round trip.
+                `removeChartColumn` also does the index remapping and refuses to go below
+                two columns, so this disables itself on the last series. */}
+            <button
+              className="bp-chart-series-del"
+              disabled={locked || el.data.columns.length <= 2}
+              title="Remove this series and the column it plots"
+              onClick={() => removeChartColumn(slideId, el.id, s.yCol)}
+            >
+              ×
+            </button>
           </div>
         ))}
       </div>

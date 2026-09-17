@@ -129,11 +129,6 @@ export function setChartSeries(
   };
 }
 
-export function removeChartSeries(el: ChartElement, seriesId: string): ChartElement {
-  if (el.series.length <= 1) return el;
-  return { ...el, series: el.series.filter((s) => s.id !== seriesId) };
-}
-
 /**
  * Replace the whole table from pasted or uploaded text.
  *

@@ -161,4 +161,22 @@ describe('editing the data', () => {
     const { round } = roundTrip(deckWith(el));
     expect(chartOf(round).data.rows[1]?.[2]).toBeNull();
   });
+
+  it('does not write a column no series plots — which is why removing a series must '
+    + 'remove its column', () => {
+    // Each `\addplot` names exactly two columns, so a column nothing plots never reaches
+    // the file. Dropping a series while keeping its column would leave the numbers in the
+    // in-memory deck and lose them at the next parse — a reload, an import, or a source
+    // round trip. The UI therefore removes the column, and this is the reason why.
+    const base = addChartColumn(newChartElement());
+    const orphaned: ChartElement = { ...base, series: base.series.slice(0, 1) };
+    const dropped = base.data.columns[orphaned.series[0]!.yCol + 1]!;
+
+    const tex = emitDeck(deckWith(orphaned)).tex;
+    expect(tex).not.toContain(dropped);
+
+    // And the loss is real, not theoretical: it is gone after one round trip.
+    const round = parseDeck(tex, { newId: makeSeededIdFactory('r') });
+    expect(chartOf(round).data.columns).not.toContain(dropped);
+  });
 });

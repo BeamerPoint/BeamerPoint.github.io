@@ -35,6 +35,7 @@ export function TableEditor({ el, slideId, locked }: Props): React.ReactElement 
   const setTableCaption = useStore((s) => s.setTableCaption);
   const setTableRowFill = useStore((s) => s.setTableRowFill);
   const setTableVerticalRules = useStore((s) => s.setTableVerticalRules);
+  const setTableHeaderRow = useStore((s) => s.setTableHeaderRow);
 
   const rows = el.rows.length;
   const cols = el.columns.length;
@@ -100,6 +101,20 @@ export function TableEditor({ el, slideId, locked }: Props): React.ReactElement 
           </div>
         ))}
       </div>
+
+      {/* The flag decides which row gets the booktabs midrule, so it has to be visible:
+          without a control, deleting the header row lost it permanently. */}
+      <label className="bp-field bp-field-inline">
+        <input
+          type="checkbox"
+          disabled={locked || el.rows.length === 0}
+          checked={el.rows[0]?.isHeader === true}
+          onChange={(e) => setTableHeaderRow(slideId, el.id, e.target.checked)}
+        />
+        <span title="The first row is a header — booktabs draws a rule under it">
+          Header row
+        </span>
+      </label>
 
       <div className="bp-field-row">
         <span className="bp-field-label">Rules</span>

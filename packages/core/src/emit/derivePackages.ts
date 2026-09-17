@@ -73,7 +73,6 @@ export function derivePackages(deck: Deck): DerivedPackage[] {
       else if (n.t === 'style' || n.t === 'link') visitRich(n.children);
     }
   };
-  let sawNonAscii = false;
   const codeLanguages = new Set<string>();
 
   const visitElement = (el: Element): void => {
@@ -182,12 +181,14 @@ export function derivePackages(deck: Deck): DerivedPackage[] {
     ]);
   }
 
-  // Non-ASCII is only a problem under pdflatex; beamer already loads fontenc for us
-  // under xelatex/lualatex. We derive conservatively.
-  if (sawNonAscii) {
-    add('inputenc', ['utf8']);
-    add('fontenc', ['T1']);
-  }
+  // No inputenc/fontenc derivation. The flag that would have driven it was declared and
+  // never set, so this never ran -- and measuring showed it would have been useless in
+  // both directions. This TeX Live's pdflatex reads UTF-8 natively: `é ü ß ï ñ å ç` and
+  // `— “ ” …` all compile bare with no Missing character warnings, and adding
+  // `inputenc`+`fontenc` changes nothing. What DOES fail -- a Greek `α` -- fails
+  // identically with them loaded, because that needs a Unicode engine, not an encoding
+  // package. So the derivation could not fix the case that breaks and was not needed by
+  // the case that works.
 
   need.delete('');
 

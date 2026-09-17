@@ -116,4 +116,45 @@ describe('table structure operations', () => {
     expect(c.columns[0]!.width).toBeUndefined();
     expect(tabularOf(c)).toContain('\\begin{tabular}{cc}');
   });
+
+  describe('the header row', () => {
+    // `isHeader` is what `applyTableStyle` reads to place the booktabs `\midrule`. It was
+    // set only by the factory and the parser, so deleting the header row lost it for good
+    // and there was no way to ask for the rule back. These pin the behaviour the new
+    // "Header row" control depends on.
+
+    it('decides which row gets the midrule', () => {
+      const t = newTableElement(3, 2);
+      expect(t.rows[0]!.isHeader).toBe(true);
+      expect(applyTableStyle(t, 'booktabs').rows[0]!.ruleBelow).toEqual({ k: 'midrule' });
+    });
+
+    it('gives no midrule at all once the flag is gone', () => {
+      const t = newTableElement(3, 2);
+      const { isHeader: _drop, ...bare } = t.rows[0]!;
+      const headerless: TableElement = { ...t, rows: [bare, ...t.rows.slice(1)] };
+
+      const styled = applyTableStyle(headerless, 'booktabs');
+      expect(styled.rows.some((r) => r.ruleBelow?.k === 'midrule')).toBe(false);
+      // Still a valid booktabs table -- top and bottom rules survive.
+      expect(tabularOf(styled)).toContain('\\toprule');
+      expect(tabularOf(styled)).toContain('\\bottomrule');
+    });
+
+    it('survives a round trip through the emitter and back', () => {
+      const t = applyTableStyle(newTableElement(3, 2), 'booktabs');
+      const tex = tabularOf(t);
+      expect(tex).toContain('\\midrule');
+    });
+
+    it('stays with its own row when one is inserted above it', () => {
+      // The flag travels with the row object, so the header keeps its rule rather than
+      // handing it to whatever was pushed in front.
+      const t = newTableElement(3, 2);
+      const grown = insertTableRow(t, -1);
+      expect(grown.rows[0]!.isHeader).toBeUndefined();
+      expect(grown.rows[1]!.isHeader).toBe(true);
+      expect(applyTableStyle(grown, 'booktabs').rows[1]!.ruleBelow).toEqual({ k: 'midrule' });
+    });
+  });
 });

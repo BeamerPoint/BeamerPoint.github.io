@@ -13,7 +13,6 @@ import {
   addChartRow as addChartRowOp,
   removeChartColumn as removeChartColumnOp,
   removeChartRow as removeChartRowOp,
-  removeChartSeries as removeChartSeriesOp,
   renameChartColumn as renameChartColumnOp,
   replaceChartData as replaceChartDataOp,
   setChartCell as setChartCellOp,
@@ -242,7 +241,6 @@ interface AppState {
     slideId: string, elementId: string, seriesId: string,
     patch: Partial<Omit<SeriesSpec, 'id'>>,
   ): void;
-  removeChartSeries(slideId: string, elementId: string, seriesId: string): void;
   replaceChartData(slideId: string, elementId: string, text: string): void;
   setChartType(slideId: string, elementId: string, type: ChartElement['chartType']): void;
   setChartAxis(slideId: string, elementId: string, patch: Partial<AxisSpec>): void;
@@ -273,6 +271,8 @@ interface AppState {
   setTableRowFill(
     slideId: string, elementId: string, rowIndex: number, fill: Color | null,
   ): void;
+  /** Whether the first row is a header, which is what gets the booktabs `\midrule`. */
+  setTableHeaderRow(slideId: string, elementId: string, on: boolean): void;
   setTableVerticalRules(
     slideId: string, elementId: string, mode: 'none' | 'all' | 'outer',
   ): void;
@@ -1461,11 +1461,6 @@ export const useStore = create<AppState>()((set, get) => {
         setChartSeriesOp(el, seriesId, patch)));
     },
 
-    removeChartSeries(slideId, elementId, seriesId) {
-      mutate((deck) => mapChart(deck, slideId, elementId, (el) =>
-        removeChartSeriesOp(el, seriesId)));
-    },
-
     replaceChartData(slideId, elementId, text) {
       mutate((deck) => mapChart(deck, slideId, elementId, (el) =>
         replaceChartDataOp(el, text)));
@@ -1582,6 +1577,41 @@ export const useStore = create<AppState>()((set, get) => {
             return { ...r, fill };
           }),
         })),
+      );
+    },
+
+    /**
+     * Mark the first row as the header.
+     *
+     * `isHeader` has been read since tables existed -- `applyTableStyle` uses it to decide
+     * which row gets the booktabs `\midrule` -- and could only ever be SET by the table
+     * factory and the parser. So deleting the header row lost the flag for good, and
+     * switching to booktabs afterwards produced a table with no midrule and no way to ask
+     * for one. It is a property of the first row, which is the only row anything has ever
+     * put it on, and PowerPoint spells it the same way.
+     */
+    setTableHeaderRow(slideId, elementId, on) {
+      mutate((deck) =>
+        mapTable(deck, slideId, elementId, (el) => {
+          const flagged: TableElement = {
+            ...el,
+            rows: el.rows.map((r, i) => {
+              if (i !== 0) return r;
+              if (!on) {
+                const { isHeader: _drop, ...rest } = r;
+                return rest;
+              }
+              return { ...r, isHeader: true };
+            }),
+          };
+          // The rules are RE-APPLIED, and that is not optional. `isHeader` is only an
+          // INPUT to `applyTableStyle`; the rule itself lives on the row as `ruleBelow`.
+          // Setting the flag alone left the `\midrule` exactly where it was -- measured
+          // in the browser, checkbox off and the midrule still in the source, a control
+          // that moved while the table did not. Only the booktabs branch reads the flag,
+          // so only that style is recomputed.
+          return flagged.style === 'booktabs' ? applyStyle(flagged, 'booktabs') : flagged;
+        }),
       );
     },
 

@@ -1227,6 +1227,11 @@ body.bp-dragging { user-select: none; }
 .bp-chart-series select { width: auto; flex: 0 0 auto; }
 .bp-chart-series label { display: flex; align-items: center; gap: 2px; font-size: 11px; }
 .bp-chart-series label input { width: auto; }
+.bp-chart-series-del {
+  flex: 0 0 auto; width: 18px; padding: 0; line-height: 1;
+  color: var(--bp-muted); background: none; border: 1px solid transparent;
+}
+.bp-chart-series-del:hover:not(:disabled) { color: #b91c1c; border-color: var(--bp-border); }
 
 /*
  * Why the canvas is inert, said ON the canvas.
