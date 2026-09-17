@@ -179,6 +179,12 @@ function emitElementBody(w: TexWriter, el: Element, ctx: EmitContext): void {
       return;
     }
 
+    case 'toc':
+      // `options` is the verbatim `[...]` group, so `[currentsection]` and anything else
+      // beamer accepts round-trips without the model having to understand it.
+      w.line_(`\\tableofcontents${el.options}`);
+      return;
+
     case 'code': {
       // NOTHING here is indented, and the body is never reflowed.
       //

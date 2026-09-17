@@ -253,6 +253,7 @@ export function SlideCanvas(props: Props): React.ReactElement {
             <ElementView
               key={el.id}
               el={el}
+              deck={deck}
               theme={theme}
               resources={deck.resources}
               locked={locked}
@@ -296,6 +297,7 @@ export function SlideCanvas(props: Props): React.ReactElement {
             <ElementView
               key={el.id}
               el={el}
+              deck={deck}
               theme={theme}
               resources={deck.resources}
               locked={locked}

@@ -12,6 +12,7 @@ import type {
   TableRow,
   TikzElement,
   TextElement,
+  TocElement,
 } from './types.js';
 import { newId } from './ids.js';
 
@@ -141,6 +142,21 @@ export function newCodeElement(
     language,
     code,
     options: {},
+  };
+}
+
+/**
+ * An outline slide's `	ableofcontents`.
+ *
+ * Beamer builds the list from the deck's sections, so the element carries only the
+ * option group -- `[currentsection]` and friends -- and nothing to type.
+ */
+export function newTocElement(options = ''): TocElement {
+  return {
+    id: newId(),
+    kind: 'toc',
+    placement: { mode: 'flow' },
+    options,
   };
 }
 

@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 187 tests
+npm test             # vitest, 202 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -342,6 +342,16 @@ by `margins.hMm` put it exactly underneath — Berkeley's "Frame title bar" rend
 "ne title bar". The title's left padding is `max(its own, sidebar + 1.5mm)`, and both the
 sidebar and that inset read one `sidebarMm` local so they cannot drift apart.
 
+**A section owns the slides that follow it, and the list is flat.** `SectionNode` is a
+SIBLING of `FrameNode` in `deck.nodes`, because that is how beamer reads the file — so
+"the slides in this section" is a question about the span between two headings, and
+`sectionSpan` answers it. A subsection does not end a section, it nests inside one, so the
+span runs to the next heading of the same or a HIGHER rank. Moving a heading without its
+span silently re-parents every slide it owned, and taking the nearest preceding heading as
+the landing spot drops a section into the middle of its own subsection — both were caught
+by `app/test/sections.spec.ts`. Deleting a section defaults to keeping its slides: losing
+them to a mis-click is only noticed later.
+
 **A listing's language must come from a fixed list, because a wrong one is fatal.**
 `listings` answers `language=Nonesuch` with *Package Listings Error: Couldn't load
 requested language* and produces no PDF — it does not fall back to no highlighting. So
@@ -389,7 +399,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Twenty-seven commits on `master`, ~17,700 lines across 96 source files, 187 tests passing.
+Twenty-eight commits on `master`, ~18,100 lines across 100 source files, 202 tests passing.
 
 ### Done
 
@@ -439,7 +449,12 @@ Twenty-seven commits on `master`, ~17,700 lines across 96 source files, 187 test
   equation, diagram, at any depth -- is selectable, draggable and resizable on the
   canvas. Dragging one out of the flow converts it to a free position at the place it
   was already drawn, and dragging one out of a block or a column lifts it onto the frame
-- **Sections and speaker notes**: emitted and parsed (no authoring UI yet)
+- **Sections and the outline**: section headings are created, renamed, reordered and
+  deleted in the slide rail, where they group the slides they own; `\tableofcontents`
+  is an element the canvas draws from those headings
+- **Speaker notes**: a per-slide box under the canvas. `\note` round-trips as it always
+  did, and the compiled PDF is unchanged — beamer hides notes unless the deck asks for
+  them, which this does not
 - **Themes**: 35 presentation themes, each verified to compile, with measured margins and
   measured colours (`themes/measured.ts`); XeLaTeX auto-selected for
   fontspec themes via a `% !TEX program` magic comment
@@ -455,15 +470,14 @@ Twenty-seven commits on `master`, ~17,700 lines across 96 source files, 187 test
 
 Roughly in the order the user and I agreed to tackle them:
 
-1. Authoring UI for sections and speaker notes (model/emit/parse already exist)
-2. **Citations** — `.bib` attach, `\cite` autocomplete, references frame
-3. **pgfplots charts** — small data-table editor
-4. Rich text inside a diagram label, and multi-point polyline editing
+1. **Citations** — `.bib` attach, `\cite` autocomplete, references frame
+2. **pgfplots charts** — small data-table editor
+3. Rich text inside a diagram label, and multi-point polyline editing
 
-⚠ `emitElementBody` still has no case for `toc`, `bibliography` or `chart`: all three are
-modelled, all three fall to `default:` and emit NOTHING but an `emit.unimplemented`
-warning. That is silent content loss, the `\titlegraphic` bug again, and it is what items
-1–3 close. `code.spec.ts` has the regression test.
+⚠ `emitElementBody` still has no case for `bibliography` or `chart`: both are modelled,
+both fall to `default:` and emit NOTHING but an `emit.unimplemented` warning. That is
+silent content loss, the `\titlegraphic` bug again, and it is what items 1 and 2 close.
+`code.spec.ts` has the regression test. (`toc` was the third and is now done.)
 
 Model types, and in several cases the emitter, already exist for all of these — check
 `packages/core/src/model/types.ts` before designing anything new.
@@ -486,9 +500,9 @@ Model types, and in several cases the emitter, already exist for all of these �
   compiled position is not. Internal diagram geometry was measured at **0.00mm** against
   the PDF; the picture's own placement on the slide is within about 1.4mm, the same
   vertical-centring approximation as text and tables
-- Import understands the structure the app models; `\tableofcontents`, `verbatim` and any
-  unmodelled package land as raw blocks, editable only in the source panel. `\titlepage`
-  is a raw block too, but the canvas draws it as a title page. A `\titlegraphic` survives
+- Import understands the structure the app models; an unmodelled package lands as a raw
+  block, editable only in the source panel. `\titlepage` is a raw block too, but the
+  canvas draws it as a title page. A `\titlegraphic` survives
   as a preamble chunk, but its image file is not listed among the import's missing
   resources, so it has to be supplied by hand. A measured sample of an ordinary 8-slide deck came through with 5% raw. Import
   also reformats: indentation, package order and a few escapes (`\ ` gains a `{}`

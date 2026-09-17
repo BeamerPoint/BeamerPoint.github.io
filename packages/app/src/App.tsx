@@ -6,6 +6,7 @@ import { SourcePanel } from './panels/SourcePanel.js';
 import { PdfPanel } from './panels/PdfPanel.js';
 import { LogPanel } from './panels/LogPanel.js';
 import { FormatPane } from './panels/FormatPane.js';
+import { NotesPane } from './panels/NotesPane.js';
 import { selectCanvasLocked, selectCurrentFrame, selectFrames, useStore } from './state/store.js';
 import { loadSavedDeck, readEmergencyTex, startAutosave } from './state/persist.js';
 import { useColumnLayout } from './ui/useColumnLayout.js';
@@ -259,6 +260,8 @@ export function App(): React.ReactElement {
               if (selection.slideId !== null) setImageTrim(selection.slideId, elementId, trim);
             }}
           />
+
+          <NotesPane />
 
           <p className="bp-approx-note">
             The canvas is an approximation — use the PDF tab for the exact result.

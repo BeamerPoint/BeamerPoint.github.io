@@ -1,10 +1,15 @@
 import { useLayoutEffect, useRef } from 'react';
-import { PX_PER_MM, type Element, type ListElement, type ResourceRef, type RichText, type ThemeSpec } from '@beamerpoint/core';
+import {
+  PX_PER_MM,
+  type Deck, type Element, type ListElement, type ResourceRef, type RichText,
+  type ThemeSpec,
+} from '@beamerpoint/core';
 import { InlineText, MathView } from './InlineText.js';
 import { readInlineFromDom } from './domInline.js';
 import { ImageView } from './ImageView.js';
 import { TableView } from './TableView.js';
 import { CodeView } from './CodeView.js';
+import { TocView } from './TocView.js';
 import { TikzView } from './TikzView.js';
 import { measuredRects, useStore, type ResizeGrip } from '../state/store.js';
 import { SelectionOverlay, type OverlayMode } from './SelectionOverlay.js';
@@ -13,6 +18,8 @@ import { wrapForKatex } from './mathPreview.js';
 
 interface Props {
   el: Element;
+  /** The whole deck, because an outline slide lists the deck's sections. */
+  deck: Deck;
   theme: ThemeSpec;
   resources: readonly ResourceRef[];
   /**
@@ -36,7 +43,7 @@ interface Props {
 }
 
 /** Kinds whose whole interior can be grabbed, because nothing inside is typed into. */
-const SOLID_KINDS: ReadonlySet<Element['kind']> = new Set(['image', 'math', 'raw']);
+const SOLID_KINDS: ReadonlySet<Element['kind']> = new Set(['image', 'math', 'raw', 'toc']);
 
 /** Kinds with a height LaTeX can actually be told about. */
 const HEIGHT_KINDS: ReadonlySet<Element['kind']> = new Set(['image', 'tikz']);
@@ -233,6 +240,9 @@ function Body(props: Props): React.ReactElement {
       return (
         <CodeView el={el} theme={theme} locked={locked} onEditCode={props.onEditCode} />
       );
+
+    case 'toc':
+      return <TocView el={el} deck={props.deck} theme={theme} />;
 
     case 'tikz':
       return <TikzBody el={el} theme={theme} locked={locked} />;

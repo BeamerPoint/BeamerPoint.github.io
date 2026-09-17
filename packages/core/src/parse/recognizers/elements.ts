@@ -205,6 +205,23 @@ function recognizeBlockLevel(node: CstNode, ctx: RecognizeCtx): Element {
   const code = recognizeCode(node, ctx);
   if (code !== null) return code;
 
+  // `\tableofcontents` was in BLOCK_COMMANDS — so it ended a prose run — but nothing
+  // recognised it, so an outline slide came back as a raw block and a `TocElement` in a
+  // deck was dropped by the emitter's `default:` arm entirely.
+  if (node.n === 'cmd' && node.name === 'tableofcontents'
+      && !node.star && node.args.length === 0 && node.opts.length <= 1) {
+    const options = node.opts.length === 0
+      ? ''
+      : ctx.src.slice(node.opts[0]!.span.start, node.opts[0]!.span.end);
+    return {
+      id: ctx.newId(),
+      kind: 'toc',
+      placement: { mode: 'flow' },
+      options,
+      src: node.span,
+    };
+  }
+
   if (node.n === 'env') {
     const placed = recognizeTextblock(node, ctx);
     if (placed !== null) return placed;

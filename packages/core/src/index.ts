@@ -5,7 +5,7 @@ export {
 } from './model/richtext.js';
 export {
   newDeck, newFrame, newTitleFrame, newTextElement, newListElement, newListItem,
-  newTableElement, newTikzElement, newCodeElement, defaultPreamble, plain,
+  newTableElement, newTikzElement, newCodeElement, newTocElement, defaultPreamble, plain,
 } from './model/factory.js';
 export {
   addShape, attachEndpoint, isAttachable, isNodeTool, moveEndpoint, moveShape,

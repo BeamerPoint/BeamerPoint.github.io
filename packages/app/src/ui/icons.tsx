@@ -109,6 +109,13 @@ export const IconBullets = (p: IconProps = {}): React.ReactElement => svg(
     <path d="M6.4 4.2h7M6.4 8h7M6.4 11.8h7" />
   </>, p);
 
+/** A numbered outline: the deck's sections, as `	ableofcontents` prints them. */
+export const IconOutline = (p: IconProps = {}): React.ReactElement => svg(
+  <>
+    <path d="M2.4 4.2h1.4M2.4 8h1.4M2.4 11.8h1.4" />
+    <path d="M5.8 4.2h7.8M5.8 8h6.2M5.8 11.8h7.2" />
+  </>, p);
+
 export const IconBlock = (p: IconProps = {}): React.ReactElement => svg(
   <>
     <rect x="1.8" y="3" width="12.4" height="10" rx="1.2" />

@@ -1,5 +1,8 @@
-import { PAPER, PX_PER_MM, resolveTheme, richTextToPlain, type Deck, type FrameNode } from '@beamerpoint/core';
-import { selectFrames, useStore } from '../state/store.js';
+import {
+  PAPER, PX_PER_MM, resolveTheme, richTextToPlain,
+  type Deck, type FrameNode, type SectionNode,
+} from '@beamerpoint/core';
+import { selectFrames, selectOutline, useStore } from '../state/store.js';
 import { InlineText } from '../canvas/InlineText.js';
 import { TitlePage, isTitlePageTex } from '../canvas/TitlePage.js';
 
@@ -113,6 +116,8 @@ function ThumbBlock({
       return <div className="bp-thumb-diagram" style={{ borderColor: accent }} />;
     case 'code':
       return <div className="bp-thumb-code" style={{ borderLeftColor: accent }} />;
+    case 'toc':
+      return <div className="bp-thumb-toc" />;
     case 'math':
       return <div className="bp-thumb-math" style={{ color: accent }}>∑</div>;
     case 'block':
@@ -133,14 +138,68 @@ function ThumbBlock({
   }
 }
 
+/**
+ * A section heading in the rail.
+ *
+ * Sections were emitted, parsed and completely invisible: the rail filtered the deck down
+ * to frames, so the only outline-like surface in the app hid the outline. The title is
+ * typed in place here, which is the whole authoring UI a `\section` needs.
+ */
+function SectionRow({
+  node, locked,
+}: { node: SectionNode; locked: boolean }): React.ReactElement {
+  const setSectionTitle = useStore((s) => s.setSectionTitle);
+  const deleteSection = useStore((s) => s.deleteSection);
+  const moveSection = useStore((s) => s.moveSection);
+
+  return (
+    <li className={`bp-section-row bp-section-${node.level}`}>
+      <input
+        className="bp-section-title"
+        value={richTextToPlain(node.title)}
+        disabled={locked}
+        placeholder="Section"
+        onChange={(e) => setSectionTitle(node.id, e.target.value)}
+      />
+      <span className="bp-section-tools">
+        <button
+          disabled={locked}
+          title="Move this section and its slides up"
+          onClick={() => moveSection(node.id, -1)}
+        >
+          ↑
+        </button>
+        <button
+          disabled={locked}
+          title="Move this section and its slides down"
+          onClick={() => moveSection(node.id, 1)}
+        >
+          ↓
+        </button>
+        {/* Deleting the heading keeps the slides: losing them to a mis-click is the
+            kind of thing you only notice later. */}
+        <button
+          disabled={locked}
+          title="Remove the heading; the slides stay"
+          onClick={() => deleteSection(node.id, true)}
+        >
+          ×
+        </button>
+      </span>
+    </li>
+  );
+}
+
 /** The slide sorter: navigation, reordering, and per-slide compile status. */
 export function SlideThumbs(): React.ReactElement {
   const deck = useStore((s) => s.deck);
   const frames = useStore(selectFrames);
+  const outline = useStore(selectOutline);
   const selectedId = useStore((s) => s.selection.slideId);
   const locked = useStore((s) => s.source.status !== 'synced');
   const selectSlide = useStore((s) => s.selectSlide);
   const addSlide = useStore((s) => s.addSlide);
+  const addSection = useStore((s) => s.addSection);
   const result = useStore((s) => s.engine.result);
 
   const bad = (severity: string): Set<string> => new Set(
@@ -159,7 +218,12 @@ export function SlideThumbs(): React.ReactElement {
       </div>
 
       <ol className="bp-thumb-list">
-        {frames.map((f, i) => {
+        {outline.map((node) => {
+          if (node.kind === 'section') {
+            return <SectionRow key={node.id} node={node} locked={locked} />;
+          }
+          const f = node;
+          const i = frames.indexOf(f);
           const title = f.title ? richTextToPlain(f.title) : 'Untitled slide';
           const hasError = errorFrames.has(f.id);
           return (
@@ -183,9 +247,19 @@ export function SlideThumbs(): React.ReactElement {
         })}
       </ol>
 
-      <button className="bp-slides-add" disabled={locked} onClick={addSlide}>
-        + New slide
-      </button>
+      <div className="bp-slides-add-row">
+        <button className="bp-slides-add" disabled={locked} onClick={addSlide}>
+          + New slide
+        </button>
+        <button
+          className="bp-slides-add"
+          disabled={locked}
+          title="A \section heading, which beamer shows in the outline and in the theme's navigation"
+          onClick={() => addSection()}
+        >
+          + Section
+        </button>
+      </div>
     </aside>
   );
 }

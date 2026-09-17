@@ -1064,3 +1064,70 @@ body.bp-dragging { user-select: none; }
   font-family: "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
   font-size: 11.5px; white-space: pre; overflow-x: auto; resize: vertical;
 }
+
+/* ------------------------------------------------- sections, outline, notes */
+/* A section heading in the slide rail, which is where a `\section` is authored. */
+.bp-section-row {
+  display: flex; align-items: center; gap: 4px;
+  padding: 6px 8px 2px; margin-top: 4px;
+  border-top: 1px solid var(--bp-border);
+}
+.bp-section-row:first-child { border-top: none; margin-top: 0; }
+.bp-section-title {
+  flex: 1; min-width: 0;
+  border: 1px solid transparent; border-radius: 3px; background: transparent;
+  font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.03em;
+  text-transform: uppercase; color: var(--bp-muted); padding: 2px 4px;
+}
+.bp-section-title:hover:not(:disabled) { border-color: var(--bp-border); }
+.bp-section-title:focus {
+  outline: none; background: #fff;
+  border-color: var(--bp-accent); color: var(--bp-text);
+}
+/* Deeper levels step in, so the outline reads as a hierarchy rather than a list. */
+.bp-section-subsection .bp-section-title { padding-left: 12px; }
+.bp-section-subsubsection .bp-section-title { padding-left: 20px; }
+.bp-section-tools { display: flex; gap: 1px; opacity: 0; transition: opacity 100ms; }
+.bp-section-row:hover .bp-section-tools { opacity: 1; }
+.bp-section-tools button {
+  border: none; background: transparent; color: var(--bp-muted);
+  font-size: 11px; line-height: 1; padding: 3px 4px; border-radius: 3px;
+}
+.bp-section-tools button:hover:not(:disabled) { background: var(--bp-hover); color: var(--bp-text); }
+
+.bp-slides-add-row { display: flex; gap: 4px; padding: 0 8px 8px; }
+.bp-slides-add-row .bp-slides-add { flex: 1; margin: 0; }
+
+/* The outline slide. Beamer builds the real list; this shows what it will contain. */
+.bp-toc { list-style: none; margin: 0; padding: 0; }
+.bp-toc-item {
+  display: flex; gap: calc(var(--bp-mm) * 2); align-items: baseline;
+  padding: calc(var(--bp-mm) * 0.8) 0;
+}
+.bp-toc-num { font-weight: 700; min-width: calc(var(--bp-mm) * 5); }
+.bp-toc-subsection { padding-left: calc(var(--bp-mm) * 6); font-size: 0.9em; }
+.bp-toc-subsubsection { padding-left: calc(var(--bp-mm) * 12); font-size: 0.85em; }
+.bp-toc-empty { font-style: italic; opacity: 0.55; }
+.bp-toc-options { font-size: 0.6em; opacity: 0.5; font-family: monospace; }
+.bp-thumb-toc { height: 24px; margin: 4px 0; background: rgba(0, 0, 0, 0.05); }
+
+/* Speaker notes: a strip under the canvas. They never appear in the PDF. */
+.bp-notes { flex: none; border-top: 1px solid var(--bp-border); background: var(--bp-panel); }
+.bp-notes-toggle {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  border: none; background: transparent; color: var(--bp-muted);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 6px 10px; text-align: left;
+}
+.bp-notes-toggle:hover { color: var(--bp-text); }
+.bp-notes-chevron { margin-left: auto; }
+.bp-notes-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--bp-accent);
+}
+.bp-notes-input {
+  display: block; width: calc(100% - 20px); margin: 0 10px 10px;
+  min-height: 64px; resize: vertical;
+  border: 1px solid var(--bp-border-strong); border-radius: 4px;
+  font: inherit; padding: 6px 8px;
+}
+.bp-notes-input:focus { outline: none; border-color: var(--bp-accent); }

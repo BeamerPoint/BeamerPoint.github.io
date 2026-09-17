@@ -6,6 +6,7 @@ import {
   newListElement,
   newId,
   newCodeElement,
+  newTocElement,
   newTableElement,
   newTikzElement,
   newSmartArtElement,
@@ -34,10 +35,12 @@ import {
   newTextElement,
   parseDeck,
   plain,
+  isBlankRichText,
   richTextEquals,
   themeNeedsUnicodeEngine,
   type CodeElement,
   type Deck,
+  type DocNode,
   type Element,
   type FrameNode,
   type ParseResult,
@@ -46,6 +49,7 @@ import {
   type MathElement,
   type ResourceRef,
   type RichText,
+  type SectionNode,
   type SourceMap,
   type ArrowHead,
   type ShapeOptionPatch,
@@ -136,6 +140,15 @@ interface AppState {
   deleteSlide(slideId: string): void;
   moveSlide(slideId: string, delta: number): void;
   setSlideTitle(slideId: string, title: string): void;
+  addOutlineSlide(): void;
+
+  addSection(level?: SectionNode['level']): void;
+  setSectionTitle(sectionId: string, title: string): void;
+  /** `keepSlides` deletes the heading only; otherwise the section's frames go too. */
+  deleteSection(sectionId: string, keepSlides: boolean): void;
+  moveSection(sectionId: string, delta: 1 | -1): void;
+
+  setFrameNote(slideId: string, content: RichText): void;
 
   addTextElement(slideId: string): void;
   addListElement(slideId: string): void;
@@ -285,7 +298,41 @@ const FALLBACK_RECT: MeasuredRect = { x: 20, y: 30, w: 80, h: 20 };
 export type ResizeGrip = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 
 /**
- * Find an element of a frame, at any depth.
+ * Where a section's block of nodes starts and ends.
+ *
+ * A section owns everything after its heading up to the next heading of the same or a
+ * higher level — `subsection` does not end `section`, it nests inside it.
+ */
+const SECTION_RANK: Readonly<Record<SectionNode['level'], number>> = {
+  part: 0, section: 1, subsection: 2, subsubsection: 3,
+};
+
+function sectionSpan(deck: Deck, sectionId: string): { start: number; end: number } | null {
+  const start = deck.nodes.findIndex((n) => n.id === sectionId);
+  const head = deck.nodes[start];
+  if (start === -1 || head === undefined || head.kind !== 'section') return null;
+
+  const rank = SECTION_RANK[head.level];
+  for (let i = start + 1; i < deck.nodes.length; i += 1) {
+    const n = deck.nodes[i]!;
+    if (n.kind === 'section' && SECTION_RANK[n.level] <= rank) return { start, end: i };
+  }
+  return { start, end: deck.nodes.length };
+}
+
+/** The index just past the block owned by the section heading at `from`. */
+function nextSectionAfter(nodes: readonly DocNode[], from: number): number {
+  const head = nodes[from];
+  if (head === undefined || head.kind !== 'section') return from + 1;
+  const rank = SECTION_RANK[head.level];
+  for (let i = from + 1; i < nodes.length; i += 1) {
+    const n = nodes[i]!;
+    if (n.kind === 'section' && SECTION_RANK[n.level] <= rank) return i;
+  }
+  return nodes.length;
+}
+
+/** Find an element of a frame, at any depth.
  *
  * Elements nest: a block and a set of columns both hold children. This used to look at
  * the frame's own list only, which — together with the equally shallow `mapElement` —
@@ -557,6 +604,125 @@ export const useStore = create<AppState>()((set, get) => {
         return { ...deck, nodes };
       });
       set({ selection: { slideId: frame.id, elementId: null } });
+    },
+
+    /**
+     * A slide holding `\tableofcontents`.
+     *
+     * Beamer builds the list from the deck's sections, so there is nothing to type: the
+     * canvas draws the sections it can see and the PDF has the real thing.
+     */
+    addOutlineSlide() {
+      const frame = newFrame('Outline', [newTocElement()]);
+      mutate((deck) => {
+        const idx = deck.nodes.findIndex((n) => n.id === get().selection.slideId);
+        const nodes = [...deck.nodes];
+        nodes.splice(idx === -1 ? nodes.length : idx + 1, 0, frame);
+        return { ...deck, nodes };
+      });
+      set({ selection: { slideId: frame.id, elementId: null } });
+    },
+
+    /**
+     * A section heading, inserted after the current slide.
+     *
+     * Sections are SIBLINGS of frames in one flat list, not a tree — that is how beamer
+     * reads them and how the emitter writes them. Everything about "the slides in this
+     * section" is therefore a question about the span between two headings.
+     */
+    addSection(level = 'section') {
+      const node: SectionNode = {
+        kind: 'section',
+        id: newId(),
+        level,
+        title: plain('New section'),
+        starred: false,
+      };
+      mutate((deck) => {
+        const idx = deck.nodes.findIndex((n) => n.id === get().selection.slideId);
+        const nodes = [...deck.nodes];
+        nodes.splice(idx === -1 ? nodes.length : idx + 1, 0, node);
+        return { ...deck, nodes };
+      });
+    },
+
+    setSectionTitle(sectionId, title) {
+      mutate((deck) => ({
+        ...deck,
+        nodes: deck.nodes.map((n) =>
+          (n.kind === 'section' && n.id === sectionId ? { ...n, title: plain(title) } : n)),
+      }));
+    },
+
+    deleteSection(sectionId, keepSlides) {
+      mutate((deck) => {
+        const span = sectionSpan(deck, sectionId);
+        if (span === null) return deck;
+        const nodes = keepSlides
+          ? deck.nodes.filter((n) => n.id !== sectionId)
+          : [...deck.nodes.slice(0, span.start), ...deck.nodes.slice(span.end)];
+        return { ...deck, nodes };
+      });
+      const remaining = frames(get().deck);
+      if (!remaining.some((f) => f.id === get().selection.slideId)) {
+        set({ selection: { slideId: remaining[0]?.id ?? null, elementId: null } });
+      }
+    },
+
+    /**
+     * Move a section, and the slides under it.
+     *
+     * Moving the heading alone would silently re-parent every slide it owned, which is
+     * the kind of edit you do not notice until you present.
+     */
+    moveSection(sectionId, delta) {
+      mutate((deck) => {
+        const span = sectionSpan(deck, sectionId);
+        if (span === null) return deck;
+        const block = deck.nodes.slice(span.start, span.end);
+        const rest = [...deck.nodes.slice(0, span.start), ...deck.nodes.slice(span.end)];
+
+        // Land before the previous SIBLING, or after the next one. Only headings of the
+        // same or a higher rank count: the nearest preceding heading is often a
+        // subsection of the very section being moved, and landing there would drop the
+        // block into the middle of its own parent.
+        const head = deck.nodes[span.start]!;
+        const rank = head.kind === 'section' ? SECTION_RANK[head.level] : 1;
+        const siblings = rest
+          .map((n, i) => (n.kind === 'section' && SECTION_RANK[n.level] <= rank ? i : -1))
+          .filter((i) => i !== -1);
+
+        const before = siblings.filter((i) => i < span.start);
+        const after = siblings.filter((i) => i >= span.start);
+        const target = delta === -1
+          ? before[before.length - 1]
+          : (after[0] === undefined ? undefined : nextSectionAfter(rest, after[0]));
+        if (target === undefined) return deck;
+
+        return { ...deck, nodes: [...rest.slice(0, target), ...block, ...rest.slice(target)] };
+      });
+    },
+
+    /**
+     * The slide's speaker note.
+     *
+     * Beamer allows several `\note` commands per frame and the model keeps them all, but
+     * the pane edits one: a second note has no separate meaning on the slide, and an
+     * imported deck's extra notes are left alone rather than being merged.
+     */
+    setFrameNote(slideId, content) {
+      mutate((deck) =>
+        mapFrame(deck, slideId, (f) => {
+          const empty = isBlankRichText(content);
+          if (f.notes.length === 0) {
+            return empty ? f : { ...f, notes: [{ id: newId(), content }] };
+          }
+          const notes = empty
+            ? f.notes.slice(1)
+            : [{ ...f.notes[0]!, content }, ...f.notes.slice(1)];
+          return { ...f, notes };
+        }),
+      );
     },
 
     deleteSlide(slideId) {
@@ -1463,6 +1629,28 @@ otatebox` all along, with no
 });
 
 export const selectFrames = (s: AppState): FrameNode[] => frames(s.deck);
+
+/**
+ * Frames AND section headings, in document order.
+ *
+ * The slide rail used `selectFrames`, which is why sections were invisible in the only
+ * outline-like surface the app has — and therefore uneditable.
+ *
+ * Memoised on deck identity for the same reason `frames()` is: zustand compares selector
+ * results by reference, so a fresh array every call re-renders forever.
+ */
+export type OutlineNode = FrameNode | SectionNode;
+
+let outlineCache: { deck: Deck; outline: OutlineNode[] } | null = null;
+
+export const selectOutline = (s: AppState): OutlineNode[] => {
+  if (outlineCache !== null && outlineCache.deck === s.deck) return outlineCache.outline;
+  const outline = s.deck.nodes.filter(
+    (n): n is OutlineNode => n.kind === 'frame' || n.kind === 'section',
+  );
+  outlineCache = { deck: s.deck, outline };
+  return outline;
+};
 
 export const selectCurrentFrame = (s: AppState): FrameNode | undefined =>
   frames(s.deck).find((f) => f.id === s.selection.slideId);
