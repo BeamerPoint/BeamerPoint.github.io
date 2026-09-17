@@ -40,7 +40,9 @@ interface Props {
   onEditCode(elementId: string, code: string): void;
   overlayMode: OverlayMode;
   onResizeImage(elementId: string, deltaMm: number, deltaFraction: number): void;
-  onResizeElement(elementId: string, dxMm: number, dyMm: number, grip: ResizeGrip): void;
+  onResizeElement(
+    elementId: string, dxMm: number, dyMm: number, grip: ResizeGrip, shift: boolean,
+  ): void;
   onMoveElement(elementId: string, dxMm: number, dyMm: number): void;
   onTrimImage(elementId: string, trim: import('@beamerpoint/core').ImageTrim): void;
   /** Bracket a pointer drag, so the whole gesture is one undo entry. */
@@ -129,7 +131,7 @@ export function ElementView(props: Props): React.ReactElement {
           sizeMm={rect === undefined ? null : { w: rect.w, h: rect.h }}
           onDragStart={props.onDragStart}
           onDragEnd={props.onDragEnd}
-          onResize={(dxMm, dyMm, grip) => {
+          onResize={(dxMm, dyMm, grip, shift) => {
             // An image in the flow is sized as a fraction of the text column and stays
             // there; everything else resizes as a box, which lifts it out of the flow.
             // Only the canvas knows the column width, which is why the conversion is
@@ -140,7 +142,7 @@ export function ElementView(props: Props): React.ReactElement {
               const dw = grip.includes('w') ? -dxMm : dxMm;
               props.onResizeImage(el.id, dw, dw / bodyWidthMm);
             } else {
-              props.onResizeElement(el.id, dxMm, dyMm, grip);
+              props.onResizeElement(el.id, dxMm, dyMm, grip, shift);
             }
           }}
           onMove={(dx, dy) => props.onMoveElement(el.id, dx, dy)}

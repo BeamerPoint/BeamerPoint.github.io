@@ -35,6 +35,8 @@ export function ArrangePane({ el, slideId, locked }: Props): React.ReactElement 
   const setElementBox = useStore((s) => s.setElementBox);
   const setElementRotate = useStore((s) => s.setElementRotate);
   const returnElementToFlow = useStore((s) => s.returnElementToFlow);
+  const lockAspect = useStore((s) => s.aids.lockAspect);
+  const setAids = useStore((s) => s.setAids);
 
   const paper = PAPER[aspect];
   const rect = measuredRects.get(el.id);
@@ -94,6 +96,22 @@ export function ArrangePane({ el, slideId, locked }: Props): React.ReactElement 
             + 'Changing any of these places it freely.'
           : `Height follows the content: ${Math.round(h)} mm as drawn.`}
       </p>
+
+      {/*
+        * Here as well as on the View tab, because this is where sizes are looked at.
+        * It is a workspace preference and not a property of this element -- the same
+        * setting governs every corner drag -- so it is worded as what dragging does.
+        */}
+      <label className="bp-field bp-field-inline">
+        <input
+          type="checkbox"
+          checked={lockAspect}
+          onChange={(e) => setAids({ lockAspect: e.target.checked })}
+        />
+        <span title="Applies to every element; hold Shift while dragging to invert it">
+          Lock aspect ratio when dragging a corner
+        </span>
+      </label>
 
       <div className="bp-field">
         <span>Align to slide</span>

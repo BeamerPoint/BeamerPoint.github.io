@@ -19,6 +19,9 @@ import {
   setChartCell as setChartCellOp,
   setChartSeries as setChartSeriesOp,
   newTocElement,
+  newTitleFrame,
+  cloneElement,
+  offsetElement,
   DECK_FONT_PACKAGES,
   deckFontByPackage,
   newTableElement,
@@ -156,6 +159,8 @@ interface AppState {
   selectElement(slideId: string, elementId: string | null): void;
 
   addSlide(): void;
+  /** A `\titlepage` slide, for when the deck's own has been deleted. */
+  addTitleSlide(): void;
   deleteSlide(slideId: string): void;
   moveSlide(slideId: string, delta: number): void;
   setSlideTitle(slideId: string, title: string): void;
@@ -179,6 +184,23 @@ interface AppState {
   addTextElement(slideId: string): void;
   addListElement(slideId: string): void;
   deleteElement(slideId: string, elementId: string): void;
+  /**
+   * The element clipboard.
+   *
+   * NOT the system clipboard, which holds text: putting a slide element in it would
+   * mean emitting LaTeX and parsing it back, losing everything the round trip cannot
+   * express — a pasted diagram would arrive as a raw block. This holds the model.
+   *
+   * It lives in the store rather than in a module variable so the Paste button can be
+   * enabled the moment something is copied, and it is set with `set` rather than
+   * `mutate`, so copying is not an undoable document change.
+   */
+  clipboard: Element | null;
+  /** Copy, cut and paste for whole elements. Paste targets the CURRENT slide. */
+  copyElement(slideId: string, elementId: string): void;
+  cutElement(slideId: string, elementId: string): void;
+  pasteElement(): void;
+  duplicateElement(slideId: string, elementId: string): void;
   setElementContent(slideId: string, elementId: string, content: RichText): void;
   setListItemContent(slideId: string, elementId: string, itemId: string, content: RichText): void;
   addBlockElement(slideId: string, variant: 'block' | 'alertblock' | 'exampleblock'): void;
@@ -275,6 +297,8 @@ interface AppState {
   moveElementBy(slideId: string, elementId: string, dxMm: number, dyMm: number): void;
   resizeElementBy(
     slideId: string, elementId: string, dxMm: number, dyMm: number, grip: ResizeGrip,
+    /** Shift was held: invert the lock-aspect preference for this gesture. */
+    invertLock?: boolean,
   ): void;
   setElementBox(
     slideId: string, elementId: string,
@@ -361,9 +385,29 @@ interface Gesture {
   box: MeasuredRect | null;
   /** Raw \textwidth fraction, for a picture still in the text flow. */
   frac: number | null;
+  /**
+   * Width over height as the drag BEGAN, for a locked-aspect corner drag.
+   *
+   * Taken once, not recomputed per move: derive it from the current box each time and
+   * rounding feeds back into it, so a long drag walks the proportions away from where
+   * they started. This is also why locking uses the box's own ratio rather than an
+   * image's intrinsic one — what the user sees is what gets preserved, which is what
+   * every drawing program does.
+   */
+  ratio: number | null;
 }
 
 let gesture: Gesture | null = null;
+
+
+
+/**
+ * How far a pasted copy lands from what it was copied from.
+ *
+ * A copy sitting exactly on top of the original is invisible, and a paste that
+ * looks like it did nothing gets pressed again.
+ */
+const PASTE_OFFSET_MM = 4;
 
 /** Smallest box a drag may leave behind, so an element can never be lost. */
 const MIN_BOX_MM = 5;
@@ -392,6 +436,37 @@ function elementHeightMm(el: Element, measured: MeasuredRect): number {
 }
 
 /**
+ * Keep a freely-placed diagram or chart's BOX the same width as the picture in it.
+ *
+ * They are the same width — the box exists to position the picture — but nothing kept
+ * them together, so setting the canvas size numerically left the element box at its old
+ * width. The selection handles follow the BOX, so they ended up floating to the right of
+ * a picture that had been made smaller, and dragging one resized from a width the user
+ * could not see. Measured in the browser: a 90mm picture in a 170.5mm box.
+ */
+function withBoxWidth<T extends Element>(el: T, wMm: number): T {
+  if (el.placement.mode !== 'absolute') return el;
+  return { ...el, placement: { ...el.placement, w: round1(wMm) } };
+}
+
+/**
+ * The width the element actually DRAWS at.
+ *
+ * For most things that is the placement box, or where the canvas last drew it. A
+ * diagram and a chart are different: they draw at their own canvas size, and a flow one
+ * sits in a block-level div that spans the whole text column -- so the measured rect
+ * reports about 152mm for a picture 100mm wide. Taking the width from there made a
+ * locked corner drag preserve the ratio of the COLUMN rather than of the picture, which
+ * is what it visibly did before this existed.
+ */
+function elementWidthMm(el: Element, measured: MeasuredRect): number {
+  if (el.kind === 'tikz' && el.mode !== 'raw') return el.canvasSize.w;
+  if (el.kind === 'chart' && el.size.w.u === 'mm') return el.size.w.v;
+  if (el.placement.mode === 'absolute') return el.placement.w;
+  return measured.w;
+}
+
+/**
  * The raw box a drag accumulates into.
  *
  * Inside a gesture this is ONE object for the whole drag, so pointer deltas add up at
@@ -403,9 +478,10 @@ function gestureBox(el: Element, elementId: string): MeasuredRect {
   if (gesture !== null && gesture.box !== null) return gesture.box;
   const measured = measuredRects.get(elementId) ?? FALLBACK_RECT;
   const h = elementHeightMm(el, measured);
+  const w = elementWidthMm(el, measured);
   const box: MeasuredRect = el.placement.mode === 'absolute'
-    ? { x: el.placement.x, y: el.placement.y, w: el.placement.w, h }
-    : { x: measured.x, y: measured.y, w: measured.w, h };
+    ? { x: el.placement.x, y: el.placement.y, w, h }
+    : { x: measured.x, y: measured.y, w, h };
   if (gesture !== null) gesture.box = box;
   return box;
 }
@@ -716,6 +792,10 @@ export const useStore = create<AppState>()((set, get) => {
           health: null, lastParse: null,
         },
         history: { past: [], future: [] },
+        // A different document. An element copied out of the old one may reference an
+        // image resource this deck does not have, which would paste a picture that can
+        // never render and whose file the export cannot find.
+        clipboard: null,
       });
     },
 
@@ -736,6 +816,25 @@ export const useStore = create<AppState>()((set, get) => {
       mutate((deck) => {
         const idx = deck.nodes.findIndex((n) => n.id === get().selection.slideId);
         const nodes = [...deck.nodes];
+        nodes.splice(idx === -1 ? nodes.length : idx + 1, 0, frame);
+        return { ...deck, nodes };
+      });
+      set({ selection: { slideId: frame.id, elementId: null } });
+    },
+
+    /**
+     * A title slide.
+     *
+     * `\titlepage` is a raw element by design -- beamer builds the slide from the
+     * deck's own title, author and date, and the canvas draws it from a measured
+     * layout. Deleting it used to be irreversible without hand-editing the source,
+     * since nothing in the UI could write that one command back.
+     */
+    addTitleSlide() {
+      const frame = newTitleFrame();
+      mutate((deck) => {
+        const nodes = [...deck.nodes];
+        const idx = nodes.findIndex((n) => n.id === get().selection.slideId);
         nodes.splice(idx === -1 ? nodes.length : idx + 1, 0, frame);
         return { ...deck, nodes };
       });
@@ -1015,6 +1114,60 @@ export const useStore = create<AppState>()((set, get) => {
       set({ selection: { slideId, elementId: el.id } });
     },
 
+    /**
+     * Copy, cut and paste for whole elements.
+     *
+     * The clipboard holds the MODEL, not LaTeX. Going through the system clipboard
+     * would mean emitting and reparsing, which loses anything the round trip cannot
+     * express -- a pasted diagram would come back as a raw block.
+     */
+    clipboard: null,
+
+    copyElement(slideId, elementId) {
+      const el = findElement(get().deck, slideId, elementId);
+      if (el !== undefined) set({ clipboard: el });
+    },
+
+    cutElement(slideId, elementId) {
+      const el = findElement(get().deck, slideId, elementId);
+      if (el === undefined) return;
+      set({ clipboard: el });
+      get().deleteElement(slideId, elementId);
+    },
+
+    /**
+     * Paste onto the slide that is showing, not the one it was copied from.
+     *
+     * Always onto the FRAME, never back inside the block or column the original came
+     * from: the copy is a new thing on this slide, and burying it in a container the
+     * user is not looking at is how a paste appears to do nothing.
+     */
+    pasteElement() {
+      const state = get();
+      const slideId = state.selection.slideId;
+      const source = state.clipboard;
+      if (source === null || slideId === null) return;
+
+      // Every id inside is renewed here, including the shape ids a diagram's arrows
+      // point at -- see `cloneOps`. Pasting twice must give two independent copies, so
+      // the clipboard keeps the ORIGINAL and each paste clones it afresh.
+      const copy = offsetElement(cloneElement(source), PASTE_OFFSET_MM, PASTE_OFFSET_MM);
+      mutate((deck) =>
+        mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, copy] })),
+      );
+      set({ selection: { slideId, elementId: copy.id } });
+    },
+
+    duplicateElement(slideId, elementId) {
+      const el = findElement(get().deck, slideId, elementId);
+      if (el === undefined) return;
+      const copy = offsetElement(cloneElement(el), PASTE_OFFSET_MM, PASTE_OFFSET_MM);
+      mutate((deck) =>
+        mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, copy] })),
+      );
+      set({ selection: { slideId, elementId: copy.id } });
+    },
+
     deleteElement(slideId, elementId) {
       mutate((deck) =>
         mapFrame(deck, slideId, (f) => ({
@@ -1224,13 +1377,14 @@ export const useStore = create<AppState>()((set, get) => {
     },
 
     setChartSize(slideId, elementId, wMm, hMm) {
-      mutate((deck) => mapChart(deck, slideId, elementId, (el) => ({
+      const w = Math.max(20, Math.round(wMm));
+      mutate((deck) => mapChart(deck, slideId, elementId, (el) => withBoxWidth({
         ...el,
         size: {
-          w: { v: Math.max(20, Math.round(wMm)), u: 'mm' },
+          w: { v: w, u: 'mm' },
           h: { v: Math.max(20, Math.round(hMm)), u: 'mm' },
         },
-      })));
+      }, w)));
     },
 
     addTableElement(slideId) {
@@ -1427,7 +1581,8 @@ export const useStore = create<AppState>()((set, get) => {
     },
 
     setTikzCanvasSize(slideId, elementId, w, h) {
-      mutate((deck) => mapTikz(deck, slideId, elementId, (el) => setCanvasSize(el, w, h)));
+      mutate((deck) => mapTikz(deck, slideId, elementId, (el) =>
+        withBoxWidth(setCanvasSize(el, w, h), w)));
     },
 
     setMathTex(slideId, elementId, tex) {
@@ -1584,7 +1739,7 @@ export const useStore = create<AppState>()((set, get) => {
     beginGesture() {
       const state = get();
       if (state.source.status !== 'synced') return;
-      gesture = { base: state.deck, box: null, frac: null };
+      gesture = { base: state.deck, box: null, frac: null, ratio: null };
       set({ history: { past: [...state.history.past, state.deck].slice(-100), future: [] } });
     },
 
@@ -1664,7 +1819,7 @@ export const useStore = create<AppState>()((set, get) => {
      * diagram has its canvas. `Placement.h` is emitted by nothing, so a height stored
      * there would make the canvas claim a size the PDF does not have.
      */
-    resizeElementBy(slideId, elementId, dxMm, dyMm, grip) {
+    resizeElementBy(slideId, elementId, dxMm, dyMm, grip, invertLock = false) {
       const el = findElement(get().deck, slideId, elementId);
       if (el === undefined) return;
 
@@ -1712,6 +1867,30 @@ export const useStore = create<AppState>()((set, get) => {
       }
 
       const aids = get().aids;
+
+      /*
+       * A CORNER drag keeps the proportions, unless told otherwise.
+       *
+       * Only a corner: a side handle means "change this one dimension", and forcing the
+       * other to follow would make it impossible to reshape anything. Width leads and
+       * height follows, because the pointer's horizontal travel is what a corner drag
+       * reads as, and the anchored corner is held by re-deriving x and y from it --
+       * otherwise a north-west drag stretches from the wrong corner.
+       */
+      const corner = (grip.includes('n') || grip.includes('s'))
+        && (grip.includes('e') || grip.includes('w'));
+      if (hasHeight && corner && aids.lockAspect !== invertLock) {
+        if (gesture !== null && gesture.ratio === null && before.h > 0) {
+          gesture.ratio = before.w / before.h;
+        }
+        const ratio = gesture?.ratio ?? (before.h > 0 ? before.w / before.h : null);
+        if (ratio !== null && ratio > 0) {
+          box.h = Math.max(MIN_BOX_MM, box.w / ratio);
+          box.w = box.h * ratio;
+          if (grip.includes('w')) box.x = before.x + before.w - box.w;
+          if (grip.includes('n')) box.y = before.y + before.h - box.h;
+        }
+      }
       mutate((deck) =>
         mapElement(liftToFrame(deck, slideId, elementId), slideId, elementId, (e) => ({
           ...e,

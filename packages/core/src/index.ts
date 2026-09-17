@@ -13,6 +13,7 @@ export {
   newTableElement, newTikzElement, newCodeElement, newTocElement, newChartElement,
   defaultPreamble, plain,
 } from './model/factory.js';
+export { cloneElement, offsetElement } from './model/cloneOps.js';
 export {
   addShape, attachEndpoint, isAttachable, isNodeTool, moveEndpoint, moveShape,
   removeShape, reorderShape, resizeShape, restyleShape, setArrowHead, setCanvasSize,

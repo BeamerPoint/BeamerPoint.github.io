@@ -19,8 +19,14 @@
  * Deltas are per-move (movement since the previous event), not cumulative, because that
  * is what the store's `moveElementBy` and `resizeElementBy` take.
  */
+/** Modifier keys as they are AT THE MOMENT OF THE MOVE, not at pointer-down. */
+export interface DragMods {
+  shift: boolean;
+  alt: boolean;
+}
+
 export interface DragSpec {
-  onMove(dx: number, dy: number): void;
+  onMove(dx: number, dy: number, mods: DragMods): void;
   onEnd?(): void;
 }
 
@@ -40,7 +46,7 @@ function handleMove(e: PointerEvent): void {
   if (dx === 0 && dy === 0) return;
   s.x = e.clientX;
   s.y = e.clientY;
-  s.onMove(dx, dy);
+  s.onMove(dx, dy, { shift: e.shiftKey, alt: e.altKey });
 }
 
 function handleStop(e: PointerEvent): void {

@@ -34,7 +34,7 @@ interface Props {
   onResizeImage(elementId: string, deltaMm: number, deltaFraction: number): void;
   onResizeElement(
     elementId: string, dxMm: number, dyMm: number,
-    grip: import('../state/store.js').ResizeGrip,
+    grip: import('../state/store.js').ResizeGrip, shift: boolean,
   ): void;
   onMoveElement(elementId: string, dxMm: number, dyMm: number): void;
   onTrimImage(elementId: string, trim: ImageTrim): void;

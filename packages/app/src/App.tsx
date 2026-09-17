@@ -248,9 +248,9 @@ export function App(): React.ReactElement {
             onMoveElement={(elementId, dx, dy) => {
               if (selection.slideId !== null) moveElementBy(selection.slideId, elementId, dx, dy);
             }}
-            onResizeElement={(elementId, dx, dy, grip) => {
+            onResizeElement={(elementId, dx, dy, grip, shift) => {
               if (selection.slideId !== null) {
-                resizeElementBy(selection.slideId, elementId, dx, dy, grip);
+                resizeElementBy(selection.slideId, elementId, dx, dy, grip, shift);
               }
             }}
             onTrimImage={(elementId, trim) => {

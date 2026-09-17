@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import type { Element, ImageElement, ImageTrim, ResourceRef } from '@beamerpoint/core';
 import type { ResizeGrip } from '../state/store.js';
 import { screenPxToMm, useCanvasGeometry } from './CanvasContext.js';
-import { startPointerDrag } from './pointerDrag.js';
+import { startPointerDrag, type DragMods } from './pointerDrag.js';
 
 export type OverlayMode = 'transform' | 'crop';
 
@@ -12,7 +12,7 @@ interface Props {
   resource: ResourceRef | undefined;
   mode: OverlayMode;
   /** Deltas in slide millimetres. The store never sees screen pixels. */
-  onResize(dxMm: number, dyMm: number, grip: ResizeGrip): void;
+  onResize(dxMm: number, dyMm: number, grip: ResizeGrip, shift: boolean): void;
   onMove(dxMm: number, dyMm: number): void;
   onTrim(next: ImageTrim): void;
   /** Bracket the gesture, so a whole drag costs exactly one undo entry. */
@@ -67,7 +67,10 @@ export function SelectionOverlay(props: Props): React.ReactElement {
   const cropBox = useRef<{ width: number; height: number } | null>(null);
 
   /** Start a drag, bracketing it so the whole gesture costs one undo entry. */
-  const begin = (e: React.PointerEvent, onMove: (dx: number, dy: number) => void): void => {
+  const begin = (
+    e: React.PointerEvent,
+    onMove: (dx: number, dy: number, mods: DragMods) => void,
+  ): void => {
     props.onDragStart();
     startPointerDrag(e, { onMove, onEnd: props.onDragEnd });
   };
@@ -166,11 +169,14 @@ export function SelectionOverlay(props: Props): React.ReactElement {
   };
 
   const onHandleDown = (grip: ResizeGrip) => (e: React.PointerEvent): void => {
-    begin(e, (dx, dy) => {
+    begin(e, (dx, dy, mods) => {
       // The POINTER's movement, in millimetres. The grip says what it means -- a west
       // handle moves the left edge, an east one the right - and the store applies it.
       // Correcting the sign here as well as there doubled every westward drag.
-      props.onResize(screenPxToMm(dx, geometry), screenPxToMm(dy, geometry), grip);
+      // Shift is read per MOVE, so it can be pressed or released mid-drag.
+      props.onResize(
+        screenPxToMm(dx, geometry), screenPxToMm(dy, geometry), grip, mods.shift,
+      );
     });
   };
 

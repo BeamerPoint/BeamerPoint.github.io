@@ -19,6 +19,15 @@ export interface AidSettings {
   guides: boolean;
   /** Snap dragged elements to the grid and to guides. */
   snap: boolean;
+  /**
+   * Keep the proportions when a CORNER handle is dragged.
+   *
+   * A workspace preference, not a document property — `ImageElement.keepAspect` is the
+   * document one, and it says what `\includegraphics` should do with a box it is given.
+   * This says what dragging a corner means. Holding Shift inverts it for one gesture,
+   * as it does everywhere else.
+   */
+  lockAspect: boolean;
   /** User-placed guides, in millimetres from the top-left of the page. */
   vertical: number[];
   horizontal: number[];
@@ -30,6 +39,7 @@ export const DEFAULT_AIDS: AidSettings = {
   gridMm: 10,
   guides: true,
   snap: true,
+  lockAspect: true,
   vertical: [],
   horizontal: [],
 };

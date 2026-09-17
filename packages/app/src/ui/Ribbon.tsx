@@ -15,6 +15,7 @@ import {
   IconBackward, IconBlock, IconBullets, IconCompile, IconDelete, IconDiagram,
   IconCode, IconEquation, IconExport, IconForward, IconGrid, IconGuides, IconImage,
   IconChart, IconOutline, IconMoveUp, IconMoveDown,
+  IconCopy, IconCut, IconPaste, IconDuplicate, IconTitleSlide, IconLockAspect,
   IconNew, IconOpen, IconRedo, IconRuler, IconSave, IconShapes, IconSlideAdd,
   IconSmartArt, IconSnap, IconTable, IconText, IconTextBox, IconUndo,
 } from './icons.js';
@@ -269,6 +270,12 @@ export function Ribbon(props: Props): React.ReactElement {
   const setAspect = useStore((s) => s.setAspect);
   const setTexProgram = useStore((s) => s.setTexProgram);
   const setDeckFont = useStore((s) => s.setDeckFont);
+  const addTitleSlide = useStore((s) => s.addTitleSlide);
+  const copyElement = useStore((s) => s.copyElement);
+  const cutElement = useStore((s) => s.cutElement);
+  const pasteElement = useStore((s) => s.pasteElement);
+  const duplicateElement = useStore((s) => s.duplicateElement);
+  const canPaste = useStore((s) => s.clipboard !== null);
 
   const aids = useStore((s) => s.aids);
   const setAids = useStore((s) => s.setAids);
@@ -331,6 +338,15 @@ export function Ribbon(props: Props): React.ReactElement {
 
             <Group label="Slides">
               <Big icon={<IconSlideAdd size={20} />} label="New slide" disabled={locked} onClick={addSlide} />
+              {/* `\titlepage` is a raw element by design, so nothing in the UI could
+                  write it back once the deck's own title slide was deleted. */}
+              <Big
+                icon={<IconTitleSlide size={20} />}
+                label="Title slide"
+                title="A \titlepage slide, built by beamer from the deck's title and author"
+                disabled={locked}
+                onClick={addTitleSlide}
+              />
               <Stack>
                 {/* IconForward/IconBackward are the Z-ORDER arrows, and were being
                     used here for reordering slides. The right pair existed already
@@ -348,8 +364,14 @@ export function Ribbon(props: Props): React.ReactElement {
                 <Small icon={<IconBlock />} label="Block" disabled={noFrame} onClick={() => fid && addBlockElement(fid, 'block')} />
                 <Small icon={<IconBlock />} label="Alert block" disabled={noFrame} onClick={() => fid && addBlockElement(fid, 'alertblock')} />
                 <Small icon={<IconBlock />} label="Example block" disabled={noFrame} onClick={() => fid && addBlockElement(fid, 'exampleblock')} />
-                {/* A code listing is content you put ON a slide, like the three
-                    blocks above it, not a symbol you insert into text. */}
+              </Stack>
+              {/*
+                * Code is content you put ON a slide, like the three blocks beside it,
+                * not a symbol you insert into text -- but it goes in its OWN column.
+                * A fourth row in that stack is taller than a Big button, so it grew
+                * the whole ribbon by the height of one row, on every tab.
+                */}
+              <Stack>
                 <Small
                   icon={<IconCode />}
                   label="Code"
@@ -365,10 +387,41 @@ export function Ribbon(props: Props): React.ReactElement {
             <Group label="Selection">
               <Stack>
                 <Small
+                  icon={<IconCopy />}
+                  label="Copy"
+                  title="Copy this element (Ctrl+C)"
+                  disabled={locked || selected === undefined}
+                  onClick={() => fid && selection.elementId && copyElement(fid, selection.elementId)}
+                />
+                <Small
+                  icon={<IconCut />}
+                  label="Cut"
+                  title="Cut this element (Ctrl+X)"
+                  disabled={locked || selected === undefined}
+                  onClick={() => fid && selection.elementId && cutElement(fid, selection.elementId)}
+                />
+                <Small
                   icon={<IconDelete />}
-                  label="Delete element"
+                  label="Delete"
+                  title="Delete this element (Delete)"
                   disabled={locked || selected === undefined}
                   onClick={() => fid && selection.elementId && deleteElement(fid, selection.elementId)}
+                />
+              </Stack>
+              <Stack>
+                <Small
+                  icon={<IconPaste />}
+                  label="Paste"
+                  title="Paste onto this slide (Ctrl+V)"
+                  disabled={locked || noFrame || !canPaste}
+                  onClick={pasteElement}
+                />
+                <Small
+                  icon={<IconDuplicate />}
+                  label="Duplicate"
+                  title="Copy and paste in one step (Ctrl+D)"
+                  disabled={locked || selected === undefined}
+                  onClick={() => fid && selection.elementId && duplicateElement(fid, selection.elementId)}
                 />
               </Stack>
             </Group>
@@ -566,6 +619,16 @@ export function Ribbon(props: Props): React.ReactElement {
               </Stack>
               <Stack>
                 <Small icon={<IconSnap />} label="Snap to grid" active={aids.snap} onClick={() => setAids({ snap: !aids.snap })} />
+                {/* A workspace preference, like snapping, not a property of anything
+                    on the slide -- it says what dragging a CORNER means. Shift inverts
+                    it for one drag, as it does in every drawing program. */}
+                <Small
+                  icon={<IconLockAspect />}
+                  label="Lock aspect"
+                  title="Keep the proportions when a corner is dragged (hold Shift to invert)"
+                  active={aids.lockAspect}
+                  onClick={() => setAids({ lockAspect: !aids.lockAspect })}
+                />
                 <label className="bp-field bp-field-inline">
                   <span>Spacing</span>
                   <select value={aids.gridMm} onChange={(e) => setAids({ gridMm: Number(e.target.value) })}>

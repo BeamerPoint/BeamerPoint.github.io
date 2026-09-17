@@ -293,3 +293,45 @@ export const IconSmartArt = (p: IconProps = {}): React.ReactElement => svg(
     <rect x="10.2" y="10.8" width="4.6" height="3.4" rx="0.7" />
     <path d="M8 5v2.8M3.5 10.8V7.8h9V10.8" />
   </>, p);
+
+/* ------------------------------------------------- clipboard and slides */
+
+export const IconCopy = (p: IconProps = {}): React.ReactElement => svg(
+  <>
+    <rect x="5.4" y="5.4" width="8.8" height="8.8" rx="1.2" />
+    <path d="M10.6 5.4V2.9a1 1 0 0 0-1-1H2.8a1 1 0 0 0-1 1v6.8a1 1 0 0 0 1 1h2.6" />
+  </>, p);
+
+export const IconCut = (p: IconProps = {}): React.ReactElement => svg(
+  <>
+    <path d="M4.6 2.2 11 11.2M11.4 2.2 5 11.2" />
+    <circle cx="4.2" cy="12.6" r="1.7" />
+    <circle cx="11.8" cy="12.6" r="1.7" />
+  </>, p);
+
+export const IconPaste = (p: IconProps = {}): React.ReactElement => svg(
+  <>
+    <path d="M5.4 2.8H3.6a1 1 0 0 0-1 1v9.4a1 1 0 0 0 1 1h8.8a1 1 0 0 0 1-1V3.8a1 1 0 0 0-1-1h-1.8" />
+    <rect x="5.4" y="1.6" width="5.2" height="2.6" rx="0.8" />
+  </>, p);
+
+export const IconDuplicate = (p: IconProps = {}): React.ReactElement => svg(
+  <>
+    <rect x="1.8" y="1.8" width="8.4" height="8.4" rx="1.2" />
+    <rect x="5.8" y="5.8" width="8.4" height="8.4" rx="1.2" />
+  </>, p);
+
+/** A slide with a title bar and a byline: what `\titlepage` builds. */
+export const IconTitleSlide = (p: IconProps = {}): React.ReactElement => svg(
+  <>
+    <rect x="1.6" y="2.6" width="12.8" height="10.8" rx="1.2" />
+    <path d="M4.4 6.6h7.2M5.8 9.2h4.4M6.8 11.2h2.4" />
+  </>, p);
+
+/** A box with a padlock: proportions held while a corner is dragged. */
+export const IconLockAspect = (p: IconProps = {}): React.ReactElement => svg(
+  <>
+    <rect x="1.7" y="4.2" width="8.4" height="8.4" rx="1" />
+    <path d="M10.6 7.6V6.1a2 2 0 0 1 4 0v1.5" />
+    <rect x="9.8" y="7.6" width="5.6" height="4.6" rx="0.9" />
+  </>, p);
