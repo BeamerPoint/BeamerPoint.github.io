@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 279 tests
+npm test             # vitest, 306 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -268,6 +268,31 @@ writes `ca 0.4`. So a see-through picture is emitted as a one-node `tikzpicture`
 Reading a PDF's own bytes needs that compression flag: busytex writes object streams, so
 grepping a normal output for `/ca` or `/BaseFont` finds nothing and looks like a negative
 result.
+
+**A copy must renew the ids INSIDE it, not just its own.** A diagram's arrows name the
+shapes they attach to, so a clone that reuses a shape id leaves the pasted arrows bound
+to the ORIGINAL shapes: they follow it when it moves, and emitting `(bpX.east)` for a
+node outside its own picture aborts the whole compile — the orphaned-arrow failure
+again, arrived at from the other direction. `model/cloneOps.ts` remaps them in two
+passes, because an arrow can be declared before the shape it points at. Resource ids are
+deliberately NOT remapped: they are the IndexedDB keys for the image bytes, and a copied
+picture must not need a second copy of the file. The clipboard is also cleared by
+`loadDeck`, or an element copied out of the previous document can name a resource the
+new one does not have.
+
+**A diagram's element BOX and the picture inside it are the same width, and nothing kept
+them together.** `setTikzCanvasSize` wrote `canvasSize` and left `placement.w` alone, so
+a picture shrunk to 90mm sat in a 170.5mm box with its selection handles floating out to
+the right of it — measured in the browser. `withBoxWidth` keeps them in step. The same
+confusion bites the other way for a FLOW diagram: it lives in a block-level div that
+spans the whole text column, so `measuredRects` reports about 152mm for a 100mm picture.
+Anything that needs "how wide is this element" for a diagram or a chart must ask the
+element (`elementWidthMm`), not the rect it was drawn into.
+
+**Constraining an aspect ratio has to capture the ratio ONCE.** Derived from the current
+box on every pointermove, rounding feeds back in and a long drag slowly walks the
+proportions away from where they started. It lives on the gesture, beside the raw box and
+for the same reason.
 
 **Deleting the focused thing drops focus to the body.** The slide rail's first Delete
 worked and every key after it went nowhere, because the button holding focus had just
@@ -521,7 +546,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Thirty-six commits on `master`, ~21,000 lines across 117 source files, 279 tests passing.
+Thirty-seven commits on `master`, ~21,600 lines across 119 source files, 306 tests passing.
 
 ### Done
 
@@ -577,7 +602,13 @@ Thirty-six commits on `master`, ~21,000 lines across 117 source files, 279 tests
   Handles are a constant size on screen whatever the zoom, a drag survives the remount
   that lifting an element causes, and a whole gesture is one undo entry
 - **The slide rail**: a listbox with arrow keys, a delete control on every slide, Delete
-  to remove and Enter to insert; deleting the last slide replaces it with a blank one
+  to remove and Enter to insert; deleting the last slide replaces it with a blank one.
+  A title slide can be added back after being deleted
+- **Copy and paste**: copy, cut, paste and duplicate any element, with Ctrl+C/X/V/D or
+  the ribbon, across slides. The clipboard holds the MODEL, and every id inside a copy is
+  renewed — including the shape ids a diagram's arrows point at
+- **Lock aspect ratio**: on by default, constraining CORNER drags, with Shift to invert
+  it for one gesture
 - **Charts**: pgfplots line, bar, horizontal-bar and scatter charts with a data grid
   that takes a paste from a spreadsheet or a `.csv`, per-series marker, dash and label,
   and axis labels, grid, legend and a log scale. Drawn on the canvas in SVG
