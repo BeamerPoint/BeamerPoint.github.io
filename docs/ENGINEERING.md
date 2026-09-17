@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 228 tests
+npm test             # vitest, 230 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -186,6 +186,22 @@ gates it and `attachEndpoint` falls back to a plain point.
 gradient.** The page is CSS-scaled to about 0.31, so a 1px gradient stop lands on a
 third of a device pixel and each repeat rasterises independently — the lines came out
 at visibly unequal spacing. Verified after the change: every gap exactly 31.063px.
+
+**A full-bleed layer over the slide must be `pointer-events: none`.** The canvas stacks
+several `position: absolute; inset: 0` layers on top of `.bp-body` — gridlines, guides,
+the absolute-placement layer, the selection overlay — and any one of them that accepts the
+pointer swallows every click aimed at the slide underneath. `.bp-guides` did, at z-index 3,
+for as long as guides have existed: an EMPTY guide layer with no guides in it made text,
+lists and diagrams unselectable, and a drag inside a diagram never reached the SVG, so **no
+shape could ever be drawn with a real mouse**. The layer is inert and the guide LINES take
+the pointer instead. `app/test/canvasLayers.spec.ts` asserts the rule against the
+stylesheet, since jsdom has no layout to hit-test.
+
+**Driving the store is not driving the UI.** Every shape feature was built and verified by
+calling `drawShape` and friends directly, and all of it worked — while the thing a user
+actually does, press and drag on the canvas, had never once been tried and had never
+worked. A store call skips hit-testing, stacking order and pointer capture, which is
+exactly where this class of bug lives. Finish a canvas feature by doing it with the mouse.
 
 **The rulers live on `.bp-stage`, not inside `.bp-paper`.** They are positioned just
 outside the page, and the page sets `overflow: hidden` to clip slide content — so while
@@ -428,7 +444,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Thirty commits on `master`, ~19,400 lines across 108 source files, 228 tests passing.
+Thirty-one commits on `master`, ~19,400 lines across 109 source files, 230 tests passing.
 
 ### Done
 
@@ -554,4 +570,5 @@ Model types, and in several cases the emitter, already exist for all of these �
 - `minted` needs shell escape, which the WASM engine cannot provide; preview falls back
   to `listings` with a warning
 - The file picker, drag-drop and paste paths have not been exercised with a real mouse —
-  only driven programmatically
+  only driven programmatically. Drawing, selecting, moving and resizing on the canvas HAVE
+  been, after a layer that swallowed every click went unnoticed for exactly this reason

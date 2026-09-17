@@ -714,8 +714,17 @@ body.bp-dragging { user-select: none; }
 
 /* The stage carries the zoom and must not clip, or the rulers outside the page vanish. */
 .bp-stage { position: relative; flex: none; transform-origin: center center; }
-.bp-guides { position: absolute; inset: 0; z-index: 3; }
-.bp-guide { position: absolute; background: #e11d8f; }
+/*
+ * The guide LAYER is inert; only the guide lines take the pointer.
+ *
+ * It spans the whole page at z-index 3, above `.bp-body`, so while it accepted pointer
+ * events it swallowed every click aimed at the slide — an empty layer with no guides in
+ * it at all still made text, lists and diagrams unselectable, and dragging inside a
+ * diagram drew nothing because the drag never reached the SVG. `.bp-grid` and
+ * `.bp-abs-layer` beside it get this right; this one did not.
+ */
+.bp-guides { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.bp-guide { position: absolute; background: #e11d8f; pointer-events: auto; }
 .bp-guide-v { top: 0; bottom: 0; width: 1px; cursor: ew-resize; }
 .bp-guide-h { left: 0; right: 0; height: 1px; cursor: ns-resize; }
 /* Widen the grab area without widening the visible line. */
