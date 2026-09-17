@@ -13,11 +13,13 @@ import { CodeEditor } from './CodeEditor.js';
 import { BibliographyPanel } from './BibliographyPanel.js';
 import { ChartEditor } from './ChartEditor.js';
 import { ArrangePane } from './ArrangePane.js';
+import { ListEditor } from './ListEditor.js';
 import { isTitlePageTex } from '../canvas/TitlePage.js';
 
 const KIND_NAME: Partial<Record<Element['kind'], string>> = {
   text: 'Text', list: 'List', block: 'Block', columns: 'Columns', image: 'Picture',
   table: 'Table', math: 'Equation', tikz: 'Diagram', code: 'Code', raw: 'Raw LaTeX',
+  pause: 'Pause',
 };
 
 /**
@@ -112,6 +114,10 @@ export function FormatPane(): React.ReactElement {
             Select something on the slide to format it, or use the Insert tab to add
             something new.
           </p>
+        )}
+
+        {selected?.kind === 'list' && frame !== undefined && (
+          <ListEditor el={selected} slideId={frame.id} locked={locked} />
         )}
 
         {selected?.kind === 'math' && frame !== undefined && (

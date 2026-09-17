@@ -134,6 +134,12 @@ export interface ListItem {
   /** description term, or \item[custom] */
   label?: RichText;
   content: RichText;
+  /**
+   * A beamer overlay spec, written verbatim: `<2->`, `<1,3>`, `<+->`.
+   *
+   * Emitted straight after `\\item` with no space. Measured: `\\item<1->`, `<2->`, `<3->`
+   * on three bullets compiles to three pages.
+   */
   overlay?: TexString;
   sublist?: ListElement;
 }
@@ -363,11 +369,25 @@ export interface RawElement extends ElementBase {
   label?: string;
 }
 
+/**
+ * A `\\pause`: everything after it appears on the next overlay of the slide.
+ *
+ * An ELEMENT rather than a property of one, because that is what it is in the source —
+ * a marker standing between two pieces of content, not something a paragraph carries.
+ * Measured: a frame with two of them compiles to three pages.
+ *
+ * It holds nothing at all; `ElementBase` gives it the id and the source span that every
+ * element needs.
+ */
+export interface PauseElement extends ElementBase {
+  kind: 'pause';
+}
+
 export type Element =
   | TextElement | ListElement | BeamerBlockElement | ColumnsElement
   | ImageElement | TableElement | MathElement | CodeElement
   | TikzElement | ChartElement | TocElement | BibliographyElement
-  | RawElement;
+  | PauseElement | RawElement;
 
 export type ElementKind = Element['kind'];
 

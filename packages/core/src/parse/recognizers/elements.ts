@@ -1,6 +1,8 @@
 import type {
   BeamerBlockElement,
   ColumnSpec,
+  RichText,
+  TexString,
   ColumnsElement,
   Element,
   Id,
@@ -57,6 +59,11 @@ const BLOCK_COMMANDS: ReadonlySet<string> = new Set([
   // A table shrunk to fit is `\resizebox{...}{!}{<tabular>}`, which has to reach the
   // table recognizer rather than being folded into the surrounding prose.
   'resizebox',
+  // `\pause` stands BETWEEN two pieces of content, so it has to break the paragraph.
+  // Left inline it fell through to the catch-all that turns a bare control word into
+  // a symbol, and a whole frame came back as ONE text element with an invisible
+  // `\pause` inside it -- which then re-emitted in the right place by luck.
+  'pause',
 ]);
 
 /** Commands handled by the frame recognizer, never emitted as elements. */
@@ -136,7 +143,41 @@ export function recognizeElements(nodes: CstNode[], ctx: RecognizeCtx): Element[
     });
   };
 
-  for (const node of nodes) {
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]!;
+
+    /*
+     * `\pause<3>` pauses on a particular overlay, and the model cannot say that.
+     *
+     * The lexer splits it into the command and the TEXT `<3>`, so reading the command
+     * alone would leave a bare `\pause` followed by a paragraph containing the
+     * characters `<3>` — which re-emits with the SAME tokens and therefore sails
+     * straight past the guard while meaning something else entirely. Both halves go to
+     * raw together, and whatever followed the spec is handed back to the prose buffer
+     * with its span adjusted so the guard still slices the right bytes.
+     */
+    if (node.n === 'cmd' && node.name === 'pause') {
+      const next = nodes[i + 1];
+      const spec = next !== undefined && next.n === 'text'
+        ? /^(<[^<>]*>)/.exec(next.value)?.[1]
+        : undefined;
+      if (spec !== undefined && next !== undefined && next.n === 'text') {
+        flushProse();
+        const specEnd = next.span.start + spec.length;
+        attach(makeRaw(ctx, ctx.src.slice(node.span.start, specEnd), 'unrecognised', '\\pause'));
+        const rest = next.value.slice(spec.length);
+        if (rest.trim() !== '') {
+          buffer.push({
+            ...next,
+            value: rest,
+            span: { ...next.span, start: specEnd },
+          });
+        }
+        i += 1;
+        continue;
+      }
+    }
+
     if (node.n === 'comment') {
       flushProse();
       comments.push(node.value);
@@ -285,6 +326,11 @@ function recognizeBlockLevel(node: CstNode, ctx: RecognizeCtx): Element {
     if (aligned !== null) return aligned;
   }
 
+  if (node.n === 'cmd' && node.name === 'pause'
+      && node.args.length === 0 && node.opts.length === 0 && !node.star) {
+    return { id: ctx.newId(), kind: 'pause', placement: { mode: 'flow' }, src: node.span };
+  }
+
   if (node.n === 'cmd' && node.name === 'includegraphics') {
     const img = recognizeIncludegraphics(node, ctx);
     if (img !== null) return img;
@@ -337,6 +383,27 @@ function recognizeList(
  * has no representation in the model and silently dropping it is exactly the failure
  * this architecture exists to prevent.
  */
+/**
+ * Split a beamer overlay spec off the front of an item's content.
+ *
+ * The lexer sees `\item<2->` as the command followed by the TEXT `<2-> ...`, so
+ * without this the spec became part of the bullet: `<2->` showed as literal
+ * characters on the canvas, and it survived only because the guard compares tokens
+ * and beamer happens to accept the spec after the space the emitter then wrote.
+ * `ListItem.overlay` -- which the emitter has always written -- is finally set by
+ * something.
+ */
+function peelOverlay(rt: RichText): { overlay?: TexString; rest: RichText } {
+  const first = rt[0];
+  if (first === undefined || first.t !== 'text') return { rest: rt };
+  const m = /^\s*(<[^<>]*>)/.exec(first.s);
+  if (m === null) return { rest: rt };
+  return {
+    overlay: m[1]!,
+    rest: [{ t: 'text', s: first.s.slice(m[0].length) }, ...rt.slice(1)],
+  };
+}
+
 function splitItems(children: CstNode[], ctx: RecognizeCtx): ListItem[] | null {
   interface Pending { label?: CstGroup; nodes: CstNode[] }
   const items: ListItem[] = [];
@@ -367,9 +434,11 @@ function splitItems(children: CstNode[], ctx: RecognizeCtx): ListItem[] | null {
       if (significant) return false;
     }
 
+    const { overlay, rest } = peelOverlay(parseInline(inlineNodes, ctx.src));
     const item: ListItem = {
       id: ctx.newId(),
-      content: trimRichText(parseInline(inlineNodes, ctx.src)),
+      content: trimRichText(rest),
+      ...(overlay !== undefined ? { overlay } : {}),
     };
     if (pending.label !== undefined) {
       item.label = trimRichText(parseInline(pending.label.children, ctx.src));

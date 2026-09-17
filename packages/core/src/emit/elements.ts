@@ -293,12 +293,26 @@ function emitElementBody(w: TexWriter, el: Element, ctx: EmitContext): void {
       return;
     }
 
+    case 'pause':
+      // Everything after this appears on the next overlay of the slide. Measured: a
+      // frame with two of them compiles to three pages.
+      w.line_('\\pause');
+      return;
+
     default: {
-      // Unreachable today, and TypeScript proves it: every `Element['kind']` has a case
-      // above, so `el` narrows to `never` here. Three kinds used to land in this arm and
-      // emit NOTHING -- a modelled element simply disappeared from the .tex. The cast
-      // keeps the runtime net for a kind added later without an emitter.
-      const added = el as Element;
+      /*
+       * Unreachable, and the assignment below is what PROVES it: `el` narrows to
+       * `never` here only while every `Element['kind']` has a case above, so adding a
+       * kind without an emitter fails to compile.
+       *
+       * That proof used to be claimed and not performed -- the cast on the next line
+       * was the only thing here, and a cast accepts anything. Three kinds once landed
+       * in this arm and emitted NOTHING, so a modelled element simply vanished from the
+       * .tex; `code.spec.ts` caught that, at runtime, long after. The cast stays as the
+       * runtime net for a deck built by older code.
+       */
+      const exhaustive: never = el;
+      const added = exhaustive as Element;
       ctx.warn({
         code: 'emit.unimplemented',
         message: `No emitter for element kind "${added.kind}"`,

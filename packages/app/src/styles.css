@@ -1361,3 +1361,24 @@ body.bp-dragging { user-select: none; }
   background: rgba(255, 255, 255, 0.72);
   cursor: text;
 }
+
+/*
+ * `\pause` on the canvas.
+ *
+ * A marker, not content. The canvas shows a whole frame at once — it does not step
+ * through overlays — so this says WHERE the slide will break rather than hiding what
+ * comes after it, which would misrepresent the slide just as badly in the other
+ * direction.
+ */
+.bp-pause {
+  display: flex; align-items: center; gap: calc(var(--bp-mm) * 1.5);
+  padding: calc(var(--bp-mm) * 0.5) 0;
+  color: var(--bp-accent); opacity: 0.75;
+}
+.bp-pause::before, .bp-pause::after {
+  content: ''; flex: 1; height: 0;
+  border-top: calc(var(--bp-mm) * 0.15) dashed currentColor;
+}
+.bp-pause-label {
+  flex: none; font-size: 0.5em; letter-spacing: 0.08em; text-transform: uppercase;
+}

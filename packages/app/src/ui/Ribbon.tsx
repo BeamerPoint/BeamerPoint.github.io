@@ -16,6 +16,7 @@ import {
   IconCode, IconEquation, IconExport, IconForward, IconGrid, IconGuides, IconImage,
   IconChart, IconOutline, IconMoveUp, IconMoveDown,
   IconCopy, IconCut, IconPaste, IconDuplicate, IconTitleSlide, IconLockAspect,
+  IconPause,
   IconNew, IconOpen, IconRedo, IconRuler, IconSave, IconShapes, IconSlideAdd,
   IconSmartArt, IconSnap, IconTable, IconText, IconTextBox, IconUndo,
 } from './icons.js';
@@ -259,6 +260,7 @@ export function Ribbon(props: Props): React.ReactElement {
   const addColumnsElement = useStore((s) => s.addColumnsElement);
   const addMathElement = useStore((s) => s.addMathElement);
   const addCodeElement = useStore((s) => s.addCodeElement);
+  const addPauseElement = useStore((s) => s.addPauseElement);
   const addChartElement = useStore((s) => s.addChartElement);
   const addOutlineSlide = useStore((s) => s.addOutlineSlide);
   const addTableElement = useStore((s) => s.addTableElement);
@@ -378,6 +380,15 @@ export function Ribbon(props: Props): React.ReactElement {
                   title="A source listing, typeset by listings"
                   disabled={noFrame}
                   onClick={() => fid && addCodeElement(fid)}
+                />
+                {/* Beamer's one overlay command that needs no spec: everything after
+                    it appears on the next overlay of the slide. */}
+                <Small
+                  icon={<IconPause />}
+                  label="Pause"
+                  title="\pause — everything after this appears on the next overlay"
+                  disabled={noFrame}
+                  onClick={() => fid && addPauseElement(fid)}
                 />
               </Stack>
             </Group>

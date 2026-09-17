@@ -216,11 +216,19 @@ interface AppState {
   duplicateElement(slideId: string, elementId: string): void;
   setElementContent(slideId: string, elementId: string, content: RichText): void;
   setListItemContent(slideId: string, elementId: string, itemId: string, content: RichText): void;
+  /** A beamer overlay spec on one bullet, verbatim. `null` removes it. */
+  setListItemOverlay(
+    slideId: string, elementId: string, itemId: string, spec: string | null,
+  ): void;
+  /** Give every bullet `<1->`, `<2->`, ... so the list reveals one at a time. */
+  revealListOneByOne(slideId: string, elementId: string, on: boolean): void;
   addBlockElement(slideId: string, variant: 'block' | 'alertblock' | 'exampleblock'): void;
   addColumnsElement(slideId: string): void;
   addImageElement(slideId: string, ref: ResourceRef): void;
   addMathElement(slideId: string): void;
   addCodeElement(slideId: string): void;
+  /** A `\\pause`: everything after it appears on the next overlay. */
+  addPauseElement(slideId: string): void;
   addChartElement(slideId: string): void;
   setChartCell(
     slideId: string, elementId: string, row: number, col: number, value: Cell,
@@ -1241,6 +1249,53 @@ export const useStore = create<AppState>()((set, get) => {
       );
     },
 
+    setListItemOverlay(slideId, elementId, itemId, spec) {
+      const trimmed = spec === null ? null : spec.trim();
+      mutate((deck) =>
+        mapElement(deck, slideId, elementId, (el) => {
+          if (el.kind !== 'list') return el;
+          return {
+            ...el,
+            items: el.items.map((it) => {
+              if (it.id !== itemId) return it;
+              if (trimmed === null || trimmed === '') {
+                const { overlay: _drop, ...rest } = it;
+                return rest;
+              }
+              // Beamer wants the angle brackets; supplying them for someone who typed
+              // "2-" is kinder than emitting a spec that will not compile.
+              const wrapped = trimmed.startsWith('<') ? trimmed : `<${trimmed}>`;
+              return { ...it, overlay: wrapped };
+            }),
+          };
+        }),
+      );
+    },
+
+    /**
+     * Reveal a list one bullet at a time.
+     *
+     * `<1->`, `<2->`, ... — the overlay pattern people actually want, and tedious to
+     * type by hand. Measured: three bullets specced this way compile to three pages.
+     */
+    revealListOneByOne(slideId, elementId, on) {
+      mutate((deck) =>
+        mapElement(deck, slideId, elementId, (el) => {
+          if (el.kind !== 'list') return el;
+          return {
+            ...el,
+            items: el.items.map((it, i) => {
+              if (!on) {
+                const { overlay: _drop, ...rest } = it;
+                return rest;
+              }
+              return { ...it, overlay: `<${i + 1}->` };
+            }),
+          };
+        }),
+      );
+    },
+
     setListItemContent(slideId, elementId, itemId, content) {
       const el = findElement(get().deck, slideId, elementId);
       if (el?.kind === 'list') {
@@ -1354,6 +1409,12 @@ export const useStore = create<AppState>()((set, get) => {
         env: 'equation',
         tex: 'E = mc^2',
       };
+      mutate((deck) => mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, el] })));
+      set({ selection: { slideId, elementId: el.id } });
+    },
+
+    addPauseElement(slideId) {
+      const el: Element = { id: newId(), kind: 'pause', placement: { mode: 'flow' } };
       mutate((deck) => mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, el] })));
       set({ selection: { slideId, elementId: el.id } });
     },

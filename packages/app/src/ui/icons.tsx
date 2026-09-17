@@ -335,3 +335,10 @@ export const IconLockAspect = (p: IconProps = {}): React.ReactElement => svg(
     <path d="M10.6 7.6V6.1a2 2 0 0 1 4 0v1.5" />
     <rect x="9.8" y="7.6" width="5.6" height="4.6" rx="0.9" />
   </>, p);
+
+/** Two bars: beamer's `\pause`, where the slide breaks. */
+export const IconPause = (p: IconProps = {}): React.ReactElement => svg(
+  <>
+    <rect x="4.2" y="3" width="2.6" height="10" rx="0.7" />
+    <rect x="9.2" y="3" width="2.6" height="10" rx="0.7" />
+  </>, p);

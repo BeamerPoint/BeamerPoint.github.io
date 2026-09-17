@@ -174,6 +174,15 @@ function Body(props: Props): React.ReactElement {
         </div>
       );
 
+    case 'pause':
+      // A marker, not content: the canvas shows the whole frame at once, so this is
+      // where the slide will break rather than something that hides what follows.
+      return (
+        <div className="bp-pause" title="Everything below appears on the next overlay">
+          <span className="bp-pause-label">pause</span>
+        </div>
+      );
+
     case 'list':
       return <ListView el={el} theme={theme} locked={locked} onEditItem={onEditItem} depth={0} />;
 
