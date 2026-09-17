@@ -205,6 +205,23 @@ function recognizeBlockLevel(node: CstNode, ctx: RecognizeCtx): Element {
   const code = recognizeCode(node, ctx);
   if (code !== null) return code;
 
+  // `\bibliography{a,b}` prints the reference list. Nothing produced a
+  // `BibliographyElement`, so it came back as a raw block — and the emitter had no case
+  // for that kind either, so one built by hand vanished from the output entirely.
+  if (node.n === 'cmd' && !node.star && node.opts.length === 0 && node.args.length === 1
+      && (node.name === 'bibliography' || node.name === 'bibliographystyle')) {
+    const arg = ctx.src.slice(node.args[0]!.span.start + 1, node.args[0]!.span.end - 1);
+    const base = {
+      id: ctx.newId(),
+      kind: 'bibliography' as const,
+      placement: { mode: 'flow' as const },
+      src: node.span,
+    };
+    return node.name === 'bibliography'
+      ? { ...base, files: arg.split(',').map((f) => f.trim()).filter((f) => f !== '') }
+      : { ...base, files: [], style: arg.trim() };
+  }
+
   // `\tableofcontents` was in BLOCK_COMMANDS — so it ended a prose run — but nothing
   // recognised it, so an outline slide came back as a raw block and a `TocElement` in a
   // deck was dropped by the emitter's `default:` arm entirely.

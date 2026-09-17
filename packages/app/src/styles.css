@@ -1131,3 +1131,40 @@ body.bp-dragging { user-select: none; }
   font: inherit; padding: 6px 8px;
 }
 .bp-notes-input:focus { outline: none; border-color: var(--bp-accent); }
+
+/* ---------------------------------------------------------------- references */
+.bp-bib-files { list-style: none; margin: 0 0 8px; padding: 0; }
+.bp-bib-files li {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11.5px; padding: 2px 0;
+}
+.bp-bib-files li > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bp-bib-files button {
+  border: none; background: transparent; color: var(--bp-muted);
+  padding: 2px 5px; border-radius: 3px; line-height: 1;
+}
+.bp-bib-files button:hover:not(:disabled) { background: var(--bp-hover); color: var(--bp-danger); }
+
+.bp-bib-entries {
+  list-style: none; margin: 4px 0 0; padding: 0;
+  max-height: 220px; overflow-y: auto;
+  border: 1px solid var(--bp-border); border-radius: 4px;
+}
+.bp-bib-entries button {
+  display: block; width: 100%; text-align: left;
+  border: none; border-bottom: 1px solid var(--bp-border); background: #fff;
+  padding: 5px 7px; font-size: 11.5px;
+}
+.bp-bib-entries li:last-child button { border-bottom: none; }
+.bp-bib-entries button:hover:not(:disabled) { background: var(--bp-accent-soft); }
+.bp-bib-entries button:disabled { color: var(--bp-disabled); }
+.bp-bib-key { display: block; font-family: monospace; color: var(--bp-accent); }
+.bp-bib-desc {
+  display: block; color: var(--bp-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* On the canvas: BibTeX sets the real list, so this only says what it will read. */
+.bp-bibliography { display: flex; flex-direction: column; gap: calc(var(--bp-mm) * 1); }
+.bp-bibliography-mark { font-weight: 700; }
+.bp-bibliography-hint { font-size: 0.7em; opacity: 0.6; font-style: italic; }

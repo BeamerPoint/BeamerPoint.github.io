@@ -10,6 +10,7 @@ import { MathEditor } from './MathEditor.js';
 import { TableEditor } from './TableEditor.js';
 import { ShapeEditor } from './ShapeEditor.js';
 import { CodeEditor } from './CodeEditor.js';
+import { BibliographyPanel } from './BibliographyPanel.js';
 import { ArrangePane } from './ArrangePane.js';
 import { isTitlePageTex } from '../canvas/TitlePage.js';
 
@@ -99,6 +100,10 @@ export function FormatPane(): React.ReactElement {
         </section>
 
         {showPresentation && <DeckMetaEditor locked={locked} />}
+
+        {/* Citing needs a text box selected, so this stays visible for one too. */}
+        {(showPresentation || selected?.kind === 'text' || selected?.kind === 'bibliography')
+          && <BibliographyPanel />}
 
         {selected === undefined && (
           <p className="bp-empty-hint">

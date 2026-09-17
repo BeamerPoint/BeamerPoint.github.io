@@ -208,3 +208,43 @@ export async function attachResourceFile(
 
   return converted === undefined ? { ref: next } : { ref: next, converted };
 }
+
+/**
+ * Attach a `.bib`.
+ *
+ * `ResourceRef.kind === 'bib'` has been in the model from the start and nothing ever
+ * produced one — both upload paths here hard-coded `kind: 'image'`. Nothing in the engine
+ * needed changing: `buildProject` copies EVERY resource into the virtual filesystem
+ * regardless of kind, so once the ref exists BibTeX can find the file.
+ *
+ * The path keeps the file's own stem, because `\bibliography{refs}` names it.
+ */
+export async function importBibFile(
+  file: File,
+  existingPaths: ReadonlySet<string>,
+): Promise<ResourceRef> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const id = newId();
+
+  const stem = file.name
+    .replace(/\.bib$/i, '')
+    .replace(/[^A-Za-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40) || 'refs';
+
+  let path = `${stem}.bib`;
+  let n = 2;
+  while (existingPaths.has(path)) { path = `${stem}-${n}.bib`; n += 1; }
+
+  await putResourceBytes(id, bytes);
+
+  return {
+    id,
+    path,
+    kind: 'bib',
+    mime: 'text/plain',
+    bytes: bytes.byteLength,
+    sha256: await sha256Hex(bytes),
+    originalName: file.name,
+  };
+}

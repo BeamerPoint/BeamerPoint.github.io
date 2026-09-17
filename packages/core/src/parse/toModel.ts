@@ -257,7 +257,7 @@ function parsePreamble(
 
     if (name === 'bibliographystyle' && args.length === 1) {
       flushComments();
-      p.bibliography = { files: [], style: literal(ctx.src, args[0]!), backend: 'bibtex' };
+      p.bibliography = { style: literal(ctx.src, args[0]!), backend: 'bibtex' };
       continue;
     }
 

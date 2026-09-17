@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 202 tests
+npm test             # vitest, 215 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -342,6 +342,17 @@ by `margins.hMm` put it exactly underneath — Berkeley's "Frame title bar" rend
 "ne title bar". The title's left padding is `max(its own, sidebar + 1.5mm)`, and both the
 sidebar and that inset read one `sidebarMm` local so they cannot drift apart.
 
+**`\bibliography{...}` belongs in the BODY, and nothing was writing it.** The preamble
+carried a `bibliography: { files, style }` whose `files` the parser always set to `[]` and
+the emitter never read, and `BibliographyElement` — the thing that should own the files —
+had no emitter at all, so one built by hand vanished with an `emit.unimplemented` warning.
+The preamble now carries the style only; the element carries the files and prints where
+the list should appear. `runBibtex` asks the BODY too, since a deck can have a `.bib` and
+a references frame without a `\bibliographystyle` anywhere, and BibTeX needs three passes
+to settle: one to write the `.aux`, bibtex, then two more for the labels to reach the
+citations. Verified end to end against the engine — the PDF prints the entry, and the
+citation renders as `[1]` rather than a bold `?`.
+
 **A section owns the slides that follow it, and the list is flat.** `SectionNode` is a
 SIBLING of `FrameNode` in `deck.nodes`, because that is how beamer reads the file — so
 "the slides in this section" is a question about the span between two headings, and
@@ -399,7 +410,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Twenty-eight commits on `master`, ~18,100 lines across 100 source files, 202 tests passing.
+Twenty-nine commits on `master`, ~18,600 lines across 103 source files, 215 tests passing.
 
 ### Done
 
@@ -449,6 +460,9 @@ Twenty-eight commits on `master`, ~18,100 lines across 100 source files, 202 tes
   equation, diagram, at any depth -- is selectable, draggable and resizable on the
   canvas. Dragging one out of the flow converts it to a free position at the place it
   was already drawn, and dragging one out of a block or a column lifts it onto the frame
+- **Citations**: attach a `.bib`, pick an entry from the list and cite it into the
+  selected text box, and insert a references slide. BibTeX runs in the bundled engine, so
+  the compiled PDF has the real reference list
 - **Sections and the outline**: section headings are created, renamed, reordered and
   deleted in the slide rail, where they group the slides they own; `\tableofcontents`
   is an element the canvas draws from those headings
@@ -470,14 +484,15 @@ Twenty-eight commits on `master`, ~18,100 lines across 100 source files, 202 tes
 
 Roughly in the order the user and I agreed to tackle them:
 
-1. **Citations** — `.bib` attach, `\cite` autocomplete, references frame
-2. **pgfplots charts** — small data-table editor
-3. Rich text inside a diagram label, and multi-point polyline editing
+1. **pgfplots charts** — small data-table editor
+2. Rich text inside a diagram label, and multi-point polyline editing
+3. `\citep`/`\citet`/`\autocite` — they need natbib or biblatex, and stay raw inline
+   islands for now
 
-⚠ `emitElementBody` still has no case for `bibliography` or `chart`: both are modelled,
-both fall to `default:` and emit NOTHING but an `emit.unimplemented` warning. That is
-silent content loss, the `\titlegraphic` bug again, and it is what items 1 and 2 close.
-`code.spec.ts` has the regression test. (`toc` was the third and is now done.)
+⚠ `emitElementBody` still has no case for `chart`: it is modelled, it falls to `default:`
+and emits NOTHING but an `emit.unimplemented` warning. That is silent content loss, the
+`\titlegraphic` bug again, and item 1 closes the last of it. `code.spec.ts` has the
+regression test. (`toc` and `bibliography` were the other two and are now done.)
 
 Model types, and in several cases the emitter, already exist for all of these — check
 `packages/core/src/model/types.ts` before designing anything new.

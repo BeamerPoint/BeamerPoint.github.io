@@ -43,7 +43,7 @@ interface Props {
 }
 
 /** Kinds whose whole interior can be grabbed, because nothing inside is typed into. */
-const SOLID_KINDS: ReadonlySet<Element['kind']> = new Set(['image', 'math', 'raw', 'toc']);
+const SOLID_KINDS: ReadonlySet<Element['kind']> = new Set(['image', 'math', 'raw', 'toc', 'bibliography']);
 
 /** Kinds with a height LaTeX can actually be told about. */
 const HEIGHT_KINDS: ReadonlySet<Element['kind']> = new Set(['image', 'tikz']);
@@ -243,6 +243,22 @@ function Body(props: Props): React.ReactElement {
 
     case 'toc':
       return <TocView el={el} deck={props.deck} theme={theme} />;
+
+    case 'bibliography':
+      // BibTeX formats the real list at compile time from the .bib, so the canvas can
+      // only say which files it will read and how many entries they hold.
+      return (
+        <div className="bp-bibliography" style={{ color: theme.foreground }}>
+          <span className="bp-bibliography-mark" style={{ color: theme.structure }}>
+            References
+          </span>
+          {el.files.length === 0
+            ? <span className="bp-bibliography-hint">No .bib attached yet</span>
+            : <span className="bp-bibliography-hint">
+                from {el.files.map((f) => `${f}.bib`).join(', ')} — BibTeX sets the list
+              </span>}
+        </div>
+      );
 
     case 'tikz':
       return <TikzBody el={el} theme={theme} locked={locked} />;

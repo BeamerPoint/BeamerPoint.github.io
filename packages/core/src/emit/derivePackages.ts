@@ -124,7 +124,8 @@ export function derivePackages(deck: Deck): DerivedPackage[] {
     node.children.forEach(visitElement);
   }
 
-  if (deck.preamble.bibliography !== undefined) add('');
+  // BibTeX needs no package: `\bibliography` and `\bibliographystyle` are LaTeX's own.
+  // (There used to be an `add('')` here, which `need.delete('')` removed again.)
 
   // Any inline math anywhere also wants amsmath; cheap to detect via a serialised scan
   // of text content would be fragile, so keep it content-driven above only.

@@ -150,6 +150,13 @@ interface AppState {
 
   setFrameNote(slideId: string, content: RichText): void;
 
+  attachBibliography(ref: ResourceRef): void;
+  detachBibliography(resourceId: string): void;
+  setBibliographyStyle(style: string): void;
+  addReferencesSlide(): void;
+  syncBibliographyFiles(): void;
+  insertCitation(slideId: string, elementId: string, key: string): void;
+
   addTextElement(slideId: string): void;
   addListElement(slideId: string): void;
   deleteElement(slideId: string, elementId: string): void;
@@ -330,6 +337,13 @@ function nextSectionAfter(nodes: readonly DocNode[], from: number): number {
     if (n.kind === 'section' && SECTION_RANK[n.level] <= rank) return i;
   }
   return nodes.length;
+}
+
+/** Every attached `.bib`, named the way `\bibliography{...}` wants them: no extension. */
+export function bibFiles(deck: Deck): string[] {
+  return deck.resources
+    .filter((r) => r.kind === 'bib')
+    .map((r) => r.path.replace(/\.bib$/i, ''));
 }
 
 /** Find an element of a frame, at any depth.
@@ -721,6 +735,85 @@ export const useStore = create<AppState>()((set, get) => {
             ? f.notes.slice(1)
             : [{ ...f.notes[0]!, content }, ...f.notes.slice(1)];
           return { ...f, notes };
+        }),
+      );
+    },
+
+    /**
+     * Attach a `.bib` and point the deck at it.
+     *
+     * The resource carries the bytes; `\bibliography{refs}` names the file WITHOUT its
+     * extension, which is what BibTeX expects. A style is set at the same time, because
+     * without one LaTeX prints nothing and says little about why.
+     */
+    attachBibliography(ref) {
+      mutate((deck) => {
+        const preamble = deck.preamble.bibliography === undefined
+          ? { ...deck.preamble, bibliography: { style: 'plain', backend: 'bibtex' as const } }
+          : deck.preamble;
+        return { ...deck, preamble, resources: [...deck.resources, ref] };
+      });
+      // Keep any references slide pointing at every attached file.
+      get().syncBibliographyFiles();
+    },
+
+    detachBibliography(resourceId) {
+      mutate((deck) => ({
+        ...deck,
+        resources: deck.resources.filter((r) => r.id !== resourceId),
+      }));
+      get().syncBibliographyFiles();
+    },
+
+    setBibliographyStyle(style) {
+      mutate((deck) => ({
+        ...deck,
+        preamble: { ...deck.preamble, bibliography: { style, backend: 'bibtex' } },
+      }));
+    },
+
+    /** Rewrite every `BibliographyElement`'s file list from the attached resources. */
+    syncBibliographyFiles() {
+      const files = bibFiles(get().deck);
+      mutate((deck) => ({
+        ...deck,
+        nodes: deck.nodes.map((n) => (n.kind !== 'frame' ? n : {
+          ...n,
+          children: n.children.map((el) =>
+            (el.kind === 'bibliography' && el.files.length > 0 ? { ...el, files } : el)),
+        })),
+      }));
+    },
+
+    /**
+     * A slide holding the reference list.
+     *
+     * `[allowframebreaks]` because a bibliography is exactly the thing that overflows a
+     * slide, and beamer's answer is to continue it on the next one.
+     */
+    addReferencesSlide() {
+      const el: Element = {
+        id: newId(),
+        kind: 'bibliography',
+        placement: { mode: 'flow' },
+        files: bibFiles(get().deck),
+        sizeHint: 'footnotesize',
+      };
+      const frame: FrameNode = {
+        ...newFrame('References', [el]),
+        options: { allowframebreaks: true },
+      };
+      mutate((deck) => ({ ...deck, nodes: [...deck.nodes, frame] }));
+      set({ selection: { slideId: frame.id, elementId: el.id } });
+    },
+
+    /** Append a `\cite{key}` to the end of a text element. */
+    insertCitation(slideId, elementId, key) {
+      mutate((deck) =>
+        mapElement(deck, slideId, elementId, (el) => {
+          if (el.kind !== 'text') return el;
+          const sep: RichText = el.content.length === 0 ? [] : [{ t: 'text', s: ' ' }];
+          return { ...el, content: [...el.content, ...sep, { t: 'cite', keys: [key] }] };
         }),
       );
     },

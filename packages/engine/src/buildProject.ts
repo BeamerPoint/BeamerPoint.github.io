@@ -1,4 +1,7 @@
-import { emitDeck, entriesOfKind, type Deck, type SourceMap } from '@beamerpoint/core';
+import {
+  emitDeck, entriesOfKind,
+  type Deck, type Element as DeckElement, type SourceMap,
+} from '@beamerpoint/core';
 import type { CompileJob, EngineCapabilities, VirtualFile } from './LatexEngine.js';
 import { defaultJob } from './LatexEngine.js';
 
@@ -71,6 +74,25 @@ export async function buildProject(
   return { files, tex: emitted.tex, sourceMap: emitted.sourceMap, frameLines, warnings };
 }
 
+/**
+ * True when the deck prints a reference list.
+ *
+ * `ibliography{...}` lives in the BODY, on a `BibliographyElement` — the preamble
+ * carries only the style. Asking the preamble alone meant a deck that had attached a
+ * `.bib` and inserted a references frame, but no `ibliographystyle`, never ran BibTeX
+ * and printed nothing.
+ */
+function needsBibtex(deck: Deck): boolean {
+  if (deck.preamble.bibliography !== undefined) return true;
+  const has = (els: readonly DeckElement[]): boolean => els.some((el) => {
+    if (el.kind === 'bibliography') return true;
+    if (el.kind === 'block') return has(el.children);
+    if (el.kind === 'columns') return el.columns.some((c) => has(c.children));
+    return false;
+  });
+  return deck.nodes.some((n) => n.kind === 'frame' && has(n.children));
+}
+
 export function jobForProject(
   project: BuiltProject,
   deck: Deck,
@@ -79,7 +101,10 @@ export function jobForProject(
   return defaultJob({
     files: project.files,
     mainFile: 'main.tex',
-    runBibtex: deck.preamble.bibliography !== undefined,
+    runBibtex: needsBibtex(deck),
+    // BibTeX needs at least three passes to settle: one to write the .aux, bibtex, then
+    // two more for the ibitem labels to reach the citations.
+    passes: needsBibtex(deck) ? 3 : 'auto',
     ...overrides,
   });
 }

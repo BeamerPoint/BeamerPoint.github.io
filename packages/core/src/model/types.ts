@@ -302,7 +302,9 @@ export interface TocElement extends ElementBase {
 
 export interface BibliographyElement extends ElementBase {
   kind: 'bibliography';
+  /** A `\bibliographystyle` written inside the frame rather than in the preamble. */
   style?: string;
+  /** `.bib` names without the extension, as `\bibliography{a,b}` takes them. */
   files: string[];
   sizeHint?: BeamerFontSize;
 }
@@ -453,7 +455,15 @@ export interface Preamble {
   suppressedDerived: string[];
   colorDefs: ColorDef[];
   beamerSettings: BeamerSetting[];
-  bibliography?: { files: string[]; style: string; backend: 'bibtex' };
+  /**
+   * The `\bibliographystyle` line.
+   *
+   * The FILES are not here: `\bibliography{refs}` belongs in the document body, where
+   * the reference list prints, and lives on a `BibliographyElement`. This field used to
+   * carry a `files` array that the parser always set to `[]` and the emitter never
+   * wrote — a value that could only ever be wrong.
+   */
+  bibliography?: { style: string; backend: 'bibtex' };
   custom: PreambleChunk[];
 }
 

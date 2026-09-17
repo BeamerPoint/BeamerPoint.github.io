@@ -179,6 +179,17 @@ function emitElementBody(w: TexWriter, el: Element, ctx: EmitContext): void {
       return;
     }
 
+    case 'bibliography': {
+      // `\bibliography` belongs in the BODY, where the list prints — it was never
+      // emitted at all, so a deck with a bibliography style produced one BibTeX could
+      // not resolve. A style set here is one the source wrote inside the frame; the
+      // usual place is the preamble, and `emitPreamble` owns that one.
+      if (el.sizeHint !== undefined) w.line_(`\\${el.sizeHint}`);
+      if (el.style !== undefined) w.line_(`\\bibliographystyle{${el.style}}`);
+      if (el.files.length > 0) w.line_(`\\bibliography{${el.files.join(',')}}`);
+      return;
+    }
+
     case 'toc':
       // `options` is the verbatim `[...]` group, so `[currentsection]` and anything else
       // beamer accepts round-trips without the model having to understand it.
