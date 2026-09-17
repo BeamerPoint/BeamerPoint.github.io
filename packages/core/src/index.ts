@@ -5,7 +5,8 @@ export {
 } from './model/richtext.js';
 export {
   newDeck, newFrame, newTitleFrame, newTextElement, newListElement, newListItem,
-  newTableElement, newTikzElement, newCodeElement, newTocElement, defaultPreamble, plain,
+  newTableElement, newTikzElement, newCodeElement, newTocElement, newChartElement,
+  defaultPreamble, plain,
 } from './model/factory.js';
 export {
   addShape, attachEndpoint, isAttachable, isNodeTool, moveEndpoint, moveShape,
@@ -25,6 +26,11 @@ export { TIKZ_LIBRARIES, tikzColor } from './emit/tikz.js';
 export {
   LST_LANGUAGES, LST_DEFINITIONS, LST_SETUP, lstNeedsDefinition, lstSetupLines,
 } from './emit/lstLanguages.js';
+export {
+  addChartColumn, addChartRow, cellText, isNumericColumn, removeChartColumn,
+  removeChartRow, removeChartSeries, renameChartColumn, replaceChartData, setChartCell,
+  setChartSeries, symbolicCoords, type Cell,
+} from './model/chartOps.js';
 export {
   applyTableStyle, insertTableColumn, insertTableRow, removeTableColumn, removeTableRow,
   setTableColumnAlign, setTableFit, shiftMerges,

@@ -10,6 +10,7 @@ import { ImageView } from './ImageView.js';
 import { TableView } from './TableView.js';
 import { CodeView } from './CodeView.js';
 import { TocView } from './TocView.js';
+import { ChartView } from './ChartView.js';
 import { TikzView } from './TikzView.js';
 import { measuredRects, useStore, type ResizeGrip } from '../state/store.js';
 import { SelectionOverlay, type OverlayMode } from './SelectionOverlay.js';
@@ -43,10 +44,10 @@ interface Props {
 }
 
 /** Kinds whose whole interior can be grabbed, because nothing inside is typed into. */
-const SOLID_KINDS: ReadonlySet<Element['kind']> = new Set(['image', 'math', 'raw', 'toc', 'bibliography']);
+const SOLID_KINDS: ReadonlySet<Element['kind']> = new Set(['image', 'math', 'raw', 'toc', 'bibliography', 'chart']);
 
 /** Kinds with a height LaTeX can actually be told about. */
-const HEIGHT_KINDS: ReadonlySet<Element['kind']> = new Set(['image', 'tikz']);
+const HEIGHT_KINDS: ReadonlySet<Element['kind']> = new Set(['image', 'tikz', 'chart']);
 
 /**
  * One element on the canvas.
@@ -244,6 +245,9 @@ function Body(props: Props): React.ReactElement {
     case 'toc':
       return <TocView el={el} deck={props.deck} theme={theme} />;
 
+    case 'chart':
+      return <ChartView el={el} theme={theme} />;
+
     case 'bibliography':
       // BibTeX formats the real list at compile time from the .bib, so the canvas can
       // only say which files it will read and how many entries they hold.
@@ -274,12 +278,17 @@ function Body(props: Props): React.ReactElement {
         </div>
       );
 
-    default:
+    default: {
+      // Unreachable today: every `Element['kind']` has a case above, so TypeScript
+      // narrows `el` to `never` here. Kept as the visible fallback for a kind added
+      // later, so a new element is never silently blank on the canvas.
+      const added = el as Element;
       return (
         <div className="bp-unsupported">
-          {el.kind} — not yet rendered on the canvas
+          {added.kind} — not yet rendered on the canvas
         </div>
       );
+    }
   }
 }
 

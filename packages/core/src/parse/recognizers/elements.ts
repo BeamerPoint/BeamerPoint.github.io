@@ -18,6 +18,7 @@ import { buildCst } from '../lexer.js';
 import { parseInline, trimRichText } from '../inline.js';
 import { recognizeCode } from './code.js';
 import { recognizeTable } from './table.js';
+import { recognizeChart } from './chart.js';
 import { recognizeTikz } from './tikz.js';
 
 export interface RecognizeCtx {
@@ -260,6 +261,11 @@ function recognizeBlockLevel(node: CstNode, ctx: RecognizeCtx): Element {
     }
 
     if (node.name === 'tikzpicture') {
+      // Before the drawing canvas: a chart IS a tikzpicture, and reading one as a
+      // diagram full of raw TikZ leaves the data grid with nothing to edit.
+      const chart = recognizeChart(node, ctx);
+      if (chart !== null) return chart;
+
       const pic = recognizeTikz(node, ctx);
       if (pic !== null) return pic;
     }

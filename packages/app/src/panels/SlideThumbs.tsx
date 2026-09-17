@@ -120,6 +120,8 @@ function ThumbBlock({
       return <div className="bp-thumb-toc" />;
     case 'bibliography':
       return <div className="bp-thumb-toc" />;
+    case 'chart':
+      return <div className="bp-thumb-chart" style={{ borderColor: accent }} />;
     case 'math':
       return <div className="bp-thumb-math" style={{ color: accent }}>∑</div>;
     case 'block':

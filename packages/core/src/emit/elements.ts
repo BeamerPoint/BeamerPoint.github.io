@@ -6,6 +6,7 @@ import type {
 import { roundMm } from '../geometry/paper.js';
 import { colorToTex, emitInline, isBlankRichText } from './inline.js';
 import { emitTikz } from './tikz.js';
+import { emitChart } from './chart.js';
 import type { TexWriter } from './writer.js';
 
 export interface EmitWarning {
@@ -38,7 +39,7 @@ export function emitElement(w: TexWriter, el: Element, ctx: EmitContext): void {
   // canvas — which draws it as a block — would be lying. Measured: 58mm to the right.
   // A tikzpicture is an inline box for the same reason a tabular is.
   const ownParagraph =
-    (el.kind === 'table' || el.kind === 'tikz' || el.kind === 'code')
+    (el.kind === 'table' || el.kind === 'tikz' || el.kind === 'code' || el.kind === 'chart')
     && el.placement.mode === 'flow';
 
   if (ownParagraph) w.blank();
@@ -179,6 +180,10 @@ function emitElementBody(w: TexWriter, el: Element, ctx: EmitContext): void {
       return;
     }
 
+    case 'chart':
+      emitChart(w, el);
+      return;
+
     case 'bibliography': {
       // `\bibliography` belongs in the BODY, where the list prints — it was never
       // emitted at all, so a deck with a bibliography style produced one BibTeX could
@@ -288,14 +293,19 @@ function emitElementBody(w: TexWriter, el: Element, ctx: EmitContext): void {
       return;
     }
 
-    default:
-      // Reached only if a model kind is added without an emitter. Never silently drop.
+    default: {
+      // Unreachable today, and TypeScript proves it: every `Element['kind']` has a case
+      // above, so `el` narrows to `never` here. Three kinds used to land in this arm and
+      // emit NOTHING -- a modelled element simply disappeared from the .tex. The cast
+      // keeps the runtime net for a kind added later without an emitter.
+      const added = el as Element;
       ctx.warn({
         code: 'emit.unimplemented',
-        message: `No emitter for element kind "${el.kind}"`,
-        nodeId: el.id,
+        message: `No emitter for element kind "${added.kind}"`,
+        nodeId: added.id,
       });
       return;
+    }
   }
 }
 

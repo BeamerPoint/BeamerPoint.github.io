@@ -8,7 +8,7 @@ import { SmartArtPicker } from '../panels/SmartArtPicker.js';
 import {
   IconBackward, IconBlock, IconBullets, IconCompile, IconDelete, IconDiagram,
   IconCode, IconEquation, IconExport, IconForward, IconGrid, IconGuides, IconImage,
-  IconOutline,
+  IconChart, IconOutline,
   IconNew, IconOpen, IconRedo, IconRuler, IconSave, IconShapes, IconSlideAdd,
   IconSmartArt, IconSnap, IconTable, IconText, IconTextBox, IconUndo,
 } from './icons.js';
@@ -122,6 +122,7 @@ export function Ribbon(props: Props): React.ReactElement {
   const addColumnsElement = useStore((s) => s.addColumnsElement);
   const addMathElement = useStore((s) => s.addMathElement);
   const addCodeElement = useStore((s) => s.addCodeElement);
+  const addChartElement = useStore((s) => s.addChartElement);
   const addOutlineSlide = useStore((s) => s.addOutlineSlide);
   const addTableElement = useStore((s) => s.addTableElement);
   const addTikzElement = useStore((s) => s.addTikzElement);
@@ -299,6 +300,13 @@ export function Ribbon(props: Props): React.ReactElement {
 
             <Group label="Symbols">
               <Big icon={<IconEquation size={20} />} label="Equation" disabled={noFrame} onClick={() => fid && addMathElement(fid)} />
+              <Big
+                icon={<IconChart size={20} />}
+                label="Chart"
+                title="A pgfplots chart with a small data grid"
+                disabled={noFrame}
+                onClick={() => fid && addChartElement(fid)}
+              />
               <Big
                 icon={<IconOutline size={20} />}
                 label="Outline"

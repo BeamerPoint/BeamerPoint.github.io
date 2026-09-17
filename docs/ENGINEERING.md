@@ -22,8 +22,8 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 | Source | Bidirectional round trip over the app's own subset; foreign LaTeX preserved verbatim as raw blocks |
 | Layout | Hybrid — idiomatic Beamer by default, absolute positioning when an element is dragged |
 | App shape | Local-first React/TS SPA, no server required |
-| Elements wanted | Text/lists, images, tables, math, TikZ shapes, code blocks |
-| Extras wanted | Speaker notes, sections + auto-outline, pgfplots charts, citations/bibliography |
+| Elements wanted | Text/lists, images, tables, math, TikZ shapes, code blocks — all done |
+| Extras wanted | Speaker notes, sections + auto-outline, pgfplots charts, citations/bibliography — all done |
 | Overlays | **Out of scope for v1** — no `\pause`, no `\onslide`, no animation UI. Preserved on import, never authored. |
 
 ## Commands
@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 215 tests
+npm test             # vitest, 228 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -342,6 +342,24 @@ by `margins.hMm` put it exactly underneath — Berkeley's "Frame title bar" rend
 "ne title bar". The title's left padding is `max(its own, sidebar + 1.5mm)`, and both the
 sidebar and that inset read one `sidebarMm` local so they cannot drift apart.
 
+**A chart's series point at their data by COLUMN INDEX.** Removing or reordering a
+column moves every series to its right, and getting that wrong plots the wrong numbers
+without crashing — it does not fail, it lies. `model/chartOps.ts` owns the remapping, in
+`core`, tested; the panel never touches indices itself. It is the same class of index
+fixing `shiftMerges` does for table merges.
+
+**Each chart series carries its own two columns, not the whole table.** Repeating the
+entire table per `\addplot` is what pgfplots examples do, and it puts the same numbers in
+the source three times for a three-series chart. Two columns each keeps it readable, and
+the parser rebuilds one table by requiring the x column to agree across plots — plots that
+disagree are not a table and decline to raw. `col sep=comma` so a column name may contain
+spaces; a TEXT x column additionally needs `symbolic x coords={...},xtick=data` or
+pgfplots reads the labels as numbers and plots nothing.
+
+**The chart recognizer must run BEFORE the TikZ one.** A chart IS a `tikzpicture`, so the
+drawing-canvas recognizer will happily claim it, and then the data grid has nothing to
+edit and the numbers are raw TikZ.
+
 **`\bibliography{...}` belongs in the BODY, and nothing was writing it.** The preamble
 carried a `bibliography: { files, style }` whose `files` the parser always set to `[]` and
 the emitter never read, and `BibliographyElement` — the thing that should own the files —
@@ -410,7 +428,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Twenty-nine commits on `master`, ~18,600 lines across 103 source files, 215 tests passing.
+Thirty commits on `master`, ~19,400 lines across 108 source files, 228 tests passing.
 
 ### Done
 
@@ -460,6 +478,9 @@ Twenty-nine commits on `master`, ~18,600 lines across 103 source files, 215 test
   equation, diagram, at any depth -- is selectable, draggable and resizable on the
   canvas. Dragging one out of the flow converts it to a free position at the place it
   was already drawn, and dragging one out of a block or a column lifts it onto the frame
+- **Charts**: pgfplots line, bar, horizontal-bar and scatter charts with a data grid
+  that takes a paste from a spreadsheet or a `.csv`, per-series marker, dash and label,
+  and axis labels, grid, legend and a log scale. Drawn on the canvas in SVG
 - **Citations**: attach a `.bib`, pick an entry from the list and cite it into the
   selected text box, and insert a references slide. BibTeX runs in the bundled engine, so
   the compiled PDF has the real reference list
@@ -484,15 +505,20 @@ Twenty-nine commits on `master`, ~18,600 lines across 103 source files, 215 test
 
 Roughly in the order the user and I agreed to tackle them:
 
-1. **pgfplots charts** — small data-table editor
-2. Rich text inside a diagram label, and multi-point polyline editing
-3. `\citep`/`\citet`/`\autocite` — they need natbib or biblatex, and stay raw inline
-   islands for now
+Everything the user and I agreed on is now done. What is left is smaller, and none of it
+has been asked for yet:
 
-⚠ `emitElementBody` still has no case for `chart`: it is modelled, it falls to `default:`
-and emits NOTHING but an `emit.unimplemented` warning. That is silent content loss, the
-`\titlegraphic` bug again, and item 1 closes the last of it. `code.spec.ts` has the
-regression test. (`toc` and `bibliography` were the other two and are now done.)
+1. Rich text inside a diagram label, and multi-point polyline editing
+2. `\citep`/`\citet`/`\autocite` — they need natbib or biblatex, and stay raw inline
+   islands for now
+3. Table row spans (`\multirow` is preserved on import but not modelled) and a per-table
+   font size (the emitter deliberately warns and drops `TableElement.fontSize`)
+
+**Every `Element['kind']` now has an emitter, and TypeScript proves it**: the `default:`
+arm of `emitElementBody` narrows `el` to `never`. Three kinds used to land there and emit
+NOTHING — `toc`, `bibliography` and `chart` — so a modelled element simply disappeared
+from the `.tex`. `code.spec.ts` keeps the regression test. If you add a kind, the compiler
+will not complain; the test will.
 
 Model types, and in several cases the emitter, already exist for all of these — check
 `packages/core/src/model/types.ts` before designing anything new.
@@ -509,7 +535,10 @@ Model types, and in several cases the emitter, already exist for all of these �
   numeric rather than draggable. Audited against the PDF at under 2.3mm horizontally
   (cumulative font-metric divergence, worst in the rightmost column) and under 1.9mm
   vertically
-- Diagrams have no rotation, no multi-point polyline editing after drawing, no grid
+- A chart on the canvas is a sketch of the real one: pgfplots chooses the ticks, the axis
+  limits and the label placement, so the shape and the colours are right and the exact
+  geometry is not. Unlike the rest of the canvas it has not been audited against the PDF
+- Diagrams have no multi-point polyline editing after drawing, no grid
   snapping of shapes, and no rich text inside a label. A label's on-canvas box is
   estimated from its character count, so hit-testing a label is approximate — the
   compiled position is not. Internal diagram geometry was measured at **0.00mm** against

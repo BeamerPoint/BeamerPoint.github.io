@@ -1168,3 +1168,51 @@ body.bp-dragging { user-select: none; }
 .bp-bibliography { display: flex; flex-direction: column; gap: calc(var(--bp-mm) * 1); }
 .bp-bibliography-mark { font-weight: 700; }
 .bp-bibliography-hint { font-size: 0.7em; opacity: 0.6; font-style: italic; }
+
+/* -------------------------------------------------------------------- charts */
+/*
+ * Drawn in the chart's own millimetres so the box matches the width= and height= the
+ * emitter writes. Strokes are non-scaling for the same reason the gridlines are: the page
+ * is CSS-scaled to about a third and a hairline rasterises unevenly at that scale.
+ */
+.bp-chart { display: block; overflow: visible; }
+.bp-chart line, .bp-chart polyline { vector-effect: non-scaling-stroke; }
+.bp-chart-grid line { stroke: rgba(0, 0, 0, 0.16); stroke-width: 0.5px; }
+.bp-chart-axes line { stroke-width: 1px; }
+.bp-chart-line { fill: none; stroke-width: 1.4px; }
+.bp-chart-text text { stroke: none; }
+
+.bp-thumb-chart {
+  height: 30px; margin: 4px 0;
+  border-left: 3px solid currentColor; border-bottom: 3px solid currentColor;
+  background:
+    linear-gradient(to top right, transparent 46%, rgba(0, 0, 0, 0.35) 46%,
+                    rgba(0, 0, 0, 0.35) 54%, transparent 54%);
+}
+
+/* The data grid: a chart is a table of numbers, so it is edited as one. */
+.bp-chart-grid { overflow: auto; max-height: 220px; border: 1px solid var(--bp-border); border-radius: 4px; }
+.bp-chart-grid table { border-collapse: collapse; width: 100%; }
+.bp-chart-grid th, .bp-chart-grid td { border: 1px solid var(--bp-border); padding: 0; }
+.bp-chart-grid thead th { background: var(--bp-hover); display: flex; align-items: center; }
+.bp-chart-grid thead tr { display: flex; }
+.bp-chart-grid tbody tr { display: flex; }
+.bp-chart-grid thead th:first-child, .bp-chart-grid tbody th { flex: 0 0 22px; }
+.bp-chart-grid thead th:not(:first-child), .bp-chart-grid td { flex: 1; min-width: 56px; }
+.bp-chart-grid input {
+  width: 100%; border: none; background: transparent;
+  font: inherit; font-size: 11.5px; padding: 3px 5px;
+}
+.bp-chart-grid input:focus { outline: none; background: var(--bp-accent-soft); }
+.bp-chart-grid thead input { font-weight: 600; }
+.bp-chart-grid button {
+  border: none; background: transparent; color: var(--bp-muted);
+  padding: 2px 4px; font-size: 11px; line-height: 1;
+}
+.bp-chart-grid button:hover:not(:disabled) { color: var(--bp-danger); }
+
+.bp-chart-series { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; }
+.bp-chart-series-label { flex: 1; min-width: 0; }
+.bp-chart-series select { width: auto; flex: 0 0 auto; }
+.bp-chart-series label { display: flex; align-items: center; gap: 2px; font-size: 11px; }
+.bp-chart-series label input { width: auto; }

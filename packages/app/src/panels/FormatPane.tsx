@@ -11,6 +11,7 @@ import { TableEditor } from './TableEditor.js';
 import { ShapeEditor } from './ShapeEditor.js';
 import { CodeEditor } from './CodeEditor.js';
 import { BibliographyPanel } from './BibliographyPanel.js';
+import { ChartEditor } from './ChartEditor.js';
 import { ArrangePane } from './ArrangePane.js';
 import { isTitlePageTex } from '../canvas/TitlePage.js';
 
@@ -122,6 +123,10 @@ export function FormatPane(): React.ReactElement {
 
         {selected?.kind === 'code' && frame !== undefined && (
           <CodeEditor el={selected} slideId={frame.id} locked={locked} />
+        )}
+
+        {selected?.kind === 'chart' && frame !== undefined && (
+          <ChartEditor el={selected} slideId={frame.id} locked={locked} />
         )}
 
         {selected?.kind === 'tikz' && frame !== undefined && (

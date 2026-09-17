@@ -109,6 +109,13 @@ export const IconBullets = (p: IconProps = {}): React.ReactElement => svg(
     <path d="M6.4 4.2h7M6.4 8h7M6.4 11.8h7" />
   </>, p);
 
+/** Axes with a rising line: a pgfplots chart. */
+export const IconChart = (p: IconProps = {}): React.ReactElement => svg(
+  <>
+    <path d="M2.6 2.4v11h11" />
+    <path d="M4.6 10.8l2.6-3.2 2.4 1.8 3.2-4.6" />
+  </>, p);
+
 /** A numbered outline: the deck's sections, as `	ableofcontents` prints them. */
 export const IconOutline = (p: IconProps = {}): React.ReactElement => svg(
   <>

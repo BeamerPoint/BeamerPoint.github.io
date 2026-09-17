@@ -5,7 +5,19 @@ import {
   newFrame,
   newListElement,
   newId,
+  newChartElement,
   newCodeElement,
+  // Aliased for the same reason the table ops are: a bare call inside a shorthand
+  // method of the same name reads as recursion even though it is not.
+  addChartColumn as addChartColumnOp,
+  addChartRow as addChartRowOp,
+  removeChartColumn as removeChartColumnOp,
+  removeChartRow as removeChartRowOp,
+  removeChartSeries as removeChartSeriesOp,
+  renameChartColumn as renameChartColumnOp,
+  replaceChartData as replaceChartDataOp,
+  setChartCell as setChartCellOp,
+  setChartSeries as setChartSeriesOp,
   newTocElement,
   newTableElement,
   newTikzElement,
@@ -38,6 +50,9 @@ import {
   isBlankRichText,
   richTextEquals,
   themeNeedsUnicodeEngine,
+  type AxisSpec,
+  type Cell,
+  type ChartElement,
   type CodeElement,
   type Deck,
   type DocNode,
@@ -53,6 +68,7 @@ import {
   type SourceMap,
   type ArrowHead,
   type ShapeOptionPatch,
+  type SeriesSpec,
   type ShapeTool,
   type SmartArtKind,
   type Color,
@@ -167,6 +183,24 @@ interface AppState {
   addImageElement(slideId: string, ref: ResourceRef): void;
   addMathElement(slideId: string): void;
   addCodeElement(slideId: string): void;
+  addChartElement(slideId: string): void;
+  setChartCell(
+    slideId: string, elementId: string, row: number, col: number, value: Cell,
+  ): void;
+  addChartRow(slideId: string, elementId: string): void;
+  removeChartRow(slideId: string, elementId: string, index: number): void;
+  addChartColumn(slideId: string, elementId: string): void;
+  removeChartColumn(slideId: string, elementId: string, index: number): void;
+  renameChartColumn(slideId: string, elementId: string, index: number, name: string): void;
+  setChartSeries(
+    slideId: string, elementId: string, seriesId: string,
+    patch: Partial<Omit<SeriesSpec, 'id'>>,
+  ): void;
+  removeChartSeries(slideId: string, elementId: string, seriesId: string): void;
+  replaceChartData(slideId: string, elementId: string, text: string): void;
+  setChartType(slideId: string, elementId: string, type: ChartElement['chartType']): void;
+  setChartAxis(slideId: string, elementId: string, patch: Partial<AxisSpec>): void;
+  setChartSize(slideId: string, elementId: string, wMm: number, hMm: number): void;
   setCodeText(slideId: string, elementId: string, code: string): void;
   setCodeLanguage(slideId: string, elementId: string, language: string): void;
   setCodeBackend(slideId: string, elementId: string, backend: CodeElement['backend']): void;
@@ -490,6 +524,13 @@ export const useStore = create<AppState>()((set, get) => {
     elementId: string,
     fn: (el: CodeElement) => CodeElement,
   ): Deck => mapElement(deck, slideId, elementId, (el) => (el.kind === 'code' ? fn(el) : el));
+
+  const mapChart = (
+    deck: Deck,
+    slideId: string,
+    elementId: string,
+    fn: (el: ChartElement) => ChartElement,
+  ): Deck => mapElement(deck, slideId, elementId, (el) => (el.kind === 'chart' ? fn(el) : el));
 
   const mapTikz = (
     deck: Deck,
@@ -1000,6 +1041,80 @@ export const useStore = create<AppState>()((set, get) => {
       const el = newCodeElement();
       mutate((deck) => mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, el] })));
       set({ selection: { slideId, elementId: el.id } });
+    },
+
+    addChartElement(slideId) {
+      const el = newChartElement();
+      mutate((deck) => mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, el] })));
+      set({ selection: { slideId, elementId: el.id } });
+    },
+
+    setChartCell(slideId, elementId, row, col, value) {
+      mutate((deck) => mapChart(deck, slideId, elementId, (el) =>
+        setChartCellOp(el, row, col, value)));
+    },
+
+    addChartRow(slideId, elementId) {
+      mutate((deck) => mapChart(deck, slideId, elementId, (el) => addChartRowOp(el)));
+    },
+
+    removeChartRow(slideId, elementId, index) {
+      mutate((deck) => mapChart(deck, slideId, elementId, (el) =>
+        removeChartRowOp(el, index)));
+    },
+
+    addChartColumn(slideId, elementId) {
+      mutate((deck) => mapChart(deck, slideId, elementId, (el) => addChartColumnOp(el)));
+    },
+
+    removeChartColumn(slideId, elementId, index) {
+      mutate((deck) => mapChart(deck, slideId, elementId, (el) =>
+        removeChartColumnOp(el, index)));
+    },
+
+    renameChartColumn(slideId, elementId, index, name) {
+      mutate((deck) => mapChart(deck, slideId, elementId, (el) =>
+        renameChartColumnOp(el, index, name)));
+    },
+
+    setChartSeries(slideId, elementId, seriesId, patch) {
+      mutate((deck) => mapChart(deck, slideId, elementId, (el) =>
+        setChartSeriesOp(el, seriesId, patch)));
+    },
+
+    removeChartSeries(slideId, elementId, seriesId) {
+      mutate((deck) => mapChart(deck, slideId, elementId, (el) =>
+        removeChartSeriesOp(el, seriesId)));
+    },
+
+    replaceChartData(slideId, elementId, text) {
+      mutate((deck) => mapChart(deck, slideId, elementId, (el) =>
+        replaceChartDataOp(el, text)));
+    },
+
+    setChartType(slideId, elementId, chartType) {
+      mutate((deck) => mapChart(deck, slideId, elementId, (el) => ({ ...el, chartType })));
+    },
+
+    /** `undefined` in the patch clears the field, so a limit can be removed. */
+    setChartAxis(slideId, elementId, patch) {
+      mutate((deck) => mapChart(deck, slideId, elementId, (el) => {
+        const axis = { ...el.axis, ...patch };
+        for (const [k, v] of Object.entries(patch)) {
+          if (v === undefined) delete (axis as Record<string, unknown>)[k];
+        }
+        return { ...el, axis };
+      }));
+    },
+
+    setChartSize(slideId, elementId, wMm, hMm) {
+      mutate((deck) => mapChart(deck, slideId, elementId, (el) => ({
+        ...el,
+        size: {
+          w: { v: Math.max(20, Math.round(wMm)), u: 'mm' },
+          h: { v: Math.max(20, Math.round(hMm)), u: 'mm' },
+        },
+      })));
     },
 
     addTableElement(slideId) {

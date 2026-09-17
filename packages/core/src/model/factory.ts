@@ -10,6 +10,7 @@ import type {
   TableColumn,
   TableElement,
   TableRow,
+  ChartElement,
   TikzElement,
   TextElement,
   TocElement,
@@ -142,6 +143,37 @@ export function newCodeElement(
     language,
     code,
     options: {},
+  };
+}
+
+/**
+ * A chart with a small sample table.
+ *
+ * Two series so the legend and the per-series styling are visible straight away, and a
+ * numeric x column so the default line chart plots something sensible.
+ */
+export function newChartElement(): ChartElement {
+  const columns = ['Year', 'Sales', 'Costs'];
+  return {
+    id: newId(),
+    kind: 'chart',
+    placement: { mode: 'flow' },
+    chartType: 'line',
+    data: {
+      columns,
+      rows: [
+        [2021, 3, 2],
+        [2022, 5, 4],
+        [2023, 4, 6],
+        [2024, 8, 5],
+      ],
+    },
+    series: [
+      { id: newId(), xCol: 0, yCol: 1, label: 'Sales' },
+      { id: newId(), xCol: 0, yCol: 2, label: 'Costs' },
+    ],
+    axis: { grid: 'major', xLabel: 'Year', legendPos: 'north west' },
+    size: { w: { v: 90, u: 'mm' }, h: { v: 50, u: 'mm' } },
   };
 }
 
