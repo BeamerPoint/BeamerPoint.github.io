@@ -40,6 +40,8 @@ export function App(): React.ReactElement {
 
   const overlayMode = useStore((s) => s.overlayMode);
   const nudgeImageWidth = useStore((s) => s.nudgeImageWidth);
+  const beginGesture = useStore((s) => s.beginGesture);
+  const endGesture = useStore((s) => s.endGesture);
   const setCodeText = useStore((s) => s.setCodeText);
   const moveElementBy = useStore((s) => s.moveElementBy);
   const resizeElementBy = useStore((s) => s.resizeElementBy);
@@ -259,6 +261,8 @@ export function App(): React.ReactElement {
             onTrimImage={(elementId, trim) => {
               if (selection.slideId !== null) setImageTrim(selection.slideId, elementId, trim);
             }}
+            onDragStart={beginGesture}
+            onDragEnd={endGesture}
           />
 
           <NotesPane />

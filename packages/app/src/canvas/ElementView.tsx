@@ -41,6 +41,9 @@ interface Props {
   onResizeElement(elementId: string, dxMm: number, dyMm: number, grip: ResizeGrip): void;
   onMoveElement(elementId: string, dxMm: number, dyMm: number): void;
   onTrimImage(elementId: string, trim: import('@beamerpoint/core').ImageTrim): void;
+  /** Bracket a pointer drag, so the whole gesture is one undo entry. */
+  onDragStart(): void;
+  onDragEnd(): void;
 }
 
 /** Kinds whose whole interior can be grabbed, because nothing inside is typed into. */
@@ -122,11 +125,18 @@ export function ElementView(props: Props): React.ReactElement {
           canResizeHeight={HEIGHT_KINDS.has(el.kind)}
           grabWholeBody={SOLID_KINDS.has(el.kind)}
           sizeMm={rect === undefined ? null : { w: rect.w, h: rect.h }}
+          onDragStart={props.onDragStart}
+          onDragEnd={props.onDragEnd}
           onResize={(dxMm, dyMm, grip) => {
             // An image in the flow is sized as a fraction of the text column and stays
             // there; everything else resizes as a box, which lifts it out of the flow.
-            if (el.kind === 'image' && el.placement.mode === 'flow') {
-              props.onResizeImage(el.id, dxMm, dxMm / bodyWidthMm);
+            // Only the canvas knows the column width, which is why the conversion is
+            // here and the top and bottom grips go to the store like everything else.
+            const sideways = grip.includes('e') || grip.includes('w');
+            if (el.kind === 'image' && el.placement.mode === 'flow' && sideways) {
+              // A west grip pulls the LEFT edge, so dragging it right narrows the box.
+              const dw = grip.includes('w') ? -dxMm : dxMm;
+              props.onResizeImage(el.id, dw, dw / bodyWidthMm);
             } else {
               props.onResizeElement(el.id, dxMm, dyMm, grip);
             }
@@ -167,16 +177,23 @@ function Body(props: Props): React.ReactElement {
       // `block.shape` was declared and never read, so metropolis' flat blocks still
       // drew a rounded filled bar. An empty block also had no height at all: nothing
       // to see and nothing to grab.
+      // The rounding lives on the title and the body rather than on a clipping wrapper:
+      // `overflow: hidden` here also clipped the resize handles of everything nested
+      // inside, which straddle their element's edge.
+      const radius = theme.block.radiusMm * PX_PER_MM;
       return (
         <div
           className={`bp-block bp-block-${theme.block.shape}${
             el.children.length === 0 ? ' is-empty' : ''}`}
-          style={{ borderRadius: `${theme.block.radiusMm * PX_PER_MM}px` }}
         >
           {el.title !== undefined && (
             <div
               className="bp-block-title"
-              style={{ background: style.titleBg, color: style.titleFg }}
+              style={{
+                background: style.titleBg,
+                color: style.titleFg,
+                borderRadius: `${radius}px ${radius}px 0 0`,
+              }}
             >
               <InlineText content={el.title} />
             </div>
@@ -186,6 +203,9 @@ function Body(props: Props): React.ReactElement {
             style={{
               background: style.bodyBg,
               color: style.bodyFg,
+              borderRadius: el.title === undefined
+                ? `${radius}px`
+                : `0 0 ${radius}px ${radius}px`,
               // Measured: beamer's block body is flush with the text margin, not inset.
               padding: `${theme.block.paddingMm * 0.7 * PX_PER_MM}px 0`,
             }}
@@ -356,6 +376,8 @@ function TikzBody({
   const moveShape = useStore((s) => s.moveShape);
   const resizeShape = useStore((s) => s.resizeShape);
   const moveShapeEndpoint = useStore((s) => s.moveShapeEndpoint);
+  const beginGesture = useStore((s) => s.beginGesture);
+  const endGesture = useStore((s) => s.endGesture);
 
   if (el.mode === 'raw') {
     return (
@@ -379,9 +401,11 @@ function TikzBody({
       onSelectShape={selectShape}
       onDrawShape={(drag) => drawShape(slideId, el.id, drag)}
       onMoveShape={(id, dx, dy) => moveShape(slideId, el.id, id, dx, dy)}
-      onResizeShape={(id, dw, dh) => resizeShape(slideId, el.id, id, dw, dh)}
+      onResizeShape={(id, dw, dh, corner) => resizeShape(slideId, el.id, id, dw, dh, corner)}
       onMoveEndpoint={(id, which, point, over) =>
         moveShapeEndpoint(slideId, el.id, id, which, point, over)}
+      onDragStart={beginGesture}
+      onDragEnd={endGesture}
     />
   );
 }

@@ -67,6 +67,7 @@ import {
   type SectionNode,
   type SourceMap,
   type ArrowHead,
+  type ShapeCorner,
   type ShapeOptionPatch,
   type SeriesSpec,
   type ShapeTool,
@@ -239,7 +240,10 @@ interface AppState {
   drawShape(slideId: string, elementId: string, drag: ShapeDrag): void;
   deleteShape(slideId: string, elementId: string, shapeId: string): void;
   moveShape(slideId: string, elementId: string, shapeId: string, dx: number, dy: number): void;
-  resizeShape(slideId: string, elementId: string, shapeId: string, dw: number, dh: number): void;
+  resizeShape(
+    slideId: string, elementId: string, shapeId: string,
+    dw: number, dh: number, corner: ShapeCorner,
+  ): void;
   moveShapeEndpoint(
     slideId: string, elementId: string, shapeId: string, which: 'from' | 'to',
     point: { x: number; y: number },
@@ -260,6 +264,12 @@ interface AppState {
   setImageAlign(slideId: string, elementId: string, align: 'left' | 'center' | 'right'): void;
   setImageTrim(slideId: string, elementId: string, trim: ImageTrim | null): void;
   nudgeImageWidth(slideId: string, elementId: string, deltaMm: number, deltaFraction: number): void;
+  /**
+   * Bracket a pointer drag: one undo entry for the whole gesture, and an accumulator
+   * that is not re-snapped on every move. Every canvas drag calls both.
+   */
+  beginGesture(): void;
+  endGesture(): void;
   moveElementBy(slideId: string, elementId: string, dxMm: number, dyMm: number): void;
   resizeElementBy(
     slideId: string, elementId: string, dxMm: number, dyMm: number, grip: ResizeGrip,
@@ -323,6 +333,32 @@ export const measuredRects = new Map<string, MeasuredRect>();
 
 export interface MeasuredRect { x: number; y: number; w: number; h: number }
 
+/**
+ * The pointer gesture in progress, if any.
+ *
+ * Two things a drag needs that per-move state cannot give it:
+ *
+ * 1. **One undo entry.** `base` is the deck as it was before the first pointermove;
+ *    `mutate` pushes nothing while this is set.
+ * 2. **Raw, unsnapped accumulation.** Snapping used to be applied to the stored value
+ *    on every move, and the next move then started from the snapped number — so once a
+ *    box touched a guide it could not be pulled off it, because no single move exceeds
+ *    the 1.5mm tolerance. The gesture keeps the true position and snapping is a
+ *    presentation of it.
+ *
+ * Deliberately module-level rather than React state: it changes many times per frame
+ * and nothing renders from it.
+ */
+interface Gesture {
+  base: Deck;
+  /** Raw box of the element being dragged; `h` is its height where one is emitted. */
+  box: MeasuredRect | null;
+  /** Raw \textwidth fraction, for a picture still in the text flow. */
+  frac: number | null;
+}
+
+let gesture: Gesture | null = null;
+
 /** Smallest box a drag may leave behind, so an element can never be lost. */
 const MIN_BOX_MM = 5;
 
@@ -337,6 +373,36 @@ const FALLBACK_RECT: MeasuredRect = { x: 20, y: 30, w: 80, h: 20 };
 
 /** Which corner or edge a resize is pulling. */
 export type ResizeGrip = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+
+/** One decimal of a millimetre, which is the precision the emitter writes. */
+const round1 = (n: number): number => Math.round(n * 10) / 10;
+
+/** The height LaTeX has actually been told about, where there is one. */
+function elementHeightMm(el: Element, measured: MeasuredRect): number {
+  if (el.kind === 'image' && el.height?.u === 'mm') return el.height.v;
+  if (el.kind === 'tikz' && el.mode !== 'raw') return el.canvasSize.h;
+  if (el.kind === 'chart' && el.size.h.u === 'mm') return el.size.h.v;
+  return measured.h;
+}
+
+/**
+ * The raw box a drag accumulates into.
+ *
+ * Inside a gesture this is ONE object for the whole drag, so pointer deltas add up at
+ * full precision and snapping never feeds back into the next move. Outside a gesture —
+ * the Arrange pane's numeric fields, the tests — it is read fresh from the element
+ * every time, which is what those callers expect.
+ */
+function gestureBox(el: Element, elementId: string): MeasuredRect {
+  if (gesture !== null && gesture.box !== null) return gesture.box;
+  const measured = measuredRects.get(elementId) ?? FALLBACK_RECT;
+  const h = elementHeightMm(el, measured);
+  const box: MeasuredRect = el.placement.mode === 'absolute'
+    ? { x: el.placement.x, y: el.placement.y, w: el.placement.w, h }
+    : { x: measured.x, y: measured.y, w: measured.w, h };
+  if (gesture !== null) gesture.box = box;
+  return box;
+}
 
 /**
  * Where a section's block of nodes starts and ends.
@@ -497,7 +563,14 @@ const initialDeck = makeDeck({ title: 'Untitled Presentation' });
 const initialSource = regenerate(initialDeck);
 
 export const useStore = create<AppState>()((set, get) => {
-  /** Apply a deck mutation, push undo, and keep the source panel in sync. */
+  /**
+   * Apply a deck mutation, push undo, and keep the source panel in sync.
+   *
+   * During a pointer gesture no undo entry is pushed: `beginGesture` recorded the deck
+   * as it was before the drag, and that one entry is the whole gesture. Pushing per
+   * pointermove buried the 100-deep stack under a single drag, so one Ctrl+Z after
+   * resizing a box undid a couple of pixels of it.
+   */
   const mutate = (fn: (deck: Deck) => Deck): void => {
     const state = get();
     if (state.source.status !== 'synced') return; // canvas is locked
@@ -507,7 +580,9 @@ export const useStore = create<AppState>()((set, get) => {
       deck: next,
       sourceMap: regen.sourceMap,
       source: { ...state.source, text: regen.text, baseText: regen.text },
-      history: { past: [...state.history.past, state.deck].slice(-100), future: [] },
+      history: gesture !== null
+        ? state.history
+        : { past: [...state.history.past, state.deck].slice(-100), future: [] },
     });
   };
 
@@ -1271,9 +1346,9 @@ export const useStore = create<AppState>()((set, get) => {
       mutate((deck) => mapTikz(deck, slideId, elementId, (el) => moveShapeOp(el, shapeId, dx, dy)));
     },
 
-    resizeShape(slideId, elementId, shapeId, dw, dh) {
+    resizeShape(slideId, elementId, shapeId, dw, dh, corner) {
       mutate((deck) =>
-        mapTikz(deck, slideId, elementId, (el) => resizeShapeOp(el, shapeId, dw, dh)));
+        mapTikz(deck, slideId, elementId, (el) => resizeShapeOp(el, shapeId, dw, dh, corner)));
     },
 
     moveShapeEndpoint(slideId, elementId, shapeId, which, point, over) {
@@ -1443,16 +1518,45 @@ export const useStore = create<AppState>()((set, get) => {
 
       if (el.kind !== 'image') return;
 
-      // In flow: width is a fraction of the text column.
-      const current = el.width?.v ?? 0.6;
+      /*
+       * In flow: width is a fraction of the text column.
+       *
+       * Three decimals, not two. A hundredth of the text column is about 1.4mm on the
+       * slide and under three screen pixels at the usual zoom, so at two decimals every
+       * small drag rounded straight back to where it started and the picture simply did
+       * not move. The emitter prints the fraction as given.
+       */
+      const current = gesture !== null && gesture.frac !== null
+        ? gesture.frac
+        : el.width?.v ?? 0.6;
       const next = Math.min(1, Math.max(0.05, current + deltaFraction));
+      if (gesture !== null) gesture.frac = next;
       mutate((deck) =>
         mapElement(deck, slideId, elementId, (e) =>
           e.kind === 'image'
-            ? { ...e, width: { v: Math.round(next * 100) / 100, u: 'textwidth' } }
+            ? { ...e, width: { v: Math.round(next * 1000) / 1000, u: 'textwidth' } }
             : e,
         ),
       );
+    },
+
+    beginGesture() {
+      const state = get();
+      if (state.source.status !== 'synced') return;
+      gesture = { base: state.deck, box: null, frac: null };
+      set({ history: { past: [...state.history.past, state.deck].slice(-100), future: [] } });
+    },
+
+    endGesture() {
+      const g = gesture;
+      gesture = null;
+      if (g === null) return;
+      // A click that never moved is not an edit. Take the entry back off the stack
+      // rather than making every stray click on a handle cost an undo.
+      const state = get();
+      if (state.deck === g.base && state.history.past.at(-1) === g.base) {
+        set({ history: { ...state.history, past: state.history.past.slice(0, -1) } });
+      }
     },
 
     /**
@@ -1467,6 +1571,9 @@ export const useStore = create<AppState>()((set, get) => {
       if (el === undefined) return;
 
       const aids = get().aids;
+      const box = gestureBox(el, elementId);
+      box.x += dxMm;
+      box.y += dyMm;
 
       if (el.placement.mode === 'absolute') {
         const p = el.placement;
@@ -1475,23 +1582,22 @@ export const useStore = create<AppState>()((set, get) => {
             ...e,
             placement: {
               ...p,
-              x: snapMm(Math.round((p.x + dxMm) * 10) / 10, aids, 'v'),
-              y: snapMm(Math.round((p.y + dyMm) * 10) / 10, aids, 'h'),
+              x: snapMm(round1(box.x), aids, 'v'),
+              y: snapMm(round1(box.y), aids, 'h'),
             },
           })),
         );
         return;
       }
 
-      const start = measuredRects.get(elementId) ?? FALLBACK_RECT;
       mutate((deck) =>
         mapElement(liftToFrame(deck, slideId, elementId), slideId, elementId, (e) => ({
           ...e,
           placement: {
             mode: 'absolute',
-            x: snapMm(Math.round((start.x + dxMm) * 10) / 10, aids, 'v'),
-            y: snapMm(Math.round((start.y + dyMm) * 10) / 10, aids, 'h'),
-            w: Math.round(start.w * 10) / 10,
+            x: snapMm(round1(box.x), aids, 'v'),
+            y: snapMm(round1(box.y), aids, 'h'),
+            w: round1(box.w),
             z: 0,
             driver: 'textpos',
           },
@@ -1520,24 +1626,50 @@ export const useStore = create<AppState>()((set, get) => {
     resizeElementBy(slideId, elementId, dxMm, dyMm, grip) {
       const el = findElement(get().deck, slideId, elementId);
       if (el === undefined) return;
-      if (el.placement.mode === 'flow' && el.kind === 'image') return;
 
-      const hasHeight = el.kind === 'image' || el.kind === 'tikz';
-      const base = el.placement.mode === 'absolute'
-        ? { x: el.placement.x, y: el.placement.y, w: el.placement.w }
-        : measuredRects.get(elementId) ?? FALLBACK_RECT;
-
-      let { x, y, w } = base;
-      if (grip.includes('e')) w += dxMm;
-      if (grip.includes('w')) { x += dxMm; w -= dxMm; }
-      if (w < MIN_BOX_MM) {
-        // Refuse to invert: hold the edge that is NOT being dragged where it is.
-        if (grip.includes('w')) x = base.x + base.w - MIN_BOX_MM;
-        w = MIN_BOX_MM;
+      /*
+       * A picture still in the text flow is the one element that resizes without being
+       * lifted out of it: its width is a \textwidth fraction, which the canvas applies
+       * through `nudgeImageWidth` because only the canvas knows the column width. What
+       * is left here is `height=`, which is legal in the flow too.
+       */
+      if (el.placement.mode === 'flow' && el.kind === 'image') {
+        if (grip !== 'n' && grip !== 's') return;
+        const flowBox = gestureBox(el, elementId);
+        flowBox.h += grip === 'n' ? -dyMm : dyMm;
+        const flowH = Math.max(MIN_BOX_MM, round1(flowBox.h));
+        mutate((deck) =>
+          mapElement(deck, slideId, elementId, (e) =>
+            e.kind === 'image' ? { ...e, height: { v: flowH, u: 'mm' } } : e,
+          ),
+        );
+        return;
       }
-      if (hasHeight && grip.includes('n')) y += dyMm;
 
-      const round = (n: number): number => Math.round(n * 10) / 10;
+      // Only these three have a height LaTeX can be told about: `height=` on an image,
+      // the canvas of a diagram, and `height=` on a chart's axis. `Placement.h` is
+      // emitted by nothing, so a height stored there is a control that does nothing.
+      const hasHeight = el.kind === 'image' || el.kind === 'tikz' || el.kind === 'chart';
+      const box = gestureBox(el, elementId);
+      const before = { ...box };
+
+      if (grip.includes('e')) box.w += dxMm;
+      if (grip.includes('w')) { box.x += dxMm; box.w -= dxMm; }
+      if (box.w < MIN_BOX_MM) {
+        // Refuse to invert: hold the edge that is NOT being dragged where it is.
+        if (grip.includes('w')) box.x = before.x + before.w - MIN_BOX_MM;
+        box.w = MIN_BOX_MM;
+      }
+
+      if (hasHeight && (grip.includes('n') || grip.includes('s'))) {
+        if (grip.includes('n')) { box.y += dyMm; box.h -= dyMm; }
+        else box.h += dyMm;
+        if (box.h < MIN_BOX_MM) {
+          if (grip.includes('n')) box.y = before.y + before.h - MIN_BOX_MM;
+          box.h = MIN_BOX_MM;
+        }
+      }
+
       const aids = get().aids;
       mutate((deck) =>
         mapElement(liftToFrame(deck, slideId, elementId), slideId, elementId, (e) => ({
@@ -1545,32 +1677,43 @@ export const useStore = create<AppState>()((set, get) => {
           placement: {
             ...(e.placement.mode === 'absolute' ? e.placement : {}),
             mode: 'absolute',
-            x: snapMm(round(x), aids, 'v'),
-            y: snapMm(round(y), aids, 'h'),
-            w: round(w),
+            x: snapMm(round1(box.x), aids, 'v'),
+            y: snapMm(round1(box.y), aids, 'h'),
+            w: round1(box.w),
             z: e.placement.mode === 'absolute' ? e.placement.z : 0,
             driver: 'textpos',
           },
         })),
       );
 
-      if (!hasHeight || dyMm === 0 || !(grip.includes('n') || grip.includes('s'))) return;
-      const dh = grip.includes('n') ? -dyMm : dyMm;
+      const w = Math.max(MIN_BOX_MM, round1(box.w));
+      const h = Math.max(MIN_BOX_MM, round1(box.h));
+      const wide = grip.includes('e') || grip.includes('w');
+      const tall = hasHeight && (grip.includes('n') || grip.includes('s'));
 
-      if (el.kind === 'image') {
-        const current = el.height?.u === 'mm'
-          ? el.height.v
-          : measuredRects.get(elementId)?.h ?? MIN_BOX_MM;
-        const next = Math.max(MIN_BOX_MM, round(current + dh));
+      // A diagram and a chart draw themselves at their OWN size, so a placement box
+      // that does not carry the new width back to them resizes an empty container and
+      // leaves the picture exactly as it was.
+      if (el.kind === 'tikz' && el.mode !== 'raw') {
+        mutate((deck) =>
+          mapTikz(deck, slideId, elementId, (e) =>
+            setCanvasSize(e, wide ? w : e.canvasSize.w, tall ? h : e.canvasSize.h)),
+        );
+      } else if (el.kind === 'chart') {
+        mutate((deck) =>
+          mapChart(deck, slideId, elementId, (e) => ({
+            ...e,
+            size: {
+              w: wide ? { v: w, u: 'mm' } : e.size.w,
+              h: tall ? { v: h, u: 'mm' } : e.size.h,
+            },
+          })),
+        );
+      } else if (el.kind === 'image' && tall) {
         mutate((deck) =>
           mapElement(deck, slideId, elementId, (e) =>
-            e.kind === 'image' ? { ...e, height: { v: next, u: 'mm' } } : e,
+            e.kind === 'image' ? { ...e, height: { v: h, u: 'mm' } } : e,
           ),
-        );
-      } else if (el.kind === 'tikz' && el.mode !== 'raw') {
-        const h = Math.max(MIN_BOX_MM, round(el.canvasSize.h + dh));
-        mutate((deck) =>
-          mapTikz(deck, slideId, elementId, (e) => setCanvasSize(e, e.canvasSize.w, h)),
         );
       }
     },
@@ -1603,8 +1746,7 @@ export const useStore = create<AppState>()((set, get) => {
     /**
      * Rotate a freely-placed element.
      *
-     * `Placement.rotate` was modelled and emitted as `
-otatebox` all along, with no
+     * `Placement.rotate` was modelled and emitted as `\rotatebox` all along, with no
      * control anywhere to set it. Zero removes the wrapper rather than emitting a
      * rotation of nothing.
      */

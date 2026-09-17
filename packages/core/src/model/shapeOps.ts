@@ -183,21 +183,76 @@ export function moveShape(el: TikzElement, shapeId: string, dx: Mm, dy: Mm): Tik
   });
 }
 
-/** Resize by dragging a corner: `dw`/`dh` are deltas on the shape's own box. */
-export function resizeShape(el: TikzElement, shapeId: string, dw: Mm, dh: Mm): TikzElement {
+/** Which corner of a shape's box is being pulled; the opposite one stays put. */
+export type ShapeCorner = 'nw' | 'ne' | 'sw' | 'se';
+
+/** Smallest box a shape may be dragged down to, so it cannot be lost or inverted. */
+const MIN_SHAPE_MM = 2;
+
+/**
+ * Resize by dragging a corner.
+ *
+ * `dw`/`dh` are the POINTER's movement, as they are for an element: the corner says
+ * what that means, and the corner diagonally opposite it is the anchor. Dragging the
+ * north-west corner of a box therefore moves its top-left and leaves its bottom-right
+ * exactly where it was, which is what every drawing program does and what one SE-only
+ * handle could never express.
+ *
+ * A polygon is resized by scaling its point list inside the new box, so the canvas and
+ * the emitted `\draw` stay the same numbers — the reason `polygons.ts` writes explicit
+ * points rather than asking TikZ's shape library for a size it does not honour.
+ */
+export function resizeShape(
+  el: TikzElement,
+  shapeId: string,
+  dw: Mm,
+  dh: Mm,
+  corner: ShapeCorner = 'se',
+): TikzElement {
   return mapShape(el, shapeId, (s) => {
-    if (s.t === 'rect') {
-      return { ...s, w: Math.max(2, roundMm(s.w + dw)), h: Math.max(2, roundMm(s.h + dh)) };
+    // An arrow or a two-point line is resized by dragging its endpoints, and a text
+    // node is sized by its text — TikZ measures it, so there is no box to pull.
+    if (s.t === 'arrow' || s.t === 'node') return s;
+    if (s.t === 'path' && s.points.length < 3) return s;
+
+    const from = shapeBounds(s);
+    if (from === null || from.w <= 0 || from.h <= 0) return s;
+
+    let { x, y, w, h } = from;
+    if (corner.includes('e')) w += dw; else { x += dw; w -= dw; }
+    if (corner.includes('s')) h += dh; else { y += dh; h -= dh; }
+    if (w < MIN_SHAPE_MM) {
+      if (corner.includes('w')) x = from.x + from.w - MIN_SHAPE_MM;
+      w = MIN_SHAPE_MM;
     }
-    if (s.t === 'ellipse') {
-      return {
-        ...s,
-        rx: Math.max(1, roundMm(s.rx + dw / 2)),
-        ry: Math.max(1, roundMm(s.ry + dh / 2)),
-      };
+    if (h < MIN_SHAPE_MM) {
+      if (corner.includes('n')) y = from.y + from.h - MIN_SHAPE_MM;
+      h = MIN_SHAPE_MM;
     }
-    // A line or an arrow is resized by dragging its endpoint, not a corner.
-    return s;
+
+    switch (s.t) {
+      case 'rect':
+        return { ...s, x: roundMm(x), y: roundMm(y), w: roundMm(w), h: roundMm(h) };
+      case 'ellipse':
+        return {
+          ...s,
+          cx: roundMm(x + w / 2), cy: roundMm(y + h / 2),
+          rx: roundMm(w / 2), ry: roundMm(h / 2),
+        };
+      case 'path': {
+        const sx = w / from.w;
+        const sy = h / from.h;
+        return {
+          ...s,
+          points: s.points.map(([px, py]) => [
+            roundMm(x + (px - from.x) * sx),
+            roundMm(y + (py - from.y) * sy),
+          ] as [Mm, Mm]),
+        };
+      }
+      default:
+        return s;
+    }
   });
 }
 

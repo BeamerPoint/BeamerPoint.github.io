@@ -178,7 +178,7 @@ export function newChartElement(): ChartElement {
 }
 
 /**
- * An outline slide's `	ableofcontents`.
+ * An outline slide's `\tableofcontents`.
  *
  * Beamer builds the list from the deck's sections, so the element carries only the
  * option group -- `[currentsection]` and friends -- and nothing to type.

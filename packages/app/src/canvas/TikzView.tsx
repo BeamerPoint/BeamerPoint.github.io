@@ -6,6 +6,7 @@ import {
   shapeBounds,
   type Anchor,
   type Mm,
+  type ShapeCorner,
   type ShapeTool,
   type ThemeSpec,
   type TikzElement,
@@ -14,6 +15,7 @@ import {
 } from '@beamerpoint/core';
 import { colorToCss } from './shapeColors.js';
 import { useCanvasGeometry } from './CanvasContext.js';
+import { startPointerDrag } from './pointerDrag.js';
 
 export interface ShapeDrag {
   tool: ShapeTool;
@@ -33,13 +35,16 @@ interface Props {
   onSelectShape(shapeId: string | null): void;
   onDrawShape(drag: ShapeDrag): void;
   onMoveShape(shapeId: string, dx: Mm, dy: Mm): void;
-  onResizeShape(shapeId: string, dw: Mm, dh: Mm): void;
+  onResizeShape(shapeId: string, dw: Mm, dh: Mm, corner: ShapeCorner): void;
   onMoveEndpoint(
     shapeId: string,
     which: 'from' | 'to',
     point: { x: Mm; y: Mm },
     over: { shapeId: string; side: 'n' | 's' | 'e' | 'w' | 'center' } | null,
   ): void;
+  /** Bracket a pointer drag, so the whole gesture is one undo entry. */
+  onDragStart(): void;
+  onDragEnd(): void;
 }
 
 /**
@@ -137,12 +142,6 @@ export function TikzView(props: Props): React.ReactElement {
   const { scale } = useCanvasGeometry();
   const svgRef = useRef<SVGSVGElement>(null);
   const [draft, setDraft] = useState<ShapeDrag | null>(null);
-  const drag = useRef<
-    | { k: 'move'; id: string; x: number; y: number }
-    | { k: 'resize'; id: string; x: number; y: number }
-    | { k: 'end'; id: string; which: 'from' | 'to' }
-    | null
-  >(null);
 
   const shapes = el.shapes ?? [];
   const { w, h } = el.canvasSize;
@@ -191,26 +190,7 @@ export function TikzView(props: Props): React.ReactElement {
   };
 
   const onPointerMove = (e: React.PointerEvent): void => {
-    if (draft !== null) { setDraft({ ...draft, to: mmAt(e) }); return; }
-
-    const d = drag.current;
-    if (d === null) return;
-    const p = mmAt(e);
-
-    if (d.k === 'end') {
-      const over = hitTest(p, d.id);
-      props.onMoveEndpoint(
-        d.id, d.which, p,
-        over === null ? null : { shapeId: over.id, side: nearestSide(over, p) },
-      );
-      return;
-    }
-
-    const dx = (e.clientX - d.x) / (PX_PER_MM * scale);
-    const dy = (e.clientY - d.y) / (PX_PER_MM * scale);
-    drag.current = { ...d, x: e.clientX, y: e.clientY };
-    if (d.k === 'move') props.onMoveShape(d.id, dx, dy);
-    else props.onResizeShape(d.id, dx, dy);
+    if (draft !== null) setDraft({ ...draft, to: mmAt(e) });
   };
 
   const onPointerUp = (e: React.PointerEvent): void => {
@@ -220,21 +200,59 @@ export function TikzView(props: Props): React.ReactElement {
       if (moved || draft.tool === 'text') props.onDrawShape(draft);
       setDraft(null);
     }
-    drag.current = null;
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
   };
 
-  const startDrag = (
-    d: NonNullable<typeof drag.current>,
-  ) => (e: React.PointerEvent): void => {
+  /** Pointer millimetres per screen pixel. */
+  const perPx = 1 / (PX_PER_MM * scale);
+
+  /**
+   * Drag an existing shape.
+   *
+   * On `window`, not on the handle: moving or resizing a shape re-renders it, and the
+   * handle the gesture started on is a different node afterwards. The origin is taken
+   * HERE, at pointer-down — `onResizeDown` used to be built during render with
+   * `{ x: 0, y: 0 }`, so the first move of a resize measured from the screen's corner
+   * and asked for about 160mm of extra width in a single frame.
+   */
+  const beginShapeDrag = (
+    e: React.PointerEvent,
+    onMove: (dxMm: Mm, dyMm: Mm) => void,
+  ): void => {
     if (locked) return;
-    e.stopPropagation();
-    e.preventDefault();
-    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
-    drag.current = d;
+    props.onDragStart();
+    startPointerDrag(e, {
+      onMove: (dx, dy) => onMove(dx * perPx, dy * perPx),
+      onEnd: props.onDragEnd,
+    });
   };
+
+  /**
+   * Drag an arrow's endpoint, which needs a position rather than a delta.
+   *
+   * The position is seeded from the pointer and advanced by each move, so it never has
+   * to re-measure the SVG mid-drag — the picture can resize underneath it.
+   */
+  const beginEndpointDrag = (id: string, which: 'from' | 'to') =>
+    (e: React.PointerEvent): void => {
+      if (locked) return;
+      const at = mmAt(e);
+      props.onDragStart();
+      startPointerDrag(e, {
+        onMove: (dx, dy) => {
+          at.x += dx * perPx;
+          at.y += dy * perPx;
+          const over = hitTest(at, id);
+          props.onMoveEndpoint(
+            id, which, { x: at.x, y: at.y },
+            over === null ? null : { shapeId: over.id, side: nearestSide(over, at) },
+          );
+        },
+        onEnd: props.onDragEnd,
+      });
+    };
 
   const selected = shapes.find((s) => s.id === selectedShapeId);
 
@@ -280,7 +298,7 @@ export function TikzView(props: Props): React.ReactElement {
               if (locked || tool !== null) return;
               e.stopPropagation();
               props.onSelectShape(s.id);
-              startDrag({ k: 'move', id: s.id, x: e.clientX, y: e.clientY })(e);
+              beginShapeDrag(e, (dx, dy) => props.onMoveShape(s.id, dx, dy));
             }}
           />
         );
@@ -320,8 +338,10 @@ export function TikzView(props: Props): React.ReactElement {
         <SelectionHandles
           shape={selected}
           shapes={shapes}
-          onResizeDown={startDrag({ k: 'resize', id: selected.id, x: 0, y: 0 })}
-          onEndpointDown={(which) => startDrag({ k: 'end', id: selected.id, which })}
+          scale={scale}
+          onResizeDown={(corner) => (e) =>
+            beginShapeDrag(e, (dx, dy) => props.onResizeShape(selected.id, dx, dy, corner))}
+          onEndpointDown={(which) => beginEndpointDrag(selected.id, which)}
         />
       )}
 
@@ -449,15 +469,30 @@ function bentPath(a: { x: Mm; y: Mm }, b: { x: Mm; y: Mm }, bend: number): strin
   return `M ${a.x} ${a.y} Q ${mx + (dy * k) / 2} ${my - (dx * k) / 2}, ${b.x} ${b.y}`;
 }
 
+/** The four corners of a shape's box, and where each one sits on it. */
+const SHAPE_CORNERS: readonly { corner: ShapeCorner; fx: number; fy: number }[] = [
+  { corner: 'nw', fx: 0, fy: 0 },
+  { corner: 'ne', fx: 1, fy: 0 },
+  { corner: 'sw', fx: 0, fy: 1 },
+  { corner: 'se', fx: 1, fy: 1 },
+];
+
 function SelectionHandles({
-  shape, shapes, onResizeDown, onEndpointDown,
+  shape, shapes, scale, onResizeDown, onEndpointDown,
 }: {
   shape: TikzShape;
   shapes: readonly TikzShape[];
-  onResizeDown(e: React.PointerEvent): void;
+  scale: number;
+  onResizeDown(corner: ShapeCorner): (e: React.PointerEvent) => void;
   onEndpointDown(which: 'from' | 'to'): (e: React.PointerEvent) => void;
 }): React.ReactElement {
-  const R = 1.4;
+  /*
+   * The handle radius is in canvas MILLIMETRES, and the canvas is scaled twice over --
+   * PX_PER_MM design pixels per millimetre, then the stage's own scale. The fixed 1.4mm
+   * this used to be measured under three real pixels across, so a shape's one handle
+   * could not be hit. Six screen pixels of radius, whatever the zoom.
+   */
+  const R = 6 / (PX_PER_MM * Math.max(scale, 0.01));
 
   if (shape.t === 'arrow' || (shape.t === 'path' && shape.points.length === 2)) {
     const a = shape.t === 'arrow'
@@ -485,9 +520,20 @@ function SelectionHandles({
         x={box.x} y={box.y} width={box.w} height={box.h}
         className="bp-tikz-outline"
       />
-      {shape.t !== 'node' && shape.t !== 'path' && (
-        <circle cx={box.x + box.w} cy={box.y + box.h} r={R} onPointerDown={onResizeDown} />
-      )}
+      {/*
+        * Four corners, each anchored at the one opposite. A text node is sized by TikZ
+        * from its own text, so it has no box to pull; a two-point line is resized by
+        * its endpoints above.
+        */}
+      {shape.t !== 'node' && box.w > 0 && box.h > 0 && SHAPE_CORNERS.map(({ corner, fx, fy }) => (
+        <circle
+          key={corner}
+          cx={box.x + box.w * fx}
+          cy={box.y + box.h * fy}
+          r={R}
+          onPointerDown={onResizeDown(corner)}
+        />
+      ))}
     </g>
   );
 }

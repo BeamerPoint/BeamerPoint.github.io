@@ -114,6 +114,61 @@ describe('shape operations', () => {
     expect(flat.shapes![0]).toMatchObject({ rx: 1, ry: 1 });
   });
 
+  it('anchors a corner resize at the corner opposite the one being dragged', () => {
+    // The SE handle was the only one there was, so a shape could only ever grow down
+    // and right. Pulling the NW corner has to hold the bottom-right edge still.
+    const nw = resizeShape(withShapes(RECT), 'r1', -6, -4, 'nw');
+    expect(shapeBounds(nw.shapes![0]!)).toEqual({ x: 4, y: 6, w: 36, h: 24 });
+    // ...and the bottom-right is exactly where it was: 10+30, 10+20.
+    const b = shapeBounds(nw.shapes![0]!)!;
+    expect([b.x + b.w, b.y + b.h]).toEqual([40, 30]);
+
+    const ne = resizeShape(withShapes(RECT), 'r1', 5, -4, 'ne');
+    expect(shapeBounds(ne.shapes![0]!)).toEqual({ x: 10, y: 6, w: 35, h: 24 });
+
+    const sw = resizeShape(withShapes(OVAL), 'e1', 5, 4, 'sw');
+    expect(shapeBounds(sw.shapes![0]!)).toEqual({ x: 60, y: 10, w: 25, h: 24 });
+  });
+
+  it('refuses to invert a shape, holding the anchored edge still', () => {
+    // Dragging the west edge past the east one must not turn the box inside out.
+    const el = resizeShape(withShapes(RECT), 'r1', 500, 0, 'nw');
+    const b = shapeBounds(el.shapes![0]!)!;
+    expect(b.w).toBe(2);
+    expect(b.x + b.w).toBe(40); // the east edge never moved
+  });
+
+  it('resizes a polygon by scaling its points inside the new box', () => {
+    // A polygon is an explicit point list precisely because TikZ's shape library sizes
+    // shapes to CONTAIN their box rather than fill it, so the resize has to keep that
+    // promise: the same numbers on the canvas and in the emitted \draw.
+    const tri: TikzShape = {
+      id: 'p1', t: 'path', closed: true, smooth: false,
+      points: [[0, 0], [20, 0], [10, 10]],
+      style: {},
+    };
+    const doubled = resizeShape(withShapes(tri), 'p1', 20, 10, 'se');
+    expect((doubled.shapes![0] as Extract<TikzShape, { t: 'path' }>).points)
+      .toEqual([[0, 0], [40, 0], [20, 20]]);
+  });
+
+  it('leaves alone the shapes that have no box to pull', () => {
+    // A text node is sized by TikZ from its own text and an arrow by its endpoints;
+    // handing either a corner handle would be a control that does nothing.
+    const node: TikzShape = {
+      id: 'n1', t: 'node', x: 5, y: 5, shape: 'none',
+      content: [{ t: 'text', s: 'hello' }], style: {},
+    };
+    const el = withShapes(node);
+    expect(resizeShape(el, 'n1', 10, 10, 'se').shapes![0]).toEqual(node);
+
+    const line: TikzShape = {
+      id: 'l1', t: 'path', closed: false, smooth: false,
+      points: [[0, 0], [10, 10]], style: {},
+    };
+    expect(resizeShape(withShapes(line), 'l1', 10, 10, 'se').shapes![0]).toEqual(line);
+  });
+
   it('removes a style key when it is set back to undefined', () => {
     const filled = restyleShape(withShapes(RECT), 'r1', { fill: { k: 'named', name: 'red' } });
     expect(filled.shapes![0]!.style.fill).toEqual({ k: 'named', name: 'red' });

@@ -343,7 +343,16 @@ body.bp-resizing iframe { pointer-events: none; }
 .bp-item-body { flex: 1; min-width: 0; }
 .bp-list li > .bp-list { flex-basis: 100%; }
 
-.bp-block { overflow: hidden; }
+/*
+ * NOT `overflow: hidden`.
+ *
+ * The rounding clip it was there for also clipped away the resize handles of anything
+ * nested in a block -- they straddle the element's edge, so an element flush with the
+ * block's own edge lost half of every handle and the ones on its outer side entirely.
+ * The title and body carry the rounding themselves; a background respects
+ * `border-radius` without clipping.
+ */
+.bp-block { overflow: visible; }
 .bp-block-title { padding: calc(var(--bp-mm) * 0.4) 0; font-weight: 700; }
 .bp-columns { display: flex; gap: calc(var(--bp-mm) * 4); }
 .bp-column { min-width: 0; }
@@ -605,9 +614,8 @@ body.bp-resizing iframe { pointer-events: none; }
 .bp-overlay > * { pointer-events: auto; }
 .bp-overlay-label { pointer-events: none; }
 .bp-overlay-label {
-  position: absolute; top: -18px; left: 0;
+  position: absolute; left: 0;
   background: var(--bp-accent); color: #fff;
-  font-size: 10px; padding: 1px 5px; border-radius: 3px;
   white-space: nowrap; pointer-events: none;
 }
 .bp-overlay-note {
@@ -625,34 +633,32 @@ body.bp-resizing iframe { pointer-events: none; }
  * covering the interior would swallow every click meant for the text. These four bands
  * sit on the edges, which is where PowerPoint puts the grab area too.
  */
+/*
+ * Sizes and offsets come from SelectionOverlay as inline style, because they have to
+ * be divided by the canvas scale -- the stage is transformed to about 0.2, so the
+ * 11px handle this file used to declare measured 2.3 real pixels and could not be hit
+ * on purpose. Only the appearance and the cursor live here.
+ */
 .bp-move-band { position: absolute; cursor: move; }
-.bp-move-band-n { top: -5px; left: -5px; right: -5px; height: 10px; }
-.bp-move-band-s { bottom: -5px; left: -5px; right: -5px; height: 10px; }
-.bp-move-band-w { left: -5px; top: -5px; bottom: -5px; width: 10px; }
-.bp-move-band-e { right: -5px; top: -5px; bottom: -5px; width: 10px; }
 
 .bp-handle {
-  position: absolute; width: 11px; height: 11px;
-  background: #fff; border: 1.5px solid var(--bp-accent); border-radius: 2px;
+  position: absolute;
+  background: #fff; border-style: solid; border-color: var(--bp-accent);
   z-index: 1;
 }
-.bp-handle-nw { top: -6px; left: -6px; cursor: nwse-resize; }
-.bp-handle-ne { top: -6px; right: -6px; cursor: nesw-resize; }
-.bp-handle-sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
-.bp-handle-se { bottom: -6px; right: -6px; cursor: nwse-resize; }
-.bp-handle-w { top: 50%; left: -6px; margin-top: -5.5px; cursor: ew-resize; }
-.bp-handle-e { top: 50%; right: -6px; margin-top: -5.5px; cursor: ew-resize; }
-.bp-handle-n { left: 50%; top: -6px; margin-left: -5.5px; cursor: ns-resize; }
-.bp-handle-s { left: 50%; bottom: -6px; margin-left: -5.5px; cursor: ns-resize; }
+.bp-handle-nw { cursor: nwse-resize; }
+.bp-handle-ne { cursor: nesw-resize; }
+.bp-handle-sw { cursor: nesw-resize; }
+.bp-handle-se { cursor: nwse-resize; }
+.bp-handle-w, .bp-handle-e { cursor: ew-resize; }
+.bp-handle-n, .bp-handle-s { cursor: ns-resize; }
 
 /* Crop: the element shows the full image, and these mark the kept region. */
 .bp-overlay-crop { outline: 1px dashed var(--bp-warn); outline-offset: -1px; }
 .bp-crop-edge { position: absolute; background: var(--bp-warn); opacity: 0.75; }
 .bp-crop-edge:hover { opacity: 1; }
-.bp-crop-n { top: -3px; left: 12%; right: 12%; height: 6px; cursor: ns-resize; border-radius: 3px; }
-.bp-crop-s { bottom: -3px; left: 12%; right: 12%; height: 6px; cursor: ns-resize; border-radius: 3px; }
-.bp-crop-w { left: -3px; top: 12%; bottom: 12%; width: 6px; cursor: ew-resize; border-radius: 3px; }
-.bp-crop-e { right: -3px; top: 12%; bottom: 12%; width: 6px; cursor: ew-resize; border-radius: 3px; }
+.bp-crop-n, .bp-crop-s { cursor: ns-resize; }
+.bp-crop-w, .bp-crop-e { cursor: ew-resize; }
 
 .bp-image-crop { position: relative; overflow: hidden; width: 100%; }
 .bp-image-crop img { position: absolute; max-width: none; display: block; }
@@ -1225,3 +1231,19 @@ body.bp-dragging { user-select: none; }
 .bp-chart-series select { width: auto; flex: 0 0 auto; }
 .bp-chart-series label { display: flex; align-items: center; gap: 2px; font-size: 11px; }
 .bp-chart-series label input { width: auto; }
+
+/*
+ * Why the canvas is inert, said ON the canvas.
+ *
+ * `.bp-paper.is-locked` sets `pointer-events: none`, so a drag on a greyed-out slide
+ * did nothing at all and nothing explained it. The note lives on the stage, which does
+ * not carry the lock, and scales itself down so it reads at any zoom.
+ */
+.bp-lock-note {
+  position: absolute; left: 50%; top: 8px; transform: translateX(-50%);
+  z-index: 10; pointer-events: none; white-space: nowrap;
+  background: var(--bp-warn); color: #fff;
+  font-size: calc(12px * var(--bp-inv, 1));
+  padding: calc(4px * var(--bp-inv, 1)) calc(10px * var(--bp-inv, 1));
+  border-radius: calc(4px * var(--bp-inv, 1));
+}

@@ -38,6 +38,9 @@ interface Props {
   ): void;
   onMoveElement(elementId: string, dxMm: number, dyMm: number): void;
   onTrimImage(elementId: string, trim: ImageTrim): void;
+  /** Bracket a pointer drag, so the whole gesture is one undo entry. */
+  onDragStart(): void;
+  onDragEnd(): void;
 }
 
 /**
@@ -125,13 +128,34 @@ export function SlideCanvas(props: Props): React.ReactElement {
         */}
       <div
         className="bp-stage"
-        style={{ width: designW, height: designH, transform: `scale(${scale})` }}
+        style={{
+          width: designW,
+          height: designH,
+          transform: `scale(${scale})`,
+          // The inverse of the scale, for anything that must stay a constant size on
+          // SCREEN rather than on the slide. Read by the aids; the selection handles
+          // compute their own from the same number.
+          ['--bp-inv' as string]: 1 / Math.max(scale, 0.01),
+        }}
       >
       <Rulers
         aspect={deck.preamble.documentClass.aspectRatio}
         aids={props.aids}
         onAddGuide={props.onAddGuide}
       />
+      {/*
+        * Say WHY nothing responds.
+        *
+        * The canvas and the source editor are never both writable, so an edited source
+        * takes an exclusive lock -- and until now the canvas just greyed out and
+        * stopped accepting clicks, with the explanation on the other side of the
+        * window. Dragging a handle that does nothing reads as a broken handle.
+        */}
+      {locked && (
+        <div className="bp-lock-note">
+          The source is being edited. Apply or revert it to edit the slide again.
+        </div>
+      )}
       <div
         className={`bp-paper${locked ? ' is-locked' : ''}`}
         style={{
@@ -268,13 +292,15 @@ export function SlideCanvas(props: Props): React.ReactElement {
               onResizeElement={props.onResizeElement}
               onMoveElement={props.onMoveElement}
               onTrimImage={props.onTrimImage}
+              onDragStart={props.onDragStart}
+              onDragEnd={props.onDragEnd}
             />
           ))}
         </div>
 
         {/*
           * Absolutely-placed elements are positioned from the page corner, matching
-          * textpos with 	extblockorigin{0mm}{0mm}. They cannot live inside .bp-body,
+          * textpos with \textblockorigin{0mm}{0mm}. They cannot live inside .bp-body,
           * which is inset by the margins, sits below the frame title, and clips.
           */}
         <div className="bp-abs-layer">
@@ -312,6 +338,8 @@ export function SlideCanvas(props: Props): React.ReactElement {
               onResizeElement={props.onResizeElement}
               onMoveElement={props.onMoveElement}
               onTrimImage={props.onTrimImage}
+              onDragStart={props.onDragStart}
+              onDragEnd={props.onDragEnd}
             />
           ))}
         </div>
