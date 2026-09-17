@@ -120,6 +120,44 @@ function optionList(parts: string[]): string {
   return parts.length === 0 ? '' : `[${parts.join(',')}]`;
 }
 
+/**
+ * The width a label's text box may take inside a shape, in millimetres.
+ *
+ * A TikZ node grows to fit its text, so without this a long label silently makes the
+ * shape bigger than the one on the canvas. Measured against the engine, a 40x20mm
+ * rectangle:
+ *
+ * | body | node width |
+ * | --- | --- |
+ * | empty | 40.14mm |
+ * | "A rather long label that will not fit" | **56.26mm** |
+ * | the same, with `text width=40mm` | 40.14mm |
+ *
+ * An ellipse needs a NARROWER box than its own width, because the shape library sizes a
+ * shape to CONTAIN its text box rather than to fill it — the same measurement that put
+ * the polygons in `polygons.ts`. `text width=40mm` grew a 40mm ellipse to 56.71mm;
+ * `rx * sqrt(2)`, the widest rectangle that fits inside the ellipse, held it at 40.14.
+ */
+function labelWidthMm(shape: TikzShape): Mm | null {
+  if (shape.t === 'rect') return shape.w;
+  if (shape.t === 'ellipse') return shape.rx * Math.SQRT2;
+  return null;
+}
+
+/** The label options, or nothing at all when the shape carries no label. */
+export function labelOptions(shape: TikzShape): string[] {
+  const label = shape.t === 'rect' || shape.t === 'ellipse' ? shape.label : undefined;
+  if (label === undefined || label.length === 0) return [];
+  const width = labelWidthMm(shape);
+  if (width === null) return [];
+  return [`text width=${n(width)}mm`, 'align=center'];
+}
+
+function labelBody(shape: TikzShape): string {
+  const label = shape.t === 'rect' || shape.t === 'ellipse' ? shape.label : undefined;
+  return label === undefined ? '' : emitInline(label);
+}
+
 function emitShape(w: TexWriter, shape: TikzShape, ctx: EmitContext): void {
   const b = shapeBounds(shape);
   const style = styleOptions(
@@ -136,8 +174,12 @@ function emitShape(w: TexWriter, shape: TikzShape, ctx: EmitContext): void {
         `minimum height=${n(shape.h)}mm`,
         'inner sep=0pt',
         'anchor=north west',
+        ...labelOptions(shape),
       ];
-      w.line_(`\\node${optionList(opts)} (${nodeName(shape.id)}) at ${coord(shape.x, shape.y)} {};`);
+      w.line_(
+        `\\node${optionList(opts)} (${nodeName(shape.id)}) at ${coord(shape.x, shape.y)} `
+        + `{${labelBody(shape)}};`,
+      );
       return;
     }
 
@@ -149,8 +191,12 @@ function emitShape(w: TexWriter, shape: TikzShape, ctx: EmitContext): void {
         `minimum height=${n(shape.ry * 2)}mm`,
         'inner sep=0pt',
         'anchor=center',
+        ...labelOptions(shape),
       ];
-      w.line_(`\\node${optionList(opts)} (${nodeName(shape.id)}) at ${coord(shape.cx, shape.cy)} {};`);
+      w.line_(
+        `\\node${optionList(opts)} (${nodeName(shape.id)}) at ${coord(shape.cx, shape.cy)} `
+        + `{${labelBody(shape)}};`,
+      );
       return;
     }
 

@@ -1,4 +1,4 @@
-import type { Anchor, Mm, TikzElement, TikzShape, TikzStyle } from './types.js';
+import type { Anchor, Mm, RichText, TikzElement, TikzShape, TikzStyle } from './types.js';
 import { newId } from './ids.js';
 import { roundMm } from '../geometry/paper.js';
 import { POLYGON_KINDS, polygonPoints, type PolygonKind } from './polygons.js';
@@ -408,4 +408,42 @@ export function setNodeContent(
   content: Extract<TikzShape, { t: 'node' }>['content'],
 ): TikzElement {
   return mapShape(el, shapeId, (s) => (s.t === 'node' ? { ...s, content } : s));
+}
+
+/**
+ * The text written INSIDE a rectangle or an ellipse.
+ *
+ * Empty REMOVES the key rather than storing `[]`, so an unlabelled shape emits exactly
+ * what it emitted before labels existed -- no `text width`, no `align`, an empty node
+ * body -- and every deck already saved still round-trips byte for byte.
+ *
+ * A polygon and an arrow have no node to put text in: a polygon is a bare `\draw ...
+ * -- cycle`, which is also why an arrow cannot attach to one.
+ */
+export function setShapeLabel(
+  el: TikzElement,
+  shapeId: string,
+  label: RichText,
+): TikzElement {
+  return mapShape(el, shapeId, (s) => {
+    if (s.t !== 'rect' && s.t !== 'ellipse') return s;
+    if (label.length === 0) {
+      const { label: _drop, ...rest } = s;
+      return rest;
+    }
+    return { ...s, label };
+  });
+}
+
+/**
+ * True when this shape can hold text at all.
+ *
+ * A type predicate, so the caller can then reach for `label` or `content` without
+ * asking again — the two live in different places because a text NODE is text with a
+ * box around it while a rectangle is a box that may have text in it.
+ */
+export function canHoldLabel(
+  s: TikzShape,
+): s is Extract<TikzShape, { t: 'rect' | 'ellipse' | 'node' }> {
+  return s.t === 'rect' || s.t === 'ellipse' || s.t === 'node';
 }

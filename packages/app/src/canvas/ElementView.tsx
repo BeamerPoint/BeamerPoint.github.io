@@ -386,6 +386,7 @@ function TikzBody({
   const moveShape = useStore((s) => s.moveShape);
   const resizeShape = useStore((s) => s.resizeShape);
   const moveShapeEndpoint = useStore((s) => s.moveShapeEndpoint);
+  const setShapeLabel = useStore((s) => s.setShapeLabel);
   const beginGesture = useStore((s) => s.beginGesture);
   const endGesture = useStore((s) => s.endGesture);
 
@@ -415,6 +416,7 @@ function TikzBody({
         resizeShape(slideId, el.id, id, dw, dh, corner, shift)}
       onMoveEndpoint={(id, which, point, over) =>
         moveShapeEndpoint(slideId, el.id, id, which, point, over)}
+      onEditLabel={(id, text) => setShapeLabel(slideId, el.id, id, text)}
       onDragStart={beginGesture}
       onDragEnd={endGesture}
     />

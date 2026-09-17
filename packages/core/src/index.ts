@@ -17,7 +17,7 @@ export { cloneElement, offsetElement } from './model/cloneOps.js';
 export {
   addShape, attachEndpoint, isAttachable, isNodeTool, moveEndpoint, moveShape,
   removeShape, reorderShape, resizeShape, restyleShape, setArrowHead, setCanvasSize,
-  setNodeContent, setShapeOption, shapeBounds, shapeFromDrag,
+  setNodeContent, setShapeLabel, canHoldLabel, setShapeOption, shapeBounds, shapeFromDrag,
   type ShapeOptionPatch, type ShapeCorner,
   type BasicTool, type ShapeTool,
 } from './model/shapeOps.js';

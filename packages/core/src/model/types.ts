@@ -270,8 +270,17 @@ export type Anchor =
   | { kind: 'shape'; shapeId: Id; side: 'n' | 's' | 'e' | 'w' | 'center' };
 export type ArrowHead = 'none' | 'latex' | 'stealth' | 'to';
 export type TikzShape =
-  | { id: Id; t: 'rect'; x: Mm; y: Mm; w: Mm; h: Mm; rx?: Mm; style: TikzStyle }
-  | { id: Id; t: 'ellipse'; cx: Mm; cy: Mm; rx: Mm; ry: Mm; style: TikzStyle }
+  /**
+   * `label` is the text written INSIDE the shape.
+   *
+   * Both of these already emit as named TikZ nodes with an empty body, so a label is
+   * simply that body filled in — no second node, no extra id, and an arrow still
+   * attaches to the one shape. It brings `text width` with it, because a node grows to
+   * fit its text: measured, a 40mm rectangle carrying "A rather long label that will
+   * not fit" came out 56.26mm wide, so the canvas would have drawn 40 and the PDF 56.
+   */
+  | { id: Id; t: 'rect'; x: Mm; y: Mm; w: Mm; h: Mm; rx?: Mm; label?: RichText; style: TikzStyle }
+  | { id: Id; t: 'ellipse'; cx: Mm; cy: Mm; rx: Mm; ry: Mm; label?: RichText; style: TikzStyle }
   | { id: Id; t: 'path'; points: Array<[Mm, Mm]>; closed: boolean; smooth: boolean; style: TikzStyle }
   | { id: Id; t: 'arrow'; from: Anchor; to: Anchor; bend?: Deg; head: ArrowHead; style: TikzStyle }
   | {

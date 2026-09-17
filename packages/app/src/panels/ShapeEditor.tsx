@@ -1,4 +1,5 @@
 import {
+  canHoldLabel,
   resolveTheme,
   richTextToPlain,
   type Color,
@@ -60,7 +61,7 @@ export function ShapeEditor({ el, slideId, locked }: Props): React.ReactElement 
   const setShapeOption = useStore((s) => s.setShapeOption);
   const reorderShape = useStore((s) => s.reorderShape);
   const setShapeArrowHead = useStore((s) => s.setShapeArrowHead);
-  const setShapeText = useStore((s) => s.setShapeText);
+  const setShapeLabel = useStore((s) => s.setShapeLabel);
   const setTikzCanvasSize = useStore((s) => s.setTikzCanvasSize);
   const themeName = useStore((s) => s.deck.preamble.theme.name);
   const theme = resolveTheme(themeName);
@@ -156,14 +157,21 @@ export function ShapeEditor({ el, slideId, locked }: Props): React.ReactElement 
             </div>
           </div>
 
-          {selected.t === 'node' && (
+          {/* A rectangle and an ellipse are already named TikZ nodes, so the words go
+              in the body each of them already had -- no second node, and an arrow
+              still attaches to the one shape. A polygon is a bare \draw with no node,
+              which is also why an arrow cannot attach to one. */}
+          {canHoldLabel(selected) && (
             <label>
               Text
               <input
                 type="text"
                 disabled={locked}
-                value={richTextToPlain(selected.content)}
-                onChange={(e) => setShapeText(slideId, el.id, selected.id, e.target.value)}
+                placeholder={selected.t === 'node' ? 'Label' : 'Double-click the shape to type'}
+                value={richTextToPlain(
+                  selected.t === 'node' ? selected.content : selected.label ?? [],
+                )}
+                onChange={(e) => setShapeLabel(slideId, el.id, selected.id, e.target.value)}
               />
             </label>
           )}

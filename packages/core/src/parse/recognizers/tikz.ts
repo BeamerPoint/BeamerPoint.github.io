@@ -3,6 +3,7 @@ import type {
 } from '../../model/types.js';
 import type { CstNode } from '../cst.js';
 import { parseInline, trimRichText } from '../inline.js';
+import { roundMm } from '../../geometry/paper.js';
 import type { RecognizeCtx } from './elements.js';
 
 /**
@@ -281,20 +282,40 @@ function readNodeStatement(st: Statement, ctx: RecognizeCtx): TikzShape | null {
   const minH = opts.rest.get('minimum height');
   const rounded = opts.rest.get('rounded corners');
 
+  const textWidth = opts.rest.get('text width');
+  const align = opts.rest.get('align');
+
   const consumed = new Set(['anchor', 'shape', 'inner sep', 'minimum width',
-    'minimum height', 'rounded corners']);
+    'minimum height', 'rounded corners', 'text width', 'align']);
   for (const key of opts.rest.keys()) if (!consumed.has(key)) return null;
   if (opts.flags.size > 0) return null;
 
-  // A rectangle or an ellipse: a sized, empty, zero-inset node.
-  if (minW !== undefined && minH !== undefined && innerSep === '0pt' && content.length === 0) {
+  // A rectangle or an ellipse: a sized, zero-inset node, with or without a label.
+  if (minW !== undefined && minH !== undefined && innerSep === '0pt') {
     const w = mmOf(minW);
     const h = mmOf(minH);
     if (w === null || h === null) return null;
 
+    /*
+     * A label brings `text width` and `align=center` with it, and the width is DERIVED
+     * from the shape's own size. Anything else -- a label with no text width, a width
+     * that is not the one the emitter writes, an alignment that is not centre -- is
+     * somebody else's node and stays raw, rather than being read as a label and then
+     * re-emitted at a different size.
+     */
+    const labelled = content.length > 0;
+    if (!labelled && (textWidth !== undefined || align !== undefined)) return null;
+    if (labelled) {
+      if (align !== 'center' || textWidth === undefined) return null;
+      const tw = mmOf(textWidth);
+      const want = shapeKey === 'ellipse' ? (w / 2) * Math.SQRT2 : w;
+      if (tw === null || Math.abs(tw - roundMm(want)) > 1e-6) return null;
+    }
+    const label = labelled ? { label: content } : {};
+
     if (shapeKey === 'ellipse' && anchor === 'center') {
       return {
-        id, t: 'ellipse', cx: x, cy: y, rx: w / 2, ry: h / 2, style: opts.style,
+        id, t: 'ellipse', cx: x, cy: y, rx: w / 2, ry: h / 2, ...label, style: opts.style,
       };
     }
     if (shapeKey === undefined && anchor === 'north west') {
@@ -303,6 +324,7 @@ function readNodeStatement(st: Statement, ctx: RecognizeCtx): TikzShape | null {
       return {
         id, t: 'rect', x, y, w, h,
         ...(rx !== undefined && rx !== null ? { rx } : {}),
+        ...label,
         style: opts.style,
       };
     }
@@ -311,7 +333,8 @@ function readNodeStatement(st: Statement, ctx: RecognizeCtx): TikzShape | null {
 
   // Otherwise a text node.
   if (anchor !== 'north west' || innerSep !== undefined
-      || minW !== undefined || minH !== undefined || rounded !== undefined) {
+      || minW !== undefined || minH !== undefined || rounded !== undefined
+      || textWidth !== undefined || align !== undefined) {
     return null;
   }
   const shape =

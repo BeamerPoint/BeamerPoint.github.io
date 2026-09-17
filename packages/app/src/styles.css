@@ -1340,3 +1340,24 @@ body.bp-dragging { user-select: none; }
 .bp-drop-end.is-drop-target { border-top-color: var(--bp-accent); }
 /* The thumbnails are draggable, so a press must not select the text under it. */
 .bp-thumb { touch-action: none; }
+
+/*
+ * The text inside a shape.
+ *
+ * A `foreignObject` rather than an SVG `<text>`: SVG text does not wrap, and a label has
+ * to wrap at exactly the width the emitter hands TikZ or the canvas shows one long line
+ * where the PDF shows three. Inert unless it is being typed into — a layer over the
+ * drawing that takes the pointer swallows the drag that moves the shape underneath it.
+ */
+.bp-shape-label {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  text-align: center; line-height: 1.2;
+  overflow-wrap: break-word; word-break: break-word;
+  font-family: inherit;
+}
+.bp-shape-label.is-editing {
+  outline-style: dashed; outline-color: var(--bp-accent);
+  background: rgba(255, 255, 255, 0.72);
+  cursor: text;
+}

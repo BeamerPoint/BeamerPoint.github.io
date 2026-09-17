@@ -38,6 +38,7 @@ import {
   setArrowHead,
   setCanvasSize,
   setNodeContent,
+  setShapeLabel as setShapeLabelOp,
   setShapeOption as setShapeOptionOp,
   shapeBounds,
   shapeFromDrag,
@@ -288,6 +289,8 @@ interface AppState {
   reorderShape(slideId: string, elementId: string, shapeId: string, delta: 1 | -1): void;
   setShapeArrowHead(slideId: string, elementId: string, shapeId: string, head: ArrowHead): void;
   setShapeText(slideId: string, elementId: string, shapeId: string, text: string): void;
+  /** The text written INSIDE a rectangle or an ellipse. */
+  setShapeLabel(slideId: string, elementId: string, shapeId: string, text: string): void;
   setShapeOption(
     slideId: string, elementId: string, shapeId: string, patch: ShapeOptionPatch,
   ): void;
@@ -820,8 +823,21 @@ export const useStore = create<AppState>()((set, get) => {
       set({ selection: { slideId, elementId: null } });
     },
 
+    /**
+     * Select an element, keeping the shape selection when it is the SAME element.
+     *
+     * Clicking a shape inside a diagram fires the shape's handler and then, because a
+     * pointerdown that is not prevented also produces a mousedown, the diagram's own --
+     * which clobbered the shape that had just been picked. Changing element is what
+     * makes a shape selection meaningless, not re-selecting the one it is in.
+     */
     selectElement(slideId, elementId) {
-      set({ selection: { slideId, elementId, shapeId: null }, overlayMode: 'transform' });
+      const prev = get().selection;
+      const same = prev.slideId === slideId && prev.elementId === elementId;
+      set({
+        selection: { slideId, elementId, shapeId: same ? prev.shapeId ?? null : null },
+        overlayMode: 'transform',
+      });
     },
 
     addSlide() {
@@ -1624,6 +1640,25 @@ export const useStore = create<AppState>()((set, get) => {
     setShapeText(slideId, elementId, shapeId, text) {
       mutate((deck) =>
         mapTikz(deck, slideId, elementId, (el) => setNodeContent(el, shapeId, plain(text))));
+    },
+
+    /**
+     * The text written inside a shape.
+     *
+     * One entry point for both, because the canvas cannot tell them apart from the
+     * user's side: a text NODE keeps its words in `content`, while a rectangle or an
+     * ellipse keeps them in `label` — the body of the node it already was.
+     */
+    setShapeLabel(slideId, elementId, shapeId, text) {
+      const trimmed = text.replace(/\s+/g, ' ').trim();
+      mutate((deck) =>
+        mapTikz(deck, slideId, elementId, (el) => {
+          const shape = (el.shapes ?? []).find((sh) => sh.id === shapeId);
+          if (shape === undefined) return el;
+          return shape.t === 'node'
+            ? setNodeContent(el, shapeId, plain(trimmed))
+            : setShapeLabelOp(el, shapeId, trimmed === '' ? [] : plain(trimmed));
+        }));
     },
 
     /** Corner radius, arrow bend and node shape: modelled and emitted, never settable. */

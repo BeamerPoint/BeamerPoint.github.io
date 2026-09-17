@@ -1,11 +1,13 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   PX_PER_MM,
   ptToMm,
   richTextToPlain,
+  canHoldLabel,
   shapeBounds,
   type Anchor,
   type Mm,
+  type RichText,
   type ShapeCorner,
   type ShapeTool,
   type ThemeSpec,
@@ -36,6 +38,7 @@ interface Props {
   onDrawShape(drag: ShapeDrag): void;
   onMoveShape(shapeId: string, dx: Mm, dy: Mm): void;
   onResizeShape(shapeId: string, dw: Mm, dh: Mm, corner: ShapeCorner, shift: boolean): void;
+  onEditLabel(shapeId: string, text: string): void;
   onMoveEndpoint(
     shapeId: string,
     which: 'from' | 'to',
@@ -53,6 +56,9 @@ interface Props {
  * puts it. Measured, not assumed.
  */
 const INNER_SEP_MM = ptToMm(11 / 3);
+
+/** Two presses this close together on one shape open its label. */
+const DOUBLE_CLICK_MS = 450;
 
 /** Rough text metrics, only so a label's box can be hit-tested and anchored. */
 function nodeBox(s: Extract<TikzShape, { t: 'node' }>): { w: Mm; h: Mm } {
@@ -142,9 +148,21 @@ export function TikzView(props: Props): React.ReactElement {
   const { scale } = useCanvasGeometry();
   const svgRef = useRef<SVGSVGElement>(null);
   const [draft, setDraft] = useState<ShapeDrag | null>(null);
+  /** The shape whose label is being typed into, if any. */
+  const [editing, setEditing] = useState<string | null>(null);
+  /** The last pointer-down, for spotting a double-click ourselves. */
+  const lastDown = useRef<{ id: string; at: number }>({ id: '', at: 0 });
 
   const shapes = el.shapes ?? [];
   const { w, h } = el.canvasSize;
+
+  /** True when this press is the second of a double-click on the same shape. */
+  const isSecondClick = (id: string): boolean => {
+    const now = Date.now();
+    const again = lastDown.current.id === id && now - lastDown.current.at < DOUBLE_CLICK_MS;
+    lastDown.current = { id, at: now };
+    return again;
+  };
 
   /** Pointer position in canvas millimetres. */
   const mmAt = useCallback((e: React.PointerEvent): { x: Mm; y: Mm } => {
@@ -299,6 +317,18 @@ export function TikzView(props: Props): React.ReactElement {
               if (locked || tool !== null) return;
               e.stopPropagation();
               props.onSelectShape(s.id);
+              // Double-click opens the label, the way every drawing program does --
+              // counted from the POINTER events rather than the browser's `dblclick`,
+              // which never arrives: starting a drag calls `preventDefault()` on
+              // pointerdown, and that suppresses the compatibility mouse events.
+              if (isSecondClick(s.id) && canHoldLabel(s)) {
+                // Prevented for the same reason a drag prevents it: an unprevented
+                // pointerdown also produces a mousedown, which here would re-select the
+                // diagram over the top of the shape and blur the editor as it opened.
+                e.preventDefault();
+                setEditing(s.id);
+                return;
+              }
               beginShapeDrag(e, (dx, dy) => props.onMoveShape(s.id, dx, dy));
             }}
           />
@@ -348,8 +378,137 @@ export function TikzView(props: Props): React.ReactElement {
       )}
 
       {draft !== null && <DraftShape drag={draft} />}
+
+      {/*
+        * Labels are drawn LAST, so they sit above every shape rather than behind one
+        * that happens to come after them in z-order.
+        */}
+      {shapes.map((s) => (
+        <ShapeLabel
+          key={`label-${s.id}`}
+          shape={s}
+          theme={theme}
+          scale={scale}
+          editing={editing === s.id}
+          onCommit={(text) => {
+            setEditing(null);
+            props.onEditLabel(s.id, text);
+          }}
+          onCancel={() => setEditing(null)}
+        />
+      ))}
     </svg>
   );
+}
+
+/**
+ * The text inside a shape.
+ *
+ * A `foreignObject`, not an SVG `<text>`, because SVG text does not wrap and a label has
+ * to wrap at exactly the width the emitter gives TikZ — otherwise the canvas shows one
+ * long line where the PDF shows three. The same element becomes the editor when it is
+ * double-clicked, so what you type is laid out exactly where it will be.
+ *
+ * Inert unless it is being edited — on the `foreignObject` and on the div inside it,
+ * because the wrapper takes the pointer on its own. It covers the shape, and a layer
+ * over the drawing that accepts the pointer swallows the drag that moves the shape
+ * underneath it; measured, a labelled rectangle could not be dragged at all.
+ */
+function ShapeLabel({
+  shape, theme, scale, editing, onCommit, onCancel,
+}: {
+  shape: TikzShape;
+  theme: ThemeSpec;
+  scale: number;
+  editing: boolean;
+  onCommit(text: string): void;
+  onCancel(): void;
+}): React.ReactElement | null {
+  const ref = useRef<HTMLDivElement>(null);
+  const box = labelBox(shape);
+
+  useEffect(() => {
+    if (!editing) return;
+    const node = ref.current;
+    if (node === null) return;
+    node.focus();
+    // Select what is there, so typing replaces a placeholder rather than appending.
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  }, [editing]);
+
+  if (box === null) return null;
+  const text = richTextToPlain(labelOf(shape));
+  if (text === '' && !editing) return null;
+
+  return (
+    <foreignObject
+      x={box.x} y={box.y} width={box.w} height={box.h}
+      // On the foreignObject as WELL as on the div inside it. The wrapper takes the
+      // pointer on its own, so a labelled shape stopped being draggable even with an
+      // inert child -- the same trap as a full-bleed layer over the slide.
+      style={{ pointerEvents: editing ? 'auto' : 'none' }}
+    >
+      <div
+        ref={ref}
+        className={`bp-shape-label${editing ? ' is-editing' : ''}`}
+        contentEditable={editing}
+        suppressContentEditableWarning
+        style={{
+          color: colorToCss(shape.style.textColor, theme, theme.foreground),
+          // The SVG is in millimetres, so these are millimetres too. 3.9 is 11pt.
+          fontSize: 3.9,
+          // Only while editing: see above.
+          pointerEvents: editing ? 'auto' : 'none',
+          outlineWidth: 1 / (PX_PER_MM * Math.max(scale, 0.01)),
+        }}
+        onBlur={(e) => { if (editing) onCommit(e.currentTarget.innerText); }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+          // Enter commits; Shift+Enter would need a line break in the model, and a
+          // label is one run of text.
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
+          e.stopPropagation();
+        }}
+      >
+        {text}
+      </div>
+    </foreignObject>
+  );
+}
+
+/** The rich text a shape is showing, whichever kind of shape it is. */
+function labelOf(s: TikzShape): RichText {
+  if (s.t === 'rect' || s.t === 'ellipse') return s.label ?? [];
+  if (s.t === 'node') return s.content;
+  return [];
+}
+
+/**
+ * Where the label sits, in canvas millimetres.
+ *
+ * The same box the emitter hands TikZ: the full width for a rectangle, and the widest
+ * rectangle that fits INSIDE an ellipse (rx * sqrt(2)) for one, because the shape
+ * library sizes an ellipse to contain its text box rather than to fill it.
+ */
+function labelBox(s: TikzShape): { x: Mm; y: Mm; w: Mm; h: Mm } | null {
+  if (s.t === 'rect') return { x: s.x, y: s.y, w: s.w, h: s.h };
+  if (s.t === 'ellipse') {
+    const w = s.rx * Math.SQRT2;
+    const h = s.ry * Math.SQRT2;
+    return { x: s.cx - w / 2, y: s.cy - h / 2, w, h };
+  }
+  if (s.t === 'node') {
+    const b = nodeBox(s);
+    return { x: s.x, y: s.y, w: b.w, h: b.h };
+  }
+  return null;
 }
 
 function ShapeView({
