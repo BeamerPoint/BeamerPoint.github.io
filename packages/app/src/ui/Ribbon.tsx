@@ -8,7 +8,7 @@ import { SmartArtPicker } from '../panels/SmartArtPicker.js';
 import {
   IconBackward, IconBlock, IconBullets, IconCompile, IconDelete, IconDiagram,
   IconCode, IconEquation, IconExport, IconForward, IconGrid, IconGuides, IconImage,
-  IconChart, IconOutline,
+  IconChart, IconOutline, IconMoveUp, IconMoveDown,
   IconNew, IconOpen, IconRedo, IconRuler, IconSave, IconShapes, IconSlideAdd,
   IconSmartArt, IconSnap, IconTable, IconText, IconTextBox, IconUndo,
 } from './icons.js';
@@ -195,8 +195,11 @@ export function Ribbon(props: Props): React.ReactElement {
             <Group label="Slides">
               <Big icon={<IconSlideAdd size={20} />} label="New slide" disabled={locked} onClick={addSlide} />
               <Stack>
-                <Small icon={<IconForward />} label="Move up" disabled={noFrame} onClick={() => fid && moveSlide(fid, -1)} />
-                <Small icon={<IconBackward />} label="Move down" disabled={noFrame} onClick={() => fid && moveSlide(fid, 1)} />
+                {/* IconForward/IconBackward are the Z-ORDER arrows, and were being
+                    used here for reordering slides. The right pair existed already
+                    and had never been used anywhere. */}
+                <Small icon={<IconMoveUp />} label="Move up" disabled={noFrame} onClick={() => fid && moveSlide(fid, -1)} />
+                <Small icon={<IconMoveDown />} label="Move down" disabled={noFrame} onClick={() => fid && moveSlide(fid, 1)} />
                 <Small icon={<IconDelete />} label="Delete slide" disabled={noFrame} onClick={() => fid && deleteSlide(fid)} />
               </Stack>
             </Group>
@@ -208,6 +211,15 @@ export function Ribbon(props: Props): React.ReactElement {
                 <Small icon={<IconBlock />} label="Block" disabled={noFrame} onClick={() => fid && addBlockElement(fid, 'block')} />
                 <Small icon={<IconBlock />} label="Alert block" disabled={noFrame} onClick={() => fid && addBlockElement(fid, 'alertblock')} />
                 <Small icon={<IconBlock />} label="Example block" disabled={noFrame} onClick={() => fid && addBlockElement(fid, 'exampleblock')} />
+                {/* A code listing is content you put ON a slide, like the three
+                    blocks above it, not a symbol you insert into text. */}
+                <Small
+                  icon={<IconCode />}
+                  label="Code"
+                  title="A source listing, typeset by listings"
+                  disabled={noFrame}
+                  onClick={() => fid && addCodeElement(fid)}
+                />
               </Stack>
             </Group>
 
@@ -230,6 +242,20 @@ export function Ribbon(props: Props): React.ReactElement {
                 disabled={props.compileDisabled}
                 onClick={props.onCompile}
               />
+              {/* Beside the button it changes the behaviour of. On the Design tab it
+                  sat among the things that change how the deck LOOKS, which is not
+                  what choosing pdfLaTeX or XeLaTeX is. */}
+              <label className="bp-field bp-ribbon-field">
+                <span>Engine</span>
+                <select
+                  value={deck.preamble.texProgram ?? 'pdflatex'}
+                  onChange={(e) => setTexProgram(e.target.value as TexProgram)}
+                  disabled={locked}
+                  title="Which LaTeX program compiles this deck"
+                >
+                  {PROGRAMS.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </label>
             </Group>
           </>
         )}
@@ -314,13 +340,6 @@ export function Ribbon(props: Props): React.ReactElement {
                 disabled={locked}
                 onClick={() => addOutlineSlide()}
               />
-              <Big
-                icon={<IconCode size={20} />}
-                label="Code"
-                title="A source listing, typeset by listings"
-                disabled={noFrame}
-                onClick={() => fid && addCodeElement(fid)}
-              />
             </Group>
 
             {selectedTikz !== undefined && (
@@ -379,18 +398,6 @@ export function Ribbon(props: Props): React.ReactElement {
               </div>
             </Group>
 
-            <Group label="Engine">
-              <label className="bp-field">
-                <span>Compile with</span>
-                <select
-                  value={deck.preamble.texProgram ?? 'pdflatex'}
-                  onChange={(e) => setTexProgram(e.target.value as TexProgram)}
-                  disabled={locked}
-                >
-                  {PROGRAMS.map((p) => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </label>
-            </Group>
           </>
         )}
 

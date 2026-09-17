@@ -1273,3 +1273,16 @@ body.bp-dragging { user-select: none; }
 /* The rail takes focus as a whole, so the ring belongs on the selected option. */
 .bp-thumb:focus-visible { outline: 2px solid var(--bp-accent); outline-offset: 1px; }
 .bp-thumb-list:focus { outline: none; }
+
+/*
+ * A labelled control inside a ribbon group.
+ *
+ * `.bp-field` is the format pane's full-width form row; in a ribbon group it has to sit
+ * beside a Big button and be as tall as one, not stretch across the tab.
+ */
+.bp-ribbon-field {
+  display: flex; flex-direction: column; justify-content: center;
+  margin-bottom: 0; gap: 3px; min-width: 96px;
+}
+.bp-ribbon-field > span { margin-bottom: 0; }
+.bp-ribbon-field select { width: auto; min-width: 92px; }
