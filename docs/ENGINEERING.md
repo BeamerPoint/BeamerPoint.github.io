@@ -24,14 +24,14 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 | App shape | Local-first React/TS SPA, no server required |
 | Elements wanted | Text/lists, images, tables, math, TikZ shapes, code blocks — all done |
 | Extras wanted | Speaker notes, sections + auto-outline, pgfplots charts, citations/bibliography — all done |
-| Overlays | **Out of scope for v1** — no `\pause`, no `\onslide`, no animation UI. Preserved on import, never authored. |
+| Overlays | Reopened after v1, because they are the thing a Beamer talk most often wants. `\pause` and a spec on a bullet are AUTHORED; `\onslide`, `\only`, `\uncover` and specs on anything else are preserved on import. No animation UI, and the canvas shows a whole frame at once. |
 
 ## Commands
 
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 325 tests
+npm test             # vitest, 347 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -564,12 +564,58 @@ code block vanished and the lines ran together. `CodeView` sets
 the bytes. This does not apply to the rich-text elements: those go through
 `readInlineFromDom`, which reassembles the model from tagged nodes.
 
+**A global listener installed by a HOOK is installed once per call site.** `useImageImport`
+is called by the ribbon and by the canvas, so its `paste` listener was registered twice,
+while a separate `keydown` handler claimed Ctrl+V for the element clipboard — and a real
+Ctrl+V fires both events. Measured with a real key and a real clipboard: one press added
+THREE elements. `usePaste` owns the key outright now, mounted once by the app, because only
+the `paste` event can see what the clipboard actually holds. This is the same shape as the
+`notice` bug: shared behaviour must not live per call site.
+
+**`\pause` had to be a BLOCK command.** Left inline it fell through the recognizer's
+catch-all, which turns a bare control word into a `sym`, so an entire frame came back as ONE
+text element with an invisible `\pause` buried in it — and then re-emitted in the right
+place by luck rather than by meaning. It is an element because that is what it is in the
+source: a marker standing between two pieces of content.
+
+**`\pause<3>` passes the token guard while meaning something else.** The lexer splits it
+into the command and the TEXT `<3>`, so recognizing the command alone yields a bare `\pause`
+plus a paragraph containing those characters — which re-emits with exactly the same tokens
+and sails through. The recognizer looks ahead and sends both nodes to raw together. Any
+command whose trailing `<...>` the model cannot say needs the same treatment; the guard will
+not catch it.
+
+**`ListItem.overlay` was emitted by the emitter and set by NOTHING.** `\item<2->` arrives as
+the command plus the text `<2-> B`, so the spec became part of the bullet and rendered as
+literal characters on the canvas, surviving only because the guard compares tokens and
+beamer tolerates a space before the spec. A field the emitter writes needs a parser that
+reads it — the same rule as `\titlegraphic` and `\textcolor[rgb]`. `ElementBase.overlay` is
+still dead; nothing reads or writes it.
+
+**A package can be derived from INLINE content, and the deriver never looked.**
+`derivePackages` walked elements only, so `\citep` — which is natbib's, not LaTeX's —
+emitted an undefined control sequence and no PDF. It walks rich text now, through text,
+list items, table cells and block titles. natbib rather than biblatex because the deck's
+pipeline is already `\bibliographystyle` + BibTeX: both compile here, and the one that fits
+is not the one with the nicer syntax.
+
 **Prefer the Write/Edit tools over shell heredocs for files containing LaTeX.** Multiple
 layers of shell/Python escaping have repeatedly halved backslashes and corrupted
-`\includegraphics` into `includegraphics`.
+`\includegraphics` into `includegraphics`. Python's own escapes bite too: a heredoc'd
+`'\b'`, `'\a'`, `'\v'` and `'\t'` wrote a backspace, a BEL, a vertical tab and a tab into
+five source files. If a script must build LaTeX, spell the backslash as `chr(92)`.
+
+**Read a file with universal newlines and write it back with `newline='\n'`.** Reading with
+`newline=''` preserves the CRLF this repo's working copy carries, so any pattern containing
+`\n` silently fails to match and the "assert old in s" guard fires on text that is plainly
+there.
 
 Run `tools/fidelity-audit.md` after touching canvas layout. It compares canvas and PDF
-positions numerically; the first run found three real bugs, the worst of them 17mm.
+positions numerically; the first run found three real bugs, the worst of them 17mm. The
+audit is only meaningful if it is read the way it is written: **it pairs a DOM top with a
+PDF baseline**, not with a bottom, and comparing the wrong pair made columns look 6.8mm
+out when re-run after the drag and handle work. Paired correctly, everything was within
+3.2mm and unchanged from the recorded baseline.
 
 ## Verify against the engine, not intuition
 
@@ -584,7 +630,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Thirty-nine commits on `master`, ~22,100 lines across 120 source files, 325 tests passing.
+Forty-six commits on `master`, ~24,150 lines across 110 source files, 347 tests passing.
 
 ### Done
 
@@ -656,10 +702,16 @@ Thirty-nine commits on `master`, ~22,100 lines across 120 source files, 325 test
   and axis labels, grid, legend and a log scale. Drawn on the canvas in SVG
 - **Citations**: attach a `.bib`, pick an entry from the list and cite it into the
   selected text box, and insert a references slide. BibTeX runs in the bundled engine, so
-  the compiled PDF has the real reference list
+  the compiled PDF has the real reference list. Three forms — `\cite`, and natbib's
+  `\citep` and `\citet` — with `natbib` derived from the citations themselves; biblatex's
+  `\autocite` and `\textcite` are read but not offered
 - **Sections and the outline**: section headings are created, renamed, reordered and
   deleted in the slide rail, where they group the slides they own; `\tableofcontents`
   is an element the canvas draws from those headings
+- **Overlays**: a `\pause` element, inserted from Home ▸ Content and drawn on the canvas
+  as a marker saying where the slide breaks, and a per-bullet overlay spec in the format
+  pane with "Reveal one at a time" for the stepped list. A `\pause` carrying its own spec
+  and every other overlay command stay raw
 - **Speaker notes**: a per-slide box under the canvas. `\note` round-trips as it always
   did, and the compiled PDF is unchanged — beamer hides notes unless the deck asks for
   them, which this does not
@@ -680,8 +732,10 @@ Everything the user and I agreed on is now done. What is left is smaller, and no
 has been asked for yet:
 
 1. Rich text inside a diagram label, and multi-point polyline editing
-2. `\citep`/`\citet`/`\autocite` — they need natbib or biblatex, and stay raw inline
-   islands for now
+2. biblatex. `\autocite` and `\textcite` are READ, so a deck that uses them keeps working
+   citations, but the picker offers natbib's three only: biblatex needs `biber` or a
+   `\printbibliography`, and the deck's pipeline is BibTeX. Authoring one would mean
+   offering a command whose bibliography never prints
 3. Table row spans (`\multirow` is preserved on import but not modelled) and a per-table
    font size (the emitter deliberately warns and drops `TableElement.fontSize`)
 4. Formatting a selection that spans TWO text boxes. `modelRangeFromSelection` returns
@@ -692,11 +746,14 @@ has been asked for yet:
    UI. Design ▸ Font owns `Preamble.fontTheme` so it can pair `serif` with a serif
    family, and a second control would fight it for the same field
 
-**Every `Element['kind']` now has an emitter, and TypeScript proves it**: the `default:`
-arm of `emitElementBody` narrows `el` to `never`. Three kinds used to land there and emit
-NOTHING — `toc`, `bibliography` and `chart` — so a modelled element simply disappeared
-from the `.tex`. `code.spec.ts` keeps the regression test. If you add a kind, the compiler
-will not complain; the test will.
+**Every `Element['kind']` now has an emitter, and TypeScript proves it** — for real, since
+`pause` was added. The `default:` arm of `emitElementBody` assigns `el` to a `const
+exhaustive: never` FIRST and casts afterwards; for a long time it only cast, and `as
+Element` accepts anything, so the check the comment described was not being made and a new
+kind compiled silently while emitting NOTHING. Three kinds had already landed there —
+`toc`, `bibliography` and `chart` — so a modelled element simply disappeared from the
+`.tex`. `code.spec.ts` keeps the regression test. Add a kind and the compiler will stop
+you at that line.
 
 Model types, and in several cases the emitter, already exist for all of these — check
 `packages/core/src/model/types.ts` before designing anything new.
@@ -737,10 +794,10 @@ Model types, and in several cases the emitter, already exist for all of these �
   terminator) change, so the output is equivalent LaTeX rather than the original bytes
 - `minted` needs shell escape, which the WASM engine cannot provide; preview falls back
   to `listings` with a warning
-- The file picker, drag-drop and paste paths have not been exercised with a real mouse —
-  only driven programmatically. Drawing, selecting, moving, resizing, deleting a slide,
-  formatting a selection and the transparency slider all HAVE been, after a layer that
-  swallowed every click went unnoticed for exactly this reason
+- The input paths have now been driven with a real mouse and a real clipboard, which
+  found three bugs (see the lesson below). The one step that cannot be driven from here is
+  the OS file dialog itself: the browser will not let automation complete it. Everything
+  after it is the `addImageFiles` the drop and paste paths share, and that is exercised
 - A package the parser read from a file comes back as a USER package, with no `derived`
   flag, so a derived one that has already round-tripped is never dropped again: make a
   transparent picture opaque after reopening the deck and its `\usepackage{tikz}` stays.

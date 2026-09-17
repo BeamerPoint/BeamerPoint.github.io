@@ -110,6 +110,18 @@ mean a wrong origin or a wrong box. Residuals that straddle zero are approximati
 **Expect roughly:** under 2mm horizontally, under 3mm vertically. Text baselines versus
 CSS line boxes account for a millimetre or two on their own and cannot be removed.
 
+**Pair the right two numbers.** The DOM side above reports a range's `top`; the PDF side
+reports a text BASELINE. Those are the two the thresholds were set against. Comparing a DOM
+*bottom* to a baseline instead adds a whole line box to every residual — on a re-run it
+made the two-column probe read 6.8mm out and look like a regression, when the same capture
+paired correctly was 3.2mm and unchanged.
+
+**Last re-run:** after the pointer work — drag sessions moved to `window`, handles
+inverse-scaled, snapping moved onto the gesture, aspect ratio captured once — and after
+text formatting and picture transparency. Text, list, block and column probes all within
+3.2mm vertically and 2mm horizontally, residuals the same shape as the recorded baseline.
+No regression: none of that work moved anything the emitter writes.
+
 **Do not chase line breaking.** TeX optimises paragraphs globally and hyphenates;
 browsers are greedy and mostly do not. A paragraph that wraps differently is expected,
 and the compile log's overfull-hbox warnings already surface it per element.

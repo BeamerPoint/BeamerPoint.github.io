@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CITE_COMMAND, type CiteStyle } from '@beamerpoint/core';
+import { AUTHORED_CITE_STYLES, CITE_COMMAND, type CiteStyle } from '@beamerpoint/core';
 import { useStore } from '../state/store.js';
 import { getResourceBytes } from '../state/resources.js';
 import { importBibFile } from '../state/images.js';
@@ -186,11 +186,17 @@ export function BibliographyPanel(): React.ReactElement {
  * `(Knuth, 1984)` and a textual `Knuth (1984)` -- and the app can derive the package
  * for them because natbib rides the BibTeX pipeline the deck already emits.
  */
-const CITE_STYLES: readonly { id: CiteStyle; label: string; title: string }[] = [
-  { id: 'plain', label: '[1]', title: '\\cite — the number, needing no package' },
-  { id: 'p', label: '(A, y)', title: '\\citep — parenthetical, needs natbib' },
-  { id: 't', label: 'A (y)', title: '\\citet — textual, needs natbib' },
-];
+const CITE_LABELS: Record<CiteStyle, { label: string; title: string }> = {
+  plain: { label: '[1]', title: '\\cite — the number, needing no package' },
+  p: { label: '(A, y)', title: '\\citep — parenthetical, needs natbib' },
+  t: { label: 'A (y)', title: '\\citet — textual, needs natbib' },
+  auto: { label: 'auto', title: '\\autocite — biblatex, read but not authored' },
+  text: { label: 'text', title: '\\textcite — biblatex, read but not authored' },
+};
+
+// Driven by the core list, so the set the emitter can derive a package for and the set
+// the picker offers cannot drift apart.
+const CITE_STYLES = AUTHORED_CITE_STYLES.map((id) => ({ id, ...CITE_LABELS[id] }));
 
 function matches(e: BibEntry, needle: string): boolean {
   return [e.key, e.author, e.title, e.year]
