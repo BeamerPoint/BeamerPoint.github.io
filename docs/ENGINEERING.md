@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 306 tests
+npm test             # vitest, 313 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -292,7 +292,20 @@ element (`elementWidthMm`), not the rect it was drawn into.
 **Constraining an aspect ratio has to capture the ratio ONCE.** Derived from the current
 box on every pointermove, rounding feeds back in and a long drag slowly walks the
 proportions away from where they started. It lives on the gesture, beside the raw box and
-for the same reason.
+for the same reason. It also has to reach BOTH kinds of corner handle: the first version
+constrained elements and not the shapes inside a diagram, so the feature looked simply
+broken to anyone who tried it on a rectangle -- reported as exactly that.
+
+**A draggable row cannot be an HTML5 drag source AND a listbox option.** Making a
+thumbnail `draggable` hands the browser the gesture: it swallows the click, paints its
+own ghost image, and fires `dragover` only over registered targets. The rail reorders on
+POINTER events instead, with a 4px threshold so a press is not a drag and an ordinary
+click still selects, and it swallows the click that follows a real drag. The drop target
+is a node ID rather than a row number, because the rail interleaves section headings with
+slides while `deck.nodes` may also hold `rawdoc` nodes it never shows -- and taking IDs is
+what lets a slide be dropped either side of a heading, which is how it changes section.
+`moveSlideBefore` finds the landing spot AFTER removing the slide, or every forward move
+lands one place short.
 
 **Deleting the focused thing drops focus to the body.** The slide rail's first Delete
 worked and every key after it went nowhere, because the button holding focus had just
@@ -546,7 +559,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Thirty-seven commits on `master`, ~21,600 lines across 119 source files, 306 tests passing.
+Thirty-eight commits on `master`, ~21,800 lines across 120 source files, 313 tests passing.
 
 ### Done
 
@@ -607,8 +620,11 @@ Thirty-seven commits on `master`, ~21,600 lines across 119 source files, 306 tes
 - **Copy and paste**: copy, cut, paste and duplicate any element, with Ctrl+C/X/V/D or
   the ribbon, across slides. The clipboard holds the MODEL, and every id inside a copy is
   renewed — including the shape ids a diagram's arrows point at
-- **Lock aspect ratio**: on by default, constraining CORNER drags, with Shift to invert
-  it for one gesture
+- **Lock aspect ratio**: on by default, constraining CORNER drags of an element AND of a
+  shape inside a diagram, with Shift to invert it for one gesture
+- **Reordering by drag**: slides are dragged to a new place in the rail, including
+  either side of a section heading, with a drop indicator and a threshold that keeps an
+  ordinary click a click
 - **Charts**: pgfplots line, bar, horizontal-bar and scatter charts with a data grid
   that takes a paste from a spreadsheet or a `.csv`, per-series marker, dash and label,
   and axis labels, grid, legend and a log scale. Drawn on the canvas in SVG
