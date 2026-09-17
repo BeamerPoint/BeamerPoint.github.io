@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 230 tests
+npm test             # vitest, 279 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -196,6 +196,83 @@ lists and diagrams unselectable, and a drag inside a diagram never reached the S
 shape could ever be drawn with a real mouse**. The layer is inert and the guide LINES take
 the pointer instead. `app/test/canvasLayers.spec.ts` asserts the rule against the
 stylesheet, since jsdom has no layout to hit-test.
+
+**A drag belongs to the DOCUMENT, not to the node it started on.** `resizeElementBy`
+converts an element to absolute placement on the first pointermove, and the canvas
+renders flow children under `.bp-body` but absolute ones under `.bp-abs-layer` -- a
+different DOM parent, so React unmounts the handle mid-gesture and takes the pointer
+capture and the handler with it. A box moved about a pixel and then froze, which is what
+"resizing is not possible at all" was. `canvas/pointerDrag.ts` listens on `window` and
+captures on `document.body`. The first version of that file was a HOOK and failed just
+as hard, because the same remount tears down the `useEffect` that installed the
+listeners: the session has to be module state. Measured in the browser, twice.
+
+**A handle declared in CSS pixels is not that many pixels.** `.bp-stage` carries
+`transform: scale(...)`, typically 0.2-0.4, so the 11px `.bp-handle` measured **2.3 real
+pixels** and the 10px move bands measured 2. Interactive sizes and offsets are divided by
+the scale in `SelectionOverlay`, the same inverse the rulers use, and measure exactly 11
+on screen at any zoom. A shape's SVG handle has it twice over -- PX_PER_MM and then the
+stage -- so its radius is computed from both.
+
+**Snapping applied per pointermove makes a guide a trap.** `snapMm` ran on the stored
+value and the next move started from the snapped number, so once a box touched a guide no
+single move could exceed the 1.5mm tolerance and it could not be pulled off. The gesture
+(`beginGesture`/`endGesture`) keeps the true position and snapping is a presentation of
+it. The same bracket gives one undo entry per drag: `mutate` used to push history on
+every move, so one drag buried the 100-deep stack and Ctrl+Z undid two pixels.
+
+**`requestAnimationFrame` does not fire when the window is not being painted.** Known for
+pdf.js here; it bit again in the selection tracking, which coalesced `selectionchange`
+through rAF -- so the whole text-formatting feature was dead, with no error, whenever the
+app sat behind another window. Measured in the browser pane, where rAF never fires at
+all. Coalesce with a timeout; keep rAF for things that are genuinely about painting.
+
+**`\large` is a control word, so the space after it is not content.** The parser kept it
+in the child text and the emitter wrote its own, so `{\large big}` re-emitted as
+`{\large  big}`, then three spaces, then four: the file grew every time the deck was
+saved. The guard never caught it because whitespace between tokens is insignificant to
+the comparison -- a fixpoint test is the only thing that finds this class of bug.
+
+**`\textcolor[rgb]{...}` was emitted and could not be parsed.** The emitter has always
+written the `[model]{spec}` form for an rgb colour and `parse/inline.ts` accepted only the
+two-argument, zero-option one, so a colour from the RGB picker came back as an inert raw
+island: preserved, no longer editable, counted against `health.demoted`. If the emitter
+can write a form, the parser has to read it -- the same rule as `\titlegraphic`.
+
+**Styling a range needs a fixed nesting ORDER.** Applying a colour to "a" and to a bold
+"b" put the wrapper innermost on one and outermost on the other, so the two had no common
+parent: `\textcolor{red}{a}\textbf{\textcolor{red}{b}}`, correct LaTeX, twice the source,
+and impossible to toggle back off as one run. `MARK_RANK` in `model/richtextOps.ts` ranks
+every wrapper; all of these commands commute, so reordering changes nothing on the page.
+
+**A format button must cancel its own mousedown.** Clicking one moves the focus, which
+destroys the browser's selection before the click handler runs -- and then there is
+nothing left to format. Every control in Home > Font calls `preventDefault` on mousedown.
+For the same reason Ctrl+B/I/U are intercepted inside the editable box: the browser's own
+handler inserts a bare `<strong>` with no `data-bp-i`, and `readInlineFromDom` flattens
+anything without one to plain text on the next blur.
+
+**Beamer typesets in SANS, so a serif font package does nothing on its own.** `mathptmx`
+and `mathpazo` -- the obvious way to offer Times and Palatino -- set `\rmdefault` and
+leave `\familydefault` at `cmss`. Loading either compiles, produces a PDF, and changes
+nothing on the slide. A serif family has to carry `\usefonttheme{serif}` with it.
+`themes/fonts.ts` records which of the eleven offered families need it, each measured by
+reading `\familydefault` out of the log; the probe is `tools/deck-fonts.md`. Six more
+font packages are not bundled at all.
+
+**The `transparent` package does not make anything transparent here.** Measured with
+`\pdfcompresslevel=0` so the PDF's graphics state is readable: `\transparent{0.4}{...}`
+compiles and writes `ca 1, CA 1` -- an alpha of one. A TikZ node with `opacity=0.4`
+writes `ca 0.4`. So a see-through picture is emitted as a one-node `tikzpicture` with
+`inner sep=0pt`, and a picture with no opacity emits byte-for-byte what it always did.
+Reading a PDF's own bytes needs that compression flag: busytex writes object streams, so
+grepping a normal output for `/ca` or `/BaseFont` finds nothing and looks like a negative
+result.
+
+**Deleting the focused thing drops focus to the body.** The slide rail's first Delete
+worked and every key after it went nowhere, because the button holding focus had just
+been unmounted. Anything that removes the node it was invoked from has to take the focus
+back afterwards. Found with real keystrokes; the store was right the whole time.
 
 **Driving the store is not driving the UI.** Every shape feature was built and verified by
 calling `drawShape` and friends directly, and all of it worked — while the thing a user
@@ -444,7 +521,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Thirty-one commits on `master`, ~19,400 lines across 109 source files, 230 tests passing.
+Thirty-six commits on `master`, ~21,000 lines across 117 source files, 279 tests passing.
 
 ### Done
 
@@ -486,14 +563,21 @@ Thirty-one commits on `master`, ~19,400 lines across 109 source files, 230 tests
   subtitle, author, institute and date are edited in the format pane
 - **Arrange**: a numeric Position and Size panel (X, Y, width, rotation in millimetres
   and degrees) and align-to-slide for any selected element
-- **Formatting**: shape fill, outline, line style and width, corner radius, arrow curve
-  and head, node shape, text colour, transparency, rotation and drop shadow; any colour
-  at all through an RGB picker, not just the ten preset swatches; picture height,
-  rotation and keep-aspect; table borders, row and cell shading, and banded rows
+- **Formatting**: bold, italic, underline, monospace, small caps, alert, colour and
+  size applied to the WORDS THAT ARE SELECTED, from Home > Font, with Ctrl+B/I/U; one
+  font family for the deck on Design > Font, from eleven measured families; shape fill,
+  outline, line style and width, corner radius, arrow curve and head, node shape, text
+  colour, transparency, rotation and drop shadow; any colour at all through an RGB
+  picker, not just the ten preset swatches; picture height, rotation, keep-aspect and
+  transparency; table borders, row and cell shading, and banded rows
 - **Direct manipulation**: every element -- text, list, block, columns, table, picture,
   equation, diagram, at any depth -- is selectable, draggable and resizable on the
   canvas. Dragging one out of the flow converts it to a free position at the place it
-  was already drawn, and dragging one out of a block or a column lifts it onto the frame
+  was already drawn, and dragging one out of a block or a column lifts it onto the frame.
+  Handles are a constant size on screen whatever the zoom, a drag survives the remount
+  that lifting an element causes, and a whole gesture is one undo entry
+- **The slide rail**: a listbox with arrow keys, a delete control on every slide, Delete
+  to remove and Enter to insert; deleting the last slide replaces it with a blank one
 - **Charts**: pgfplots line, bar, horizontal-bar and scatter charts with a data grid
   that takes a paste from a spreadsheet or a `.csv`, per-series marker, dash and label,
   and axis labels, grid, legend and a log scale. Drawn on the canvas in SVG
@@ -519,8 +603,6 @@ Thirty-one commits on `master`, ~19,400 lines across 109 source files, 230 tests
 
 ### Not done
 
-Roughly in the order the user and I agreed to tackle them:
-
 Everything the user and I agreed on is now done. What is left is smaller, and none of it
 has been asked for yet:
 
@@ -529,6 +611,13 @@ has been asked for yet:
    islands for now
 3. Table row spans (`\multirow` is preserved on import but not modelled) and a per-table
    font size (the emitter deliberately warns and drops `TableElement.fontSize`)
+4. Formatting a selection that spans TWO text boxes. `modelRangeFromSelection` returns
+   `null` rather than clamping, because styling half of what looks selected is worse
+   than doing nothing, and the controls disable. It needs one range per host and one
+   `mutate`
+5. beamer's other font themes (`structurebold` and the two structure-serif ones) have no
+   UI. Design ▸ Font owns `Preamble.fontTheme` so it can pair `serif` with a serif
+   family, and a second control would fight it for the same field
 
 **Every `Element['kind']` now has an emitter, and TypeScript proves it**: the `default:`
 arm of `emitElementBody` narrows `el` to `never`. Three kinds used to land there and emit
@@ -570,5 +659,11 @@ Model types, and in several cases the emitter, already exist for all of these �
 - `minted` needs shell escape, which the WASM engine cannot provide; preview falls back
   to `listings` with a warning
 - The file picker, drag-drop and paste paths have not been exercised with a real mouse —
-  only driven programmatically. Drawing, selecting, moving and resizing on the canvas HAVE
-  been, after a layer that swallowed every click went unnoticed for exactly this reason
+  only driven programmatically. Drawing, selecting, moving, resizing, deleting a slide,
+  formatting a selection and the transparency slider all HAVE been, after a layer that
+  swallowed every click went unnoticed for exactly this reason
+- A package the parser read from a file comes back as a USER package, with no `derived`
+  flag, so a derived one that has already round-tripped is never dropped again: make a
+  transparent picture opaque after reopening the deck and its `\usepackage{tikz}` stays.
+  Harmless — an unused package — and fixing it risks deleting a package the user wrote
+  by hand for their own raw TikZ
