@@ -1,4 +1,4 @@
-import type { Color, Inline, RichText, TexString } from '../model/types.js';
+import type { CiteStyle, Color, Inline, RichText, TexString } from '../model/types.js';
 import { escapeText } from './escape.js';
 
 /** Render an xcolor value as it appears inside `\textcolor{...}` or an option list. */
@@ -13,6 +13,15 @@ export function colorToTex(c: Color): TexString {
     }
   }
 }
+
+/** The command each citation style writes. */
+export const CITE_COMMAND: Readonly<Record<CiteStyle, string>> = {
+  plain: 'cite',
+  p: 'citep',
+  t: 'citet',
+  auto: 'autocite',
+  text: 'textcite',
+};
 
 const STYLE_COMMAND: Readonly<Record<string, string>> = {
   bf: 'textbf',
@@ -78,11 +87,12 @@ function emitOne(node: Inline, next?: Inline): TexString {
 
     case 'cite': {
       const inner = node.keys.join(',');
+      const cmd = CITE_COMMAND[node.style ?? 'plain'];
       if (node.pre !== undefined && node.post !== undefined) {
-        return `\\cite[${escapeText(node.pre)}][${escapeText(node.post)}]{${inner}}`;
+        return `\\${cmd}[${escapeText(node.pre)}][${escapeText(node.post)}]{${inner}}`;
       }
-      if (node.post !== undefined) return `\\cite[${escapeText(node.post)}]{${inner}}`;
-      return `\\cite{${inner}}`;
+      if (node.post !== undefined) return `\\${cmd}[${escapeText(node.post)}]{${inner}}`;
+      return `\\${cmd}{${inner}}`;
     }
 
     case 'style': {

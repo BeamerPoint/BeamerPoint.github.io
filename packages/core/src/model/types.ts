@@ -54,6 +54,12 @@ export const FONT_SIZES_ORDERED: readonly BeamerFontSize[] = [
 
 /* ------------------------------------------------------------------- inline */
 
+/** `\cite`, natbib's `\citep`/`\citet`, biblatex's `\autocite`/`\textcite`. */
+export type CiteStyle = 'plain' | 'p' | 't' | 'auto' | 'text';
+
+/** The commands the UI offers: natbib only, because those it can derive a package for. */
+export const AUTHORED_CITE_STYLES: readonly CiteStyle[] = ['plain', 'p', 't'];
+
 export type InlineStyle =
   | 'bf' | 'it' | 'ul' | 'tt' | 'sc' | 'emph'
   | 'alert' | 'structure' | 'color' | 'size';
@@ -62,7 +68,20 @@ export type Inline =
   | { t: 'text'; s: PlainText }
   | { t: 'style'; style: InlineStyle; color?: Color; size?: BeamerFontSize; children: Inline[] }
   | { t: 'math'; tex: TexString }
-  | { t: 'cite'; keys: string[]; pre?: PlainText; post?: PlainText }
+  | {
+      t: 'cite'; keys: string[]; pre?: PlainText; post?: PlainText;
+      /**
+       * Which citation command. Absent means plain `\cite`, which needs no package.
+       *
+       * `p` and `t` are natbib's — the app derives `\usepackage{natbib}` for them,
+       * because natbib rides the `\bibliographystyle` + `\bibliography` + BibTeX
+       * pipeline the deck already uses. `auto` and `text` are biblatex's, which
+       * REPLACES that pipeline: they are read and preserved so someone else's deck
+       * stays editable, and nothing is derived for them, but the UI does not offer
+       * them — writing one into a deck with no biblatex would not compile.
+       */
+      style?: CiteStyle;
+    }
   | { t: 'ref'; kind: 'ref' | 'pageref' | 'nameref' | 'eqref'; target: string }
   | { t: 'link'; url: string; children: Inline[] }
   | { t: 'sym'; name: string }

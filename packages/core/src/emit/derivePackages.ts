@@ -1,4 +1,4 @@
-import type { Deck, Element, PackageSpec } from '../model/types.js';
+import type { Deck, Element, PackageSpec, RichText } from '../model/types.js';
 import { TIKZ_LIBRARIES, TIKZ_LIBRARIES_LEGACY } from './tikz.js';
 import { LST_SETUP_LINES, lstSetupLines } from './lstLanguages.js';
 
@@ -55,10 +55,43 @@ export function derivePackages(deck: Deck): DerivedPackage[] {
   };
 
   let sawAbsoluteTextpos = false;
+  let sawNatbibCite = false;
+
+  /**
+   * Look through rich text for a natbib citation.
+   *
+   * `\citep` and `\citet` are natbib's, not LaTeX's, and without the package they are
+   * undefined control sequences -- no PDF at all, the same class of failure as an
+   * unknown `listings` language. natbib rides the `\bibliographystyle` +
+   * `\bibliography` + BibTeX pipeline the deck already uses, so this is additive.
+   * biblatex's `\autocite`/`\textcite` derive NOTHING: biblatex replaces that
+   * pipeline, so the deck that uses them brings its own preamble.
+   */
+  const visitRich = (rt: RichText): void => {
+    for (const n of rt) {
+      if (n.t === 'cite' && (n.style === 'p' || n.style === 't')) sawNatbibCite = true;
+      else if (n.t === 'style' || n.t === 'link') visitRich(n.children);
+    }
+  };
   let sawNonAscii = false;
   const codeLanguages = new Set<string>();
 
   const visitElement = (el: Element): void => {
+    switch (el.kind) {
+      case 'text': visitRich(el.content); break;
+      case 'list': el.items.forEach(function walk(i): void {
+        visitRich(i.content);
+        i.sublist?.items.forEach(walk);
+      }); break;
+      case 'table':
+        el.rows.forEach((r) => r.cells.forEach((c) => visitRich(c.content)));
+        break;
+      case 'block':
+        if (el.title !== undefined) visitRich(el.title);
+        break;
+      default: break;
+    }
+
     if (el.placement.mode === 'absolute') {
       if (el.placement.driver === 'textpos') sawAbsoluteTextpos = true;
       else add('tikz');
@@ -138,6 +171,8 @@ export function derivePackages(deck: Deck): DerivedPackage[] {
     const listings = need.get('listings')!;
     listings.setup = lstSetupLines(codeLanguages);
   }
+
+  if (sawNatbibCite) add('natbib');
 
   if (sawAbsoluteTextpos) {
     add('textpos', ['absolute', 'overlay'], [

@@ -74,6 +74,7 @@ import {
   type SectionNode,
   type SourceMap,
   type ArrowHead,
+  type CiteStyle,
   type ShapeCorner,
   type ShapeOptionPatch,
   type SeriesSpec,
@@ -189,7 +190,9 @@ interface AppState {
   setBibliographyStyle(style: string): void;
   addReferencesSlide(): void;
   syncBibliographyFiles(): void;
-  insertCitation(slideId: string, elementId: string, key: string): void;
+  insertCitation(
+    slideId: string, elementId: string, key: string, style?: CiteStyle,
+  ): void;
 
   addTextElement(slideId: string): void;
   addListElement(slideId: string): void;
@@ -1058,12 +1061,17 @@ export const useStore = create<AppState>()((set, get) => {
     },
 
     /** Append a `\cite{key}` to the end of a text element. */
-    insertCitation(slideId, elementId, key) {
+    insertCitation(slideId, elementId, key, style = 'plain') {
       mutate((deck) =>
         mapElement(deck, slideId, elementId, (el) => {
           if (el.kind !== 'text') return el;
           const sep: RichText = el.content.length === 0 ? [] : [{ t: 'text', s: ' ' }];
-          return { ...el, content: [...el.content, ...sep, { t: 'cite', keys: [key] }] };
+          // Plain carries no style at all, so a deck written before the natbib
+          // commands existed still emits byte-for-byte what it did.
+          const cite: RichText[number] = style === 'plain'
+            ? { t: 'cite', keys: [key] }
+            : { t: 'cite', keys: [key], style };
+          return { ...el, content: [...el.content, ...sep, cite] };
         }),
       );
     },

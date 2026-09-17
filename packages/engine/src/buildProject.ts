@@ -77,9 +77,9 @@ export async function buildProject(
 /**
  * True when the deck prints a reference list.
  *
- * `ibliography{...}` lives in the BODY, on a `BibliographyElement` — the preamble
+ * `\bibliography{...}` lives in the BODY, on a `BibliographyElement` — the preamble
  * carries only the style. Asking the preamble alone meant a deck that had attached a
- * `.bib` and inserted a references frame, but no `ibliographystyle`, never ran BibTeX
+ * `.bib` and inserted a references frame, but no `\bibliographystyle`, never ran BibTeX
  * and printed nothing.
  */
 function needsBibtex(deck: Deck): boolean {
@@ -103,7 +103,7 @@ export function jobForProject(
     mainFile: 'main.tex',
     runBibtex: needsBibtex(deck),
     // BibTeX needs at least three passes to settle: one to write the .aux, bibtex, then
-    // two more for the ibitem labels to reach the citations.
+    // two more for the \bibitem labels to reach the citations.
     passes: needsBibtex(deck) ? 3 : 'auto',
     ...overrides,
   });

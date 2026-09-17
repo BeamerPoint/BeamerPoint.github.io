@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { CITE_COMMAND, type CiteStyle } from '@beamerpoint/core';
 import { useStore } from '../state/store.js';
 import { getResourceBytes } from '../state/resources.js';
 import { importBibFile } from '../state/images.js';
@@ -32,6 +33,7 @@ export function BibliographyPanel(): React.ReactElement {
 
   const fileInput = useRef<HTMLInputElement>(null);
   const [filter, setFilter] = useState('');
+  const [style, setStyle] = useState<CiteStyle>('plain');
   const bibs = deck.resources.filter((r) => r.kind === 'bib');
   const entries = useBibEntries(bibs.map((b) => b.id));
 
@@ -128,14 +130,39 @@ export function BibliographyPanel(): React.ReactElement {
             </p>
           )}
 
+          {/*
+            * Which command the citation writes. `\citep` and `\citet` are natbib's, so
+            * choosing one derives `\usepackage{natbib}` -- without it they are undefined
+            * control sequences and there is no PDF at all. biblatex's `\autocite` and
+            * `\textcite` are read and preserved from someone else's deck but not
+            * offered: biblatex REPLACES the BibTeX pipeline this app emits, so writing
+            * one here would produce a deck that does not compile.
+            */}
+          <div className="bp-field">
+            <span>Citation style</span>
+            <div className="bp-seg">
+              {CITE_STYLES.map((s) => (
+                <button
+                  key={s.id}
+                  className={style === s.id ? 'is-active' : ''}
+                  disabled={locked}
+                  title={s.title}
+                  onClick={() => setStyle(s.id)}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <ul className="bp-bib-entries">
             {shown.slice(0, 40).map((e) => (
               <li key={e.key}>
                 <button
                   disabled={locked || target === undefined}
-                  title={`Insert \\cite{${e.key}}`}
+                  title={`Insert \\${CITE_COMMAND[style]}{${e.key}}`}
                   onClick={() => target !== undefined && selection.slideId !== null
-                    && insertCitation(selection.slideId, target.id, e.key)}
+                    && insertCitation(selection.slideId, target.id, e.key, style)}
                 >
                   <span className="bp-bib-key">{e.key}</span>
                   <span className="bp-bib-desc">
@@ -151,6 +178,19 @@ export function BibliographyPanel(): React.ReactElement {
     </section>
   );
 }
+
+/**
+ * The citation commands the UI offers.
+ *
+ * natbib only. Its two are what people actually write in a paper -- a parenthetical
+ * `(Knuth, 1984)` and a textual `Knuth (1984)` -- and the app can derive the package
+ * for them because natbib rides the BibTeX pipeline the deck already emits.
+ */
+const CITE_STYLES: readonly { id: CiteStyle; label: string; title: string }[] = [
+  { id: 'plain', label: '[1]', title: '\\cite — the number, needing no package' },
+  { id: 'p', label: '(A, y)', title: '\\citep — parenthetical, needs natbib' },
+  { id: 't', label: 'A (y)', title: '\\citet — textual, needs natbib' },
+];
 
 function matches(e: BibEntry, needle: string): boolean {
   return [e.key, e.author, e.title, e.year]

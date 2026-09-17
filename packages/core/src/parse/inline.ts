@@ -1,4 +1,4 @@
-import type { BeamerFontSize, Color, Inline, RichText } from '../model/types.js';
+import type { BeamerFontSize, CiteStyle, Color, Inline, RichText } from '../model/types.js';
 import type { CstGroup, CstNode } from './cst.js';
 import { normalizeRichText, trimRichText } from '../model/richtext.js';
 
@@ -36,6 +36,15 @@ const FONT_SIZES: ReadonlySet<string> = new Set<BeamerFontSize>([
 ]);
 
 const REF_KINDS: ReadonlySet<string> = new Set(['ref', 'pageref', 'nameref', 'eqref']);
+
+/** Citation commands, by the style they stand for. */
+const CITE_STYLE: Readonly<Record<string, CiteStyle>> = {
+  cite: 'plain',
+  citep: 'p',
+  citet: 't',
+  autocite: 'auto',
+  textcite: 'text',
+};
 
 export function parseInline(nodes: CstNode[], src: string): RichText {
   const out: RichText = [];
@@ -145,14 +154,19 @@ function convertCommand(
     };
   }
 
-  if (name === 'cite' && args.length === 1) {
+  const citeStyle = CITE_STYLE[name];
+  if (citeStyle !== undefined && args.length === 1 && !star) {
     const keys = groupToLiteral(args[0]!, src).split(',').map((k) => k.trim()).filter(Boolean);
-    if (opts.length === 0) return { t: 'cite', keys };
-    if (opts.length === 1) return { t: 'cite', keys, post: groupToLiteral(opts[0]!, src) };
+    // Plain `\cite` keeps no style at all, so every deck written before the other
+    // commands existed still emits byte-for-byte what it did.
+    const style = citeStyle === 'plain' ? {} : { style: citeStyle };
+    if (opts.length === 0) return { t: 'cite', keys, ...style };
+    if (opts.length === 1) return { t: 'cite', keys, ...style, post: groupToLiteral(opts[0]!, src) };
     if (opts.length === 2) {
       return {
         t: 'cite',
         keys,
+        ...style,
         pre: groupToLiteral(opts[0]!, src),
         post: groupToLiteral(opts[1]!, src),
       };

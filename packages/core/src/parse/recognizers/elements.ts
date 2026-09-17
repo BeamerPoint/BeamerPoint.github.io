@@ -177,8 +177,8 @@ function isBlockLevel(node: CstNode): boolean {
     case 'env':
     case 'error':
       return true;
-    // A verbatim ENVIRONMENT is a block; an inline `erb|x|` is not. Treating both as
-    // block-level split every paragraph containing a `erb` into three elements.
+    // A verbatim ENVIRONMENT is a block; an inline `\verb|x|` is not. Treating both as
+    // block-level split every paragraph containing a `\verb` into three elements.
     case 'verb':
       return isVerbatimEnv(node.name);
     case 'math':
