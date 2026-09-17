@@ -5,6 +5,7 @@ import {
   newFrame,
   newListElement,
   newId,
+  newCodeElement,
   newTableElement,
   newTikzElement,
   newSmartArtElement,
@@ -35,6 +36,7 @@ import {
   plain,
   richTextEquals,
   themeNeedsUnicodeEngine,
+  type CodeElement,
   type Deck,
   type Element,
   type FrameNode,
@@ -144,6 +146,15 @@ interface AppState {
   addColumnsElement(slideId: string): void;
   addImageElement(slideId: string, ref: ResourceRef): void;
   addMathElement(slideId: string): void;
+  addCodeElement(slideId: string): void;
+  setCodeText(slideId: string, elementId: string, code: string): void;
+  setCodeLanguage(slideId: string, elementId: string, language: string): void;
+  setCodeBackend(slideId: string, elementId: string, backend: CodeElement['backend']): void;
+  setCodeFrameStyle(
+    slideId: string, elementId: string, frameStyle: CodeElement['frameStyle'],
+  ): void;
+  setCodeCaption(slideId: string, elementId: string, caption: string | null): void;
+  setCodeOption(slideId: string, elementId: string, key: string, value: string | null): void;
   addTextBox(slideId: string): void;
   addTableElement(slideId: string): void;
   setTableCell(
@@ -411,6 +422,13 @@ export const useStore = create<AppState>()((set, get) => {
     elementId: string,
     fn: (t: TableElement) => TableElement,
   ): Deck => mapElement(deck, slideId, elementId, (el) => (el.kind === 'table' ? fn(el) : el));
+
+  const mapCode = (
+    deck: Deck,
+    slideId: string,
+    elementId: string,
+    fn: (el: CodeElement) => CodeElement,
+  ): Deck => mapElement(deck, slideId, elementId, (el) => (el.kind === 'code' ? fn(el) : el));
 
   const mapTikz = (
     deck: Deck,
@@ -719,6 +737,12 @@ export const useStore = create<AppState>()((set, get) => {
       set({ selection: { slideId, elementId: el.id } });
     },
 
+    addCodeElement(slideId) {
+      const el = newCodeElement();
+      mutate((deck) => mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, el] })));
+      set({ selection: { slideId, elementId: el.id } });
+    },
+
     addTableElement(slideId) {
       const el = newTableElement(3, 3);
       mutate((deck) => mapFrame(deck, slideId, (f) => ({ ...f, children: [...f.children, el] })));
@@ -930,6 +954,55 @@ export const useStore = create<AppState>()((set, get) => {
           el.kind === 'math' ? { ...el, env } : el,
         ),
       );
+    },
+
+    /**
+     * The listing's text.
+     *
+     * Stored as the user typed it, with no leading or trailing newline: those two are
+     * structural (listings needs the body on its own line), and the emitter writes them
+     * and the parser strips them again.
+     */
+    setCodeText(slideId, elementId, code) {
+      mutate((deck) => mapCode(deck, slideId, elementId, (el) => ({ ...el, code })));
+    },
+
+    setCodeLanguage(slideId, elementId, language) {
+      mutate((deck) => mapCode(deck, slideId, elementId, (el) => ({ ...el, language })));
+    },
+
+    setCodeBackend(slideId, elementId, backend) {
+      mutate((deck) => mapCode(deck, slideId, elementId, (el) => ({ ...el, backend })));
+    },
+
+    setCodeFrameStyle(slideId, elementId, frameStyle) {
+      mutate((deck) => mapCode(deck, slideId, elementId, (el) => {
+        if (frameStyle === undefined || frameStyle === 'none') {
+          const { frameStyle: _drop, ...rest } = el;
+          return rest;
+        }
+        return { ...el, frameStyle };
+      }));
+    },
+
+    setCodeCaption(slideId, elementId, caption) {
+      mutate((deck) => mapCode(deck, slideId, elementId, (el) => {
+        if (caption === null || caption.trim() === '') {
+          const { caption: _drop, ...rest } = el;
+          return rest;
+        }
+        return { ...el, caption: plain(caption) };
+      }));
+    },
+
+    /** One `listings` key. `null` removes it, so no option is emitted at all. */
+    setCodeOption(slideId, elementId, key, value) {
+      mutate((deck) => mapCode(deck, slideId, elementId, (el) => {
+        const options = { ...el.options };
+        if (value === null) delete options[key];
+        else options[key] = value;
+        return { ...el, options };
+      }));
     },
 
     setImageWidth(slideId, elementId, fraction) {

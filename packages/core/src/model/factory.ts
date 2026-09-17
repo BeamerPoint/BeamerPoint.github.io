@@ -1,4 +1,5 @@
 import type {
+  CodeElement,
   Deck,
   Element,
   FrameNode,
@@ -117,6 +118,29 @@ export function newTikzElement(w = 100, h = 45): TikzElement {
     mode: 'shapes',
     shapes: [],
     canvasSize: { w, h },
+  };
+}
+
+/**
+ * A source listing.
+ *
+ * `code` is what the user sees: no leading or trailing newline, because those two are
+ * structural — listings needs the body to start on its own line — and the emitter writes
+ * them and the parser strips them again. Everything between is byte-exact, which is what
+ * the round-trip guard compares.
+ */
+export function newCodeElement(
+  language = 'Python',
+  code = 'def greet(name):\n    print(f"Hello, {name}")',
+): CodeElement {
+  return {
+    id: newId(),
+    kind: 'code',
+    placement: { mode: 'flow' },
+    backend: 'listings',
+    language,
+    code,
+    options: {},
   };
 }
 

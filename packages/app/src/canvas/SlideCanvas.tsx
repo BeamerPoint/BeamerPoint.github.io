@@ -25,6 +25,7 @@ interface Props {
   onEditContent(elementId: string, content: RichText): void;
   onEditItem(elementId: string, itemId: string, content: RichText): void;
   onEditCell(elementId: string, rowId: string, cellId: string, content: RichText): void;
+  onEditCode(elementId: string, code: string): void;
   overlayMode: OverlayMode;
   aids: AidSettings;
   onAddGuide(axis: 'v' | 'h', mm: number): void;
@@ -260,6 +261,7 @@ export function SlideCanvas(props: Props): React.ReactElement {
               onEditContent={props.onEditContent}
               onEditItem={props.onEditItem}
               onEditCell={props.onEditCell}
+              onEditCode={props.onEditCode}
               overlayMode={props.overlayMode}
               onResizeImage={props.onResizeImage}
               onResizeElement={props.onResizeElement}
@@ -302,6 +304,7 @@ export function SlideCanvas(props: Props): React.ReactElement {
               onEditContent={props.onEditContent}
               onEditItem={props.onEditItem}
               onEditCell={props.onEditCell}
+              onEditCode={props.onEditCode}
               overlayMode={props.overlayMode}
               onResizeImage={props.onResizeImage}
               onResizeElement={props.onResizeElement}

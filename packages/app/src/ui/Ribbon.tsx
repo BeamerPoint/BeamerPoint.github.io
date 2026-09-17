@@ -7,7 +7,7 @@ import { ShapeGallery } from '../panels/ShapeGallery.js';
 import { SmartArtPicker } from '../panels/SmartArtPicker.js';
 import {
   IconBackward, IconBlock, IconBullets, IconCompile, IconDelete, IconDiagram,
-  IconEquation, IconExport, IconForward, IconGrid, IconGuides, IconImage,
+  IconCode, IconEquation, IconExport, IconForward, IconGrid, IconGuides, IconImage,
   IconNew, IconOpen, IconRedo, IconRuler, IconSave, IconShapes, IconSlideAdd,
   IconSmartArt, IconSnap, IconTable, IconText, IconTextBox, IconUndo,
 } from './icons.js';
@@ -120,6 +120,7 @@ export function Ribbon(props: Props): React.ReactElement {
   const addBlockElement = useStore((s) => s.addBlockElement);
   const addColumnsElement = useStore((s) => s.addColumnsElement);
   const addMathElement = useStore((s) => s.addMathElement);
+  const addCodeElement = useStore((s) => s.addCodeElement);
   const addTableElement = useStore((s) => s.addTableElement);
   const addTikzElement = useStore((s) => s.addTikzElement);
   const addTextBox = useStore((s) => s.addTextBox);
@@ -296,6 +297,13 @@ export function Ribbon(props: Props): React.ReactElement {
 
             <Group label="Symbols">
               <Big icon={<IconEquation size={20} />} label="Equation" disabled={noFrame} onClick={() => fid && addMathElement(fid)} />
+              <Big
+                icon={<IconCode size={20} />}
+                label="Code"
+                title="A source listing, typeset by listings"
+                disabled={noFrame}
+                onClick={() => fid && addCodeElement(fid)}
+              />
             </Group>
 
             {selectedTikz !== undefined && (

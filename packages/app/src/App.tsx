@@ -39,6 +39,7 @@ export function App(): React.ReactElement {
 
   const overlayMode = useStore((s) => s.overlayMode);
   const nudgeImageWidth = useStore((s) => s.nudgeImageWidth);
+  const setCodeText = useStore((s) => s.setCodeText);
   const moveElementBy = useStore((s) => s.moveElementBy);
   const resizeElementBy = useStore((s) => s.resizeElementBy);
   const setImageTrim = useStore((s) => s.setImageTrim);
@@ -227,6 +228,9 @@ export function App(): React.ReactElement {
               if (selection.slideId !== null) {
                 setTableCell(selection.slideId, elementId, rowId, cellId, content);
               }
+            }}
+            onEditCode={(elementId, code) => {
+              if (selection.slideId !== null) setCodeText(selection.slideId, elementId, code);
             }}
             onEditItem={(elementId, itemId, content) => {
               if (selection.slideId !== null) {

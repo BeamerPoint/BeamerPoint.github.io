@@ -1,5 +1,6 @@
 import type {
-  Color, Element, Length, ListElement, ListItem, Placement, RowRule, TableColumn, TableElement,
+  CodeElement, Color, Element, Length, ListElement, ListItem, Placement, RowRule,
+  TableColumn, TableElement,
   TableRow, TexString,
 } from '../model/types.js';
 import { roundMm } from '../geometry/paper.js';
@@ -37,7 +38,8 @@ export function emitElement(w: TexWriter, el: Element, ctx: EmitContext): void {
   // canvas — which draws it as a block — would be lying. Measured: 58mm to the right.
   // A tikzpicture is an inline box for the same reason a tabular is.
   const ownParagraph =
-    (el.kind === 'table' || el.kind === 'tikz') && el.placement.mode === 'flow';
+    (el.kind === 'table' || el.kind === 'tikz' || el.kind === 'code')
+    && el.placement.mode === 'flow';
 
   if (ownParagraph) w.blank();
   w.span(el.id, `element:${el.kind}`, () => {
@@ -98,6 +100,42 @@ function emitAbsoluteWrapper(
   w.line_('\\end{textblock*}');
 }
 
+const CODE_ENVIRONMENT: Readonly<Record<CodeElement['backend'], string>> = {
+  listings: 'lstlisting',
+  minted: 'minted',
+  verbatim: 'verbatim',
+};
+
+/**
+ * What follows `\begin{lstlisting}` / `\begin{minted}`.
+ *
+ * `minted` takes the language as a mandatory argument and everything else in an option
+ * list; `lstlisting` takes one option list; `verbatim` takes nothing at all, so anything
+ * set on a verbatim listing is deliberately dropped rather than emitted somewhere it
+ * does not belong -- the UI does not offer those controls for that backend.
+ *
+ * The option order is fixed, because the round trip is a fixpoint only if re-emitting
+ * reproduces the same bytes.
+ */
+function codeArguments(el: CodeElement): string {
+  if (el.backend === 'verbatim') return '';
+
+  const opts: string[] = [];
+  if (el.backend === 'listings' && el.language !== '') {
+    opts.push(`language=${el.language}`);
+  }
+  if (el.caption !== undefined) opts.push(`caption={${emitInline(el.caption)}}`);
+  if (el.frameStyle !== undefined && el.frameStyle !== 'none') {
+    opts.push(`frame=${el.frameStyle}`);
+  }
+  for (const [k, v] of Object.entries(el.options)) {
+    opts.push(v === '' ? k : `${k}=${v}`);
+  }
+
+  const list = opts.length === 0 ? '' : `[${opts.join(',')}]`;
+  return el.backend === 'minted' ? `${list}{${el.language}}` : list;
+}
+
 function emitElementBody(w: TexWriter, el: Element, ctx: EmitContext): void {
   switch (el.kind) {
     case 'raw':
@@ -138,6 +176,24 @@ function emitElementBody(w: TexWriter, el: Element, ctx: EmitContext): void {
       w.raw(el.tex);
       w.nl();
       w.line_(`\\end{${el.env}}`);
+      return;
+    }
+
+    case 'code': {
+      // NOTHING here is indented, and the body is never reflowed.
+      //
+      // `guard.ts` compares verbatim bodies byte for byte, and the lexer captures
+      // everything between `\begin{lstlisting}` and `\end{lstlisting}` -- so an
+      // indented `\end` would put its own leading spaces INSIDE the next parse's body
+      // and the round trip would stop being a fixpoint. The newline either side of the
+      // code is structural (listings needs the content to start on its own line) and is
+      // stripped again on the way back in.
+      const env = CODE_ENVIRONMENT[el.backend];
+      w.nl();
+      w.raw(`\\begin{${env}}${codeArguments(el)}\n`);
+      w.raw(el.code);
+      w.raw(`\n\\end{${env}}`);
+      w.nl();
       return;
     }
 

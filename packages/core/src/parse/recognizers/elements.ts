@@ -13,9 +13,10 @@ import type {
   Placement,
   RawElement,
 } from '../../model/types.js';
-import type { CstGroup, CstNode } from '../cst.js';
+import { isVerbatimEnv, type CstGroup, type CstNode } from '../cst.js';
 import { buildCst } from '../lexer.js';
 import { parseInline, trimRichText } from '../inline.js';
+import { recognizeCode } from './code.js';
 import { recognizeTable } from './table.js';
 import { recognizeTikz } from './tikz.js';
 
@@ -173,9 +174,12 @@ export function recognizeElements(nodes: CstNode[], ctx: RecognizeCtx): Element[
 function isBlockLevel(node: CstNode): boolean {
   switch (node.n) {
     case 'env':
-    case 'verb':
     case 'error':
       return true;
+    // A verbatim ENVIRONMENT is a block; an inline `erb|x|` is not. Treating both as
+    // block-level split every paragraph containing a `erb` into three elements.
+    case 'verb':
+      return isVerbatimEnv(node.name);
     case 'math':
       return node.display;
     case 'cmd':
@@ -197,6 +201,9 @@ function recognizeBlockLevel(node: CstNode, ctx: RecognizeCtx): Element {
   // otherwise be read by the image or prose recognizers.
   const table = recognizeTable(node, ctx);
   if (table !== null) return table;
+
+  const code = recognizeCode(node, ctx);
+  if (code !== null) return code;
 
   if (node.n === 'env') {
     const placed = recognizeTextblock(node, ctx);

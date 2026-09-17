@@ -111,6 +111,8 @@ function ThumbBlock({
       return <div className="bp-thumb-table" />;
     case 'tikz':
       return <div className="bp-thumb-diagram" style={{ borderColor: accent }} />;
+    case 'code':
+      return <div className="bp-thumb-code" style={{ borderLeftColor: accent }} />;
     case 'math':
       return <div className="bp-thumb-math" style={{ color: accent }}>∑</div>;
     case 'block':

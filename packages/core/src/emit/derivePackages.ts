@@ -1,5 +1,6 @@
 import type { Deck, Element, PackageSpec } from '../model/types.js';
 import { TIKZ_LIBRARIES, TIKZ_LIBRARIES_LEGACY } from './tikz.js';
+import { LST_SETUP_LINES, lstSetupLines } from './lstLanguages.js';
 
 /**
  * Compute the packages a deck's content requires, so the user never has to think
@@ -27,6 +28,7 @@ export interface DerivedPackage extends PackageSpec {
 export const DERIVED_SETUP_LINES: ReadonlySet<string> = new Set([
   TIKZ_LIBRARIES,
   TIKZ_LIBRARIES_LEGACY,
+  ...LST_SETUP_LINES,
   '\\pgfplotsset{compat=1.18}',
   '\\setlength{\\TPHorizModule}{1mm}',
   '\\setlength{\\TPVertModule}{1mm}',
@@ -54,6 +56,7 @@ export function derivePackages(deck: Deck): DerivedPackage[] {
 
   let sawAbsoluteTextpos = false;
   let sawNonAscii = false;
+  const codeLanguages = new Set<string>();
 
   const visitElement = (el: Element): void => {
     if (el.placement.mode === 'absolute') {
@@ -87,7 +90,14 @@ export function derivePackages(deck: Deck): DerivedPackage[] {
         add('amssymb');
         break;
       case 'code':
-        if (el.backend === 'listings') { add('listings'); add('xcolor'); }
+        // The house style and any `\lstdefinelanguage` are added once at the end, from
+        // the languages the deck actually uses -- a per-element `setup` would repeat
+        // them and the order would depend on which listing came first.
+        if (el.backend === 'listings') {
+          add('listings');
+          add('xcolor');
+          if (el.language !== '') codeLanguages.add(el.language);
+        }
         if (el.backend === 'minted') add('minted');
         break;
       case 'tikz':
@@ -118,6 +128,11 @@ export function derivePackages(deck: Deck): DerivedPackage[] {
 
   // Any inline math anywhere also wants amsmath; cheap to detect via a serialised scan
   // of text content would be fragile, so keep it content-driven above only.
+
+  if (need.has('listings')) {
+    const listings = need.get('listings')!;
+    listings.setup = lstSetupLines(codeLanguages);
+  }
 
   if (sawAbsoluteTextpos) {
     add('textpos', ['absolute', 'overlay'], [

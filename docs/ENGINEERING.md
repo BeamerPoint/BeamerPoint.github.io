@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 176 tests
+npm test             # vitest, 187 tests
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 ```
 
@@ -342,6 +342,33 @@ by `margins.hMm` put it exactly underneath — Berkeley's "Frame title bar" rend
 "ne title bar". The title's left padding is `max(its own, sidebar + 1.5mm)`, and both the
 sidebar and that inset read one `sidebarMm` local so they cannot drift apart.
 
+**A listing's language must come from a fixed list, because a wrong one is fatal.**
+`listings` answers `language=Nonesuch` with *Package Listings Error: Couldn't load
+requested language* and produces no PDF — it does not fall back to no highlighting. So
+`emit/lstLanguages.ts` holds the 53 languages the bundled TeX Live actually loads,
+measured by compiling one probe each, and the picker offers exactly those. Nine common
+ones are missing from `listings` altogether — JavaScript, TypeScript, Rust, Kotlin, JSON,
+YAML, Lua, Makefile and Assembler — and seven of them are shipped as one-line
+`\lstdefinelanguage` definitions instead. One line each, because `DERIVED_SETUP_LINES`
+matches preamble lines by exact string.
+
+**A listing is emitted with no indentation at all, and the newlines around it are
+structural.** The lexer captures everything between `\begin{lstlisting}` and
+`\end{lstlisting}`, so an indented `\end` puts its own leading spaces INSIDE the next
+parse's body and the round trip stops being a fixpoint. The options are inside that body
+too — `parseOpaqueEnvBody` starts it immediately after the `\begin{...}` group — so
+splitting `[language=Python]` back off is the recognizer's real job. The newline either
+side of the code is written by the emitter and stripped by the parser, so `code` in the
+model is what the user typed and nothing more.
+
+**`textContent` loses the line breaks in a contentEditable.** Pressing Enter inserts a
+`<br>` or a `<div>`, and `textContent` skips both, so every newline the user typed in a
+code block vanished and the lines ran together. `CodeView` sets
+`contentEditable="plaintext-only"` so the browser inserts a literal `\n`, and reads back
+`innerText`, which reports the RENDERED text — under `white-space: pre` that is exactly
+the bytes. This does not apply to the rich-text elements: those go through
+`readInlineFromDom`, which reassembles the model from tagged nodes.
+
 **Prefer the Write/Edit tools over shell heredocs for files containing LaTeX.** Multiple
 layers of shell/Python escaping have repeatedly halved backslashes and corrupted
 `\includegraphics` into `includegraphics`.
@@ -362,7 +389,7 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Twenty-six commits on `master`, ~17,300 lines across 92 source files, 176 tests passing.
+Twenty-seven commits on `master`, ~17,700 lines across 96 source files, 187 tests passing.
 
 ### Done
 
@@ -393,11 +420,12 @@ Twenty-six commits on `master`, ~17,300 lines across 92 source files, 176 tests 
   dialog reports what became editable AND what stayed raw before replacing the open
   deck, checks the theme and every `\usepackage` against the bundled collections, and
   matches picked image files onto the paths the file references
+- **Code blocks**: `listings`, `verbatim` and `minted`, typed in place on the canvas,
+  with a measured language list, line numbers, a border and a caption. `[fragile]` is
+  derived on the frame, and the languages `listings` does not ship are defined in the
+  preamble
 - **Math**: display equations (equation/align/gather and their starred forms, plus
   `\[ \]`), body kept verbatim, KaTeX preview on the canvas and in the inspector
-- **Title page**: `	itlepage` and `\maketitle` render as a real title page on the canvas
-  and in the thumbnails, from a per-theme measured layout, and the presentation's title,
-  subtitle, author, institute and date are edited in the format pane
 - **Title page**: `\titlepage` and `\maketitle` render as a real title page on the canvas
   and in the thumbnails, from a per-theme measured layout; the presentation's title,
   subtitle, author, institute and date are edited in the format pane
@@ -427,12 +455,15 @@ Twenty-six commits on `master`, ~17,300 lines across 92 source files, 176 tests 
 
 Roughly in the order the user and I agreed to tackle them:
 
-1. **Code blocks** — `listings`; `fragile` is already auto-derived on the frame
+1. Authoring UI for sections and speaker notes (model/emit/parse already exist)
 2. **Citations** — `.bib` attach, `\cite` autocomplete, references frame
 3. **pgfplots charts** — small data-table editor
-4. Authoring UI for sections and speaker notes (model/emit/parse already exist)
-5. Image rotation (model and emitter support `angle=`; no handle yet)
-6. Rich text inside a diagram label, and multi-point polyline editing
+4. Rich text inside a diagram label, and multi-point polyline editing
+
+⚠ `emitElementBody` still has no case for `toc`, `bibliography` or `chart`: all three are
+modelled, all three fall to `default:` and emit NOTHING but an `emit.unimplemented`
+warning. That is silent content loss, the `\titlegraphic` bug again, and it is what items
+1–3 close. `code.spec.ts` has the regression test.
 
 Model types, and in several cases the emitter, already exist for all of these — check
 `packages/core/src/model/types.ts` before designing anything new.

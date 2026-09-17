@@ -4,6 +4,7 @@ import { InlineText, MathView } from './InlineText.js';
 import { readInlineFromDom } from './domInline.js';
 import { ImageView } from './ImageView.js';
 import { TableView } from './TableView.js';
+import { CodeView } from './CodeView.js';
 import { TikzView } from './TikzView.js';
 import { measuredRects, useStore, type ResizeGrip } from '../state/store.js';
 import { SelectionOverlay, type OverlayMode } from './SelectionOverlay.js';
@@ -26,6 +27,7 @@ interface Props {
   onEditContent(elementId: string, content: RichText): void;
   onEditItem(elementId: string, itemId: string, content: RichText): void;
   onEditCell(elementId: string, rowId: string, cellId: string, content: RichText): void;
+  onEditCode(elementId: string, code: string): void;
   overlayMode: OverlayMode;
   onResizeImage(elementId: string, deltaMm: number, deltaFraction: number): void;
   onResizeElement(elementId: string, dxMm: number, dyMm: number, grip: ResizeGrip): void;
@@ -225,6 +227,11 @@ function Body(props: Props): React.ReactElement {
     case 'table':
       return (
         <TableView el={el} theme={theme} locked={locked} onEditCell={props.onEditCell} />
+      );
+
+    case 'code':
+      return (
+        <CodeView el={el} theme={theme} locked={locked} onEditCode={props.onEditCode} />
       );
 
     case 'tikz':

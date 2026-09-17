@@ -9,6 +9,7 @@ import { findElement, selectCurrentFrame, useStore, type DeckMetaField } from '.
 import { MathEditor } from './MathEditor.js';
 import { TableEditor } from './TableEditor.js';
 import { ShapeEditor } from './ShapeEditor.js';
+import { CodeEditor } from './CodeEditor.js';
 import { ArrangePane } from './ArrangePane.js';
 import { isTitlePageTex } from '../canvas/TitlePage.js';
 
@@ -112,6 +113,10 @@ export function FormatPane(): React.ReactElement {
 
         {selected?.kind === 'table' && frame !== undefined && (
           <TableEditor el={selected} slideId={frame.id} locked={locked} />
+        )}
+
+        {selected?.kind === 'code' && frame !== undefined && (
+          <CodeEditor el={selected} slideId={frame.id} locked={locked} />
         )}
 
         {selected?.kind === 'tikz' && frame !== undefined && (
