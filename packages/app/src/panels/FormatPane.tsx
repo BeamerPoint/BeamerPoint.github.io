@@ -41,6 +41,7 @@ export function FormatPane(): React.ReactElement {
   const setImageHeightMm = useStore((s) => s.setImageHeightMm);
   const setImageRotate = useStore((s) => s.setImageRotate);
   const setImageKeepAspect = useStore((s) => s.setImageKeepAspect);
+  const setImageOpacity = useStore((s) => s.setImageOpacity);
   const overlayMode = useStore((s) => s.overlayMode);
   const setOverlayMode = useStore((s) => s.setOverlayMode);
 
@@ -184,6 +185,24 @@ export function FormatPane(): React.ReactElement {
                 onChange={(e) => setImageKeepAspect(frame.id, selected.id, e.target.checked)}
               />
               <span>Keep aspect ratio</span>
+            </label>
+
+            {/*
+              * The same slider a shape has. `\includegraphics` has no option for this,
+              * and `\usepackage{transparent}` does NOT do it -- measured, it writes a
+              * graphics state carrying `ca 1`. A one-node tikzpicture does, and that is
+              * what the emitter writes when this is below 100%.
+              */}
+            <label className="bp-field">
+              <span>Transparency &mdash; {100 - Math.round((selected.opacity ?? 1) * 100)}%</span>
+              <input
+                type="range" min={0} max={100} step={5}
+                disabled={locked}
+                value={100 - Math.round((selected.opacity ?? 1) * 100)}
+                onChange={(e) => setImageOpacity(
+                  frame.id, selected.id, (100 - Number(e.target.value)) / 100,
+                )}
+              />
             </label>
 
             <div className="bp-field">

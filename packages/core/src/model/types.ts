@@ -177,6 +177,15 @@ export interface ImageElement extends ElementBase {
   align?: 'left' | 'center' | 'right';
   trim?: ImageTrim;
   caption?: RichText;
+  /**
+   * 0..1, where 1 is opaque. Absent means opaque, and emits exactly what it always did.
+   *
+   * There is no `\includegraphics` option for this and the `transparent` package does
+   * NOT do it -- measured, it writes a graphics state carrying `ca 1`, which is no
+   * transparency at all. A one-node `tikzpicture` does: `ca 0.4` in the PDF. So a
+   * picture with an opacity is wrapped in one, and a picture without one is not.
+   */
+  opacity?: number;
   /** Anything unrecognised in \includegraphics[...], preserved verbatim. */
   altGraphicsOptions?: TexString;
 }

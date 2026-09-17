@@ -261,6 +261,12 @@ function recognizeBlockLevel(node: CstNode, ctx: RecognizeCtx): Element {
     }
 
     if (node.name === 'tikzpicture') {
+      // Before both of the others, for the same reason the chart goes before the
+      // diagram: a see-through picture IS a tikzpicture, and read as a drawing it
+      // becomes a canvas containing one un-editable raw shape.
+      const faded = recognizeTransparentImage(node, ctx);
+      if (faded !== null) return faded;
+
       // Before the drawing canvas: a chart IS a tikzpicture, and reading one as a
       // diagram full of raw TikZ leaves the data grid with nothing to edit.
       const chart = recognizeChart(node, ctx);
@@ -532,6 +538,52 @@ function recognizeAlignedImage(
   const img = recognizeIncludegraphics(only, ctx);
   if (img === null) return null;
   return { ...img, align, src: node.span };
+}
+
+/**
+ * `\begin{tikzpicture}\node[opacity=X,inner sep=0pt]{\includegraphics...};\end{tikzpicture}`
+ *
+ * The emitter's shape for a see-through picture, and nothing else: a node carrying any
+ * other key, or holding anything but one graphic, declines and stays a diagram or a raw
+ * block. All-or-nothing, like every recognizer -- a half-read one would turn someone
+ * else's TikZ into a picture element and lose the rest of it.
+ */
+function recognizeTransparentImage(
+  node: Extract<CstNode, { n: 'env' }>,
+  ctx: RecognizeCtx,
+): ImageElement | null {
+  if (node.opts.length > 0 || node.args.length > 0) return null;
+
+  let cmd: Extract<CstNode, { n: 'cmd' }> | null = null;
+  for (const child of node.children) {
+    // The `;` that ends the node arrives as text, as does the whitespace around it.
+    if (child.n === 'text' && child.value.replace(/;/g, '').trim() === '') continue;
+    if (child.n === 'parbreak') continue;
+    if (child.n === 'cmd' && child.name === 'node' && cmd === null) { cmd = child; continue; }
+    return null;
+  }
+  if (cmd === null || cmd.args.length !== 1 || cmd.opts.length !== 1) return null;
+
+  const keys = ctx.src.slice(cmd.opts[0]!.span.start + 1, cmd.opts[0]!.span.end - 1)
+    .split(',').map((k) => k.trim());
+  const alpha = keys.find((k) => k.startsWith('opacity='));
+  if (alpha === undefined) return null;
+  // Exactly the two keys the emitter writes; anything else is someone else's node.
+  if (keys.some((k) => k !== alpha && k !== 'inner sep=0pt')) return null;
+
+  const opacity = Number(alpha.slice('opacity='.length));
+  if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) return null;
+
+  const inner = cmd.args[0]!.children.filter(
+    (c) => !(c.n === 'text' && c.value.trim() === '') && c.n !== 'parbreak',
+  );
+  if (inner.length !== 1) return null;
+  const only = inner[0]!;
+  if (only.n !== 'cmd' || only.name !== 'includegraphics') return null;
+
+  const img = recognizeIncludegraphics(only, ctx);
+  if (img === null) return null;
+  return { ...img, opacity, src: node.span };
 }
 
 /** Bare `\includegraphics[...]{path}`. */

@@ -323,10 +323,13 @@ export function ShapeEditor({ el, slideId, locked }: Props): React.ReactElement 
             </label>
           </div>
 
+          {/* 0-100, not 0-90: a shape you can make invisible is a shape you can use
+              as a spacer, and the arbitrary cap only looked like the slider was
+              broken at the end of its travel. */}
           <label>
             Transparency ({Math.round((1 - (selected.style.opacity ?? 1)) * 100)}%)
             <input
-              type="range" min={0} max={90} step={5}
+              type="range" min={0} max={100} step={5}
               disabled={locked}
               value={Math.round((1 - (selected.style.opacity ?? 1)) * 100)}
               onChange={(e) => {

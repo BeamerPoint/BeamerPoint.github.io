@@ -92,8 +92,14 @@ export function ImageView({
   const trim = el.trim;
   const cropping = trim !== undefined && intrinsic !== undefined && !showUncropped;
 
+  // The PDF gets its alpha from a TikZ node; the canvas gets it from CSS. Both are
+  // "multiply what is drawn by this", so the two agree.
+  const faded = el.opacity !== undefined && el.opacity < 1
+    ? { opacity: el.opacity }
+    : {};
+
   return (
-    <div className="bp-image" style={alignStyle} ref={boxRef}>
+    <div className="bp-image" style={{ ...alignStyle, ...faded }} ref={boxRef}>
       {missing || url === null ? (
         <div className="bp-image-missing">
           <div className="bp-image-missing-icon" aria-hidden="true">🖼</div>

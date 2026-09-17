@@ -68,6 +68,10 @@ export function derivePackages(deck: Deck): DerivedPackage[] {
     switch (el.kind) {
       case 'image':
         add('graphicx');
+        // A see-through picture is wrapped in a one-node tikzpicture, because that is
+        // the only thing measured to actually put an alpha in the PDF. No libraries:
+        // the node is a plain rectangle with no shape key.
+        if (el.opacity !== undefined && el.opacity < 1) add('tikz');
         break;
       case 'table': {
         // Derive from the rules actually present, not from `style`: `style` is a UI

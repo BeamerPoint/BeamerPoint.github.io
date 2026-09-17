@@ -231,7 +231,7 @@ function emitElementBody(w: TexWriter, el: Element, ctx: EmitContext): void {
       }
       const opts = graphicsOptions(el);
       const optPart = opts === '' ? '' : `[${opts}]`;
-      const graphic = `\\includegraphics${optPart}{${path}}`;
+      const graphic = withOpacity(`\\includegraphics${optPart}{${path}}`, el.opacity);
 
       // A figure already centres its contents, so the alignment wrapper would be
       // redundant inside one.
@@ -477,6 +477,26 @@ function emitTable(w: TexWriter, el: TableElement, ctx: EmitContext): void {
       }
       emitTabularStack(w, el, ctx);
   }
+}
+
+/**
+ * Make a graphic see-through, if it is asked to be.
+ *
+ * Measured against the engine with an uncompressed PDF (`\pdfcompresslevel=0`) so the
+ * graphics state is readable: a plain `\includegraphics` carries no alpha;
+ * `\usepackage{transparent}` + `\transparent{0.4}{...}` compiles, produces a PDF, and
+ * writes `ca 1, CA 1` -- no transparency whatsoever, a control that would silently lie;
+ * a TikZ node with `opacity=0.4` writes `ca 0.4, CA 0.4`.
+ *
+ * `inner sep=0pt` so the node adds no padding around the picture, which would shift it.
+ * Written on ONE line because that is what the recognizer matches, and omitted entirely
+ * when there is no opacity, so an ordinary picture emits byte-for-byte what it always
+ * did.
+ */
+function withOpacity(graphic: TexString, opacity: number | undefined): TexString {
+  if (opacity === undefined || opacity >= 1) return graphic;
+  const a = Math.round(Math.max(0, opacity) * 100) / 100;
+  return `\\begin{tikzpicture}\\node[opacity=${a},inner sep=0pt]{${graphic}};\\end{tikzpicture}`;
 }
 
 /** Build the `\includegraphics[...]` option list, in a stable order. */

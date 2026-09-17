@@ -283,6 +283,8 @@ interface AppState {
   setImageHeightMm(slideId: string, elementId: string, mm: number | null): void;
   setImageRotate(slideId: string, elementId: string, deg: number): void;
   setImageKeepAspect(slideId: string, elementId: string, keep: boolean): void;
+  /** 0..1, where 1 is opaque and removes the wrapper entirely. */
+  setImageOpacity(slideId: string, elementId: string, opacity: number): void;
   setElementRotate(slideId: string, elementId: string, deg: number): void;
   returnElementToFlow(slideId: string, elementId: string): void;
   moveElementToAbsolute(slideId: string, elementId: string, x: number, y: number, w: number): void;
@@ -1800,6 +1802,22 @@ export const useStore = create<AppState>()((set, get) => {
             return rest;
           }
           return { ...el, rotate: normalised };
+        }),
+      );
+    },
+
+    setImageOpacity(slideId, elementId, opacity) {
+      const a = Math.min(1, Math.max(0, Math.round(opacity * 100) / 100));
+      mutate((deck) =>
+        mapElement(deck, slideId, elementId, (el) => {
+          if (el.kind !== 'image') return el;
+          // Fully opaque removes the key, so the picture emits exactly what it emitted
+          // before this control existed -- no tikzpicture wrapper, no derived package.
+          if (a >= 1) {
+            const { opacity: _drop, ...rest } = el;
+            return rest;
+          }
+          return { ...el, opacity: a };
         }),
       );
     },
