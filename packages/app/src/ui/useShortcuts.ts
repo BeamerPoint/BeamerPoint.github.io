@@ -31,7 +31,6 @@ export function useShortcuts(): void {
   const deleteSlide = useStore((s) => s.deleteSlide);
   const copyElement = useStore((s) => s.copyElement);
   const cutElement = useStore((s) => s.cutElement);
-  const pasteElement = useStore((s) => s.pasteElement);
   const duplicateElement = useStore((s) => s.duplicateElement);
 
   useEffect(() => {
@@ -48,7 +47,6 @@ export function useShortcuts(): void {
       if (source.status !== 'synced' || selection.slideId === null) return;
       const id = selection.elementId;
 
-      if (e.key === 'v') { e.preventDefault(); pasteElement(); return; }
       if (id === null) return;
       e.preventDefault();
       if (e.key === 'c') copyElement(selection.slideId, id);
@@ -62,7 +60,11 @@ export function useShortcuts(): void {
       if (e.ctrlKey || e.metaKey) {
         if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
         else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
-        else if (e.key === 'c' || e.key === 'x' || e.key === 'v' || e.key === 'd') {
+        // NOT 'v': a real Ctrl+V also fires a `paste` event, and handling it here as
+        // well meant one press pasted the copied element AND whatever the system
+        // clipboard held. `usePaste` owns it, because only the paste event can see
+        // which of the two the user actually meant.
+        else if (e.key === 'c' || e.key === 'x' || e.key === 'd') {
           clip(e);
         }
         return;
@@ -82,5 +84,5 @@ export function useShortcuts(): void {
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [undo, redo, deleteElement, deleteSlide, copyElement, cutElement, pasteElement, duplicateElement]);
+  }, [undo, redo, deleteElement, deleteSlide, copyElement, cutElement, duplicateElement]);
 }

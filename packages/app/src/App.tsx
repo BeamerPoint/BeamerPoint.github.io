@@ -11,6 +11,7 @@ import { selectCanvasLocked, selectCurrentFrame, selectFrames, useStore } from '
 import { loadSavedDeck, readEmergencyTex, startAutosave } from './state/persist.js';
 import { useColumnLayout } from './ui/useColumnLayout.js';
 import { useShortcuts } from './ui/useShortcuts.js';
+import { usePaste } from './ui/usePaste.js';
 import { useTextSelectionTracking } from './canvas/textSelection.js';
 import { Splitter } from './ui/Splitter.js';
 import { Ribbon } from './ui/Ribbon.js';
@@ -84,6 +85,8 @@ export function App(): React.ReactElement {
   }, [loadDeck]);
 
   useShortcuts();
+  // One owner for Ctrl+V: an image on the clipboard, or the copied element.
+  usePaste();
   // The ribbon's Font group formats whatever is selected, so something has to watch
   // the browser's selection; it changes far more often than anything re-renders.
   useTextSelectionTracking();
@@ -200,6 +203,10 @@ export function App(): React.ReactElement {
             if (tex !== undefined) {
               e.preventDefault();
               e.stopPropagation();
+              // The image handler is what normally clears the highlight, and this
+              // branch never reaches it -- so "Drop to add the image to this slide"
+              // stayed over the canvas for good. Measured, after dropping a .tex.
+              images.cancelDrag();
               void texImport.offer(tex);
               return;
             }
