@@ -75,16 +75,33 @@ describe('buildProject', () => {
     expect(p.tex.split('\n')[line - 1]).toContain('\\begin{frame}');
   });
 
-  it('warns that minted cannot run where there is no shell escape', async () => {
+  describe('minted, on an engine with no shell escape', () => {
+    // F-001: minted cannot run here, and measured, it produces NO PDF at all.
     const code: Element = {
-      id: 'c1', kind: 'code', placement: P, backend: 'minted', language: 'Python', code: 'x', options: {},
+      id: 'c1', kind: 'code', placement: P, backend: 'minted', language: 'python', code: 'x = 1', options: {},
     };
-    const p = await buildProject(deckOf([code]), resolverFrom({}), {
-      target: 'preview', capabilities: {
-        programs: ['pdflatex'], bibtex: true, shellEscape: false, offlineAfterInstall: true, approxAssetBytes: 0,
-      },
+    const noShell = {
+      programs: ['pdflatex' as const], bibtex: true, shellEscape: false, offlineAfterInstall: true, approxAssetBytes: 0,
+    };
+
+    it('previews it with listings, as a note rather than a warning', async () => {
+      const p = await buildProject(deckOf([code]), resolverFrom({}), { target: 'preview', capabilities: noShell });
+      expect(p.tex).toContain('\\begin{lstlisting}[language=Python]');
+      expect(p.tex).not.toContain('minted');
+      expect(p.warnings).toEqual([]);
+      expect(p.notes).toHaveLength(1);
     });
-    expect(p.warnings.some((w) => w.includes('minted'))).toBe(true);
+
+    it('keeps minted for the exported file', async () => {
+      const p = await buildProject(deckOf([code]), resolverFrom({}), { target: 'export', capabilities: noShell });
+      expect(p.tex).toContain('\\begin{minted}');
+      expect(p.notes).toEqual([]);
+    });
+
+    it('keeps the element id, so a TeX error on the listing still lands on it', async () => {
+      const p = await buildProject(deckOf([code]), resolverFrom({}), { target: 'preview', capabilities: noShell });
+      expect(p.sourceMap.some((e) => e.nodeId === 'c1')).toBe(true);
+    });
   });
 });
 

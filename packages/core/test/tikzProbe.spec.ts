@@ -32,6 +32,6 @@ describe('tikz probe', () => {
 
     const deck = newDeck({ title: 'Tikz probe' });
     deck.nodes = [newFrame('Shapes', [el])];
-    writeFileSync('packages/app/public/tikzprobe.tex', emitDeck(deck, { target: 'export' }).tex);
+    writeFileSync('packages/app/public/tikzprobe.tex', emitDeck(deck).tex);
   });
 });

@@ -11,12 +11,15 @@ import { emitInline } from './inline.js';
 import { derivePackages, packageLine } from './derivePackages.js';
 import { TexWriter, type SourceMap } from './writer.js';
 
+/**
+ * There is deliberately no preview/export switch here. The emitter writes ONE document,
+ * the one the user shares; what a preview compiles differently (a minted block swapped
+ * for listings) is applied by `buildProject` to a copy of the deck, so nothing that emits
+ * through here -- the store, the source panel, export, autosave -- can change the model
+ * by previewing it. A `target` option used to sit here, passed by six callers and read
+ * by none, justified by an `instrument.ts` that never existed.
+ */
 export interface EmitOptions {
-  /**
-   * `export` produces the file the user shares. `preview` is identical except that
-   * `instrument.ts` may append frame labels to existing lines afterwards.
-   */
-  target?: 'export' | 'preview';
   indent?: string;
   collectSourceMap?: boolean;
 }

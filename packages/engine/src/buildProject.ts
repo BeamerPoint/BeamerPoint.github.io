@@ -1,5 +1,5 @@
 import {
-  emitDeck, entriesOfKind,
+  applyPreviewFallbacks, emitDeck, entriesOfKind,
   type Deck, type Element as DeckElement, type SourceMap,
 } from '@beamerpoint/core';
 import type { CompileJob, EngineCapabilities, VirtualFile } from './LatexEngine.js';
@@ -27,7 +27,13 @@ export interface BuiltProject {
   sourceMap: SourceMap;
   /** Frame id -> the line its \begin{frame} sits on, for error attribution. */
   frameLines: Map<string, number>;
+  /** Problems found before TeX runs -- a referenced file with no stored bytes. */
   warnings: string[];
+  /**
+   * Informational: what the preview did differently from the exported file, such as
+   * compiling a minted block with listings. Never a failure, so never an error.
+   */
+  notes: string[];
 }
 
 export async function buildProject(
@@ -36,7 +42,19 @@ export async function buildProject(
   opts: BuildOptions,
 ): Promise<BuiltProject> {
   const warnings: string[] = [];
-  const emitted = emitDeck(deck, { target: opts.target });
+  const notes: string[] = [];
+
+  // A preview on an engine with no shell escape swaps `minted` for `listings`: minted
+  // cannot run here and produces NO PDF at all, not a degraded one. Export keeps minted.
+  // The substitution happens on a copy, before emission, so the model never changes
+  // because it was previewed -- see `applyPreviewFallbacks`.
+  let compiled = deck;
+  if (opts.target === 'preview' && opts.capabilities !== undefined && !opts.capabilities.shellEscape) {
+    const fallback = applyPreviewFallbacks(deck);
+    compiled = fallback.deck;
+    notes.push(...fallback.notes);
+  }
+  const emitted = emitDeck(compiled);
 
   const files: VirtualFile[] = [{ path: 'main.tex', content: emitted.tex }];
 
@@ -54,15 +72,6 @@ export async function buildProject(
 
   for (const aux of opts.auxFiles ?? []) files.push(aux);
 
-  // `minted` needs shell escape, which the WASM backends do not provide.
-  if (opts.capabilities !== undefined && !opts.capabilities.shellEscape) {
-    if (/\\begin\{minted\}|\\usepackage(\[[^\]]*\])?\{minted\}/.test(emitted.tex)) {
-      warnings.push(
-        'This deck uses minted, which needs shell escape. The in-browser engine cannot ' +
-        'run it; switch those code blocks to listings, or compile with a local TeX.',
-      );
-    }
-  }
 
   const frameLines = new Map<string, number>();
   for (const e of entriesOfKind(emitted.sourceMap, 'frame')) {
@@ -71,7 +80,7 @@ export async function buildProject(
 
   for (const w of emitted.warnings) warnings.push(w.message);
 
-  return { files, tex: emitted.tex, sourceMap: emitted.sourceMap, frameLines, warnings };
+  return { files, tex: emitted.tex, sourceMap: emitted.sourceMap, frameLines, warnings, notes };
 }
 
 /**

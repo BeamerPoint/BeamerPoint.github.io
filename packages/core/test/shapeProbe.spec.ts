@@ -35,6 +35,6 @@ describe('shape probe', () => {
       ...SMART_ART.map((s) => newFrame(s.label, [newSmartArtElement(s.kind, s.sample, 120, 58)])),
     ];
 
-    writeFileSync('packages/app/public/shapeprobe.tex', emitDeck(deck, { target: 'export' }).tex);
+    writeFileSync('packages/app/public/shapeprobe.tex', emitDeck(deck).tex);
   });
 });

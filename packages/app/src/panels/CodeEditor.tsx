@@ -13,7 +13,7 @@ interface Props {
 const BACKENDS: ReadonlyArray<{ value: CodeElement['backend']; label: string; title: string }> = [
   { value: 'listings', label: 'listings', title: 'Highlighted, and it compiles here' },
   { value: 'verbatim', label: 'verbatim', title: 'Plain monospace, no highlighting, no package' },
-  { value: 'minted', label: 'minted', title: 'Pygments — needs shell escape, which the in-browser engine cannot provide' },
+  { value: 'minted', label: 'minted', title: 'Pygments — kept in the exported file; previewed here with listings' },
 ];
 
 const FRAMES: ReadonlyArray<{ value: NonNullable<CodeElement['frameStyle']>; label: string }> = [
@@ -75,9 +75,9 @@ export function CodeEditor({ el, slideId, locked }: Props): React.ReactElement {
       </label>
 
       {el.backend === 'minted' && (
-        <p className="bp-hint bp-hint-warn">
-          minted needs shell escape, which the in-browser engine cannot provide. This
-          deck will compile elsewhere, but not here.
+        <p className="bp-hint">
+          minted needs shell escape, which the in-browser engine does not have, so the
+          preview here uses listings. The exported file keeps minted for a local TeX.
         </p>
       )}
 

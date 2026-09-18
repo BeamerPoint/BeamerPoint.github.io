@@ -44,6 +44,7 @@ export {
 } from './model/tableOps.js';
 
 export { emitDeck, emitFrameStandalone, type EmitOptions, type EmitResult } from './emit/deck.js';
+export { applyPreviewFallbacks, type PreviewFallbackResult } from './emit/previewFallback.js';
 export { emitInline, richTextToPlain, colorToTex, isBlankRichText } from './emit/inline.js';
 export { escapeText, unescapeText, isPlainEscaped, normalisePastedText } from './emit/escape.js';
 export { derivePackages, packageLine } from './emit/derivePackages.js';

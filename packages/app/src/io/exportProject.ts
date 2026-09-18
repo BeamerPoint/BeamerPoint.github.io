@@ -42,7 +42,7 @@ export function exportPdf(deck: Deck, pdf: Uint8Array): string {
 }
 
 export async function exportDeck(deck: Deck): Promise<ExportResult> {
-  const { tex } = emitDeck(deck, { target: 'export' });
+  const { tex } = emitDeck(deck);
   const name = baseName(deck);
 
   if (deck.resources.length === 0) {

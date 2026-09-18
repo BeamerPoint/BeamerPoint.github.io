@@ -792,8 +792,12 @@ Model types, and in several cases the emitter, already exist for all of these â€
   resources, so it has to be supplied by hand. A measured sample of an ordinary 8-slide deck came through with 5% raw. Import
   also reformats: indentation, package order and a few escapes (`\ ` gains a `{}`
   terminator) change, so the output is equivalent LaTeX rather than the original bytes
-- `minted` needs shell escape, which the WASM engine cannot provide; preview falls back
-  to `listings` with a warning
+- `minted` needs shell escape, which the WASM engine cannot provide, and measured, a
+  minted block produces NO PDF here rather than a degraded one. So the PREVIEW compiles
+  it with `listings` (`emit/previewFallback.ts`, applied by `buildProject` to a copy of
+  the deck, reported in the Log tab as information), and the exported file keeps minted
+  for a local TeX. This line used to say preview "falls back with a warning" when there
+  was no fallback at all â€” only a warning, and no PDF
 - The input paths have now been driven with a real mouse and a real clipboard, which
   found three bugs (see the lesson below). The one step that cannot be driven from here is
   the OS file dialog itself: the browser will not let automation complete it. Everything

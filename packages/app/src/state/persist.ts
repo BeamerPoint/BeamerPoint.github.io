@@ -105,7 +105,7 @@ async function saveNow(sync = false): Promise<void> {
   const deck = useStore.getState().deck;
   if (deck === lastSavedDeck) return;
 
-  const { tex } = emitDeck(deck, { target: 'export' });
+  const { tex } = emitDeck(deck);
 
   // Synchronous first: during pagehide this is the only layer that reliably completes.
   writeEmergencyTex(tex);

@@ -8,7 +8,6 @@ import {
   type LatexEngine,
   type ResourceResolver,
 } from '@beamerpoint/engine';
-import { emitDeck } from '@beamerpoint/core';
 import { useStore } from '../state/store.js';
 import { getResourceBytes } from '../state/resources.js';
 
@@ -105,24 +104,31 @@ export function useEngine(): {
         }),
       );
 
-      // Map TeX line numbers back to slides and elements via the emitter's source map.
-      const { sourceMap } = emitDeck(deck, { target: 'preview' });
-
       // buildProject knows about problems BEFORE TeX runs — a referenced image with no
-      // stored bytes, a minted block the engine cannot handle. Discarding those left
-      // the user with a cryptic TeX error and no explanation of the actual cause.
-      const buildDiagnostics: Diagnostic[] = project.warnings.map((message) => ({
-        severity: 'error',
-        code: 'project.build',
-        message,
-        raw: message,
-      }));
+      // stored bytes. Discarding those left the user with a cryptic TeX error and no
+      // explanation of the actual cause.
+      const buildDiagnostics: Diagnostic[] = [
+        ...project.warnings.map((message): Diagnostic => ({
+          severity: 'error', code: 'project.build', message, raw: message,
+        })),
+        // What the preview did differently from the export -- a minted block compiled
+        // with listings. Information, not failure: as an 'error' it marked a successful
+        // compile as failed.
+        ...project.notes.map((message): Diagnostic => ({
+          severity: 'info', code: 'project.preview', message, raw: message,
+        })),
+      ];
 
       setCompileResult({
         ...result,
         diagnostics: [
           ...buildDiagnostics,
-          ...attachDiagnostics(result.diagnostics, sourceMap),
+          // The source map of the file that was COMPILED, which is the one TeX's line
+          // numbers refer to. Re-emitting the deck here instead gave the map of a
+          // different file the moment the preview and the export differ -- and they do
+          // whenever a minted block is swapped -- so every diagnostic pointed at the
+          // wrong slide.
+          ...attachDiagnostics(result.diagnostics, project.sourceMap),
         ],
       });
     } catch (err) {

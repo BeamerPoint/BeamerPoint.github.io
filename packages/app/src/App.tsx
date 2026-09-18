@@ -78,7 +78,7 @@ export function App(): React.ReactElement {
       // than silently picking one, because either choice discards work.
       const emergency = readEmergencyTex();
       if (emergency === null) return;
-      const current = saved === undefined ? null : emitDeck(saved, { target: 'export' }).tex;
+      const current = saved === undefined ? null : emitDeck(saved).tex;
       if (current !== emergency.tex) setRecovery(emergency);
     })();
     return startAutosave();

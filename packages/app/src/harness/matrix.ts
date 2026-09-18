@@ -247,7 +247,8 @@ const ELEMENTS: Case[] = [
     expect: { pages: 1, text: ['greet'] } },
   { id: 'code-verbatim', area: 'element', build: () => deck([code({ backend: 'verbatim' })]), expect: { pages: 1, text: ['greet'] } },
   { id: 'code-minted', area: 'element', build: () => deck([code({ backend: 'minted' })]),
-    expect: { pages: 1, text: ['greet'], knownDefect: 'F-001' } },
+    // F-001, fixed: previewed with listings, so it must now produce a PDF with the code in it.
+    expect: { pages: 1, text: ['greet'] } },
 
   { id: 'tikz-basic', area: 'element', build: () => deck([tikz([
       rect(), rect({ x: 50, rx: 3 }),
