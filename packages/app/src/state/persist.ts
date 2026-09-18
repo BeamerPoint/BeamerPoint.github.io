@@ -61,7 +61,14 @@ export async function loadSavedDeck(): Promise<Deck | undefined> {
 /**
  * The last emitted .tex, written synchronously so it survives an abrupt close.
  *
- * Recovered on the next launch when it is newer than the structured deck.
+ * It exists ONLY while there is work the structured deck does not have yet: it is
+ * written when the deck changes or the page is torn down with unsaved edits, and removed
+ * as soon as IndexedDB has the deck. So a mirror found at launch means exactly one thing
+ * -- the tab closed with unsaved edits -- and the recovery prompt no longer needs to
+ * guess by comparing texts. That guess was wrong twice: it fired on every launch until
+ * the first edit, because an untouched deck was mirrored at teardown and never saved
+ * (F-016), and it fired after any release that changed how an existing deck emits,
+ * because the mirror came from the previous build (F-010).
  */
 export function readEmergencyTex(): { at: number; tex: string } | null {
   try {
@@ -69,6 +76,15 @@ export function readEmergencyTex(): { at: number; tex: string } | null {
     return raw === null ? null : (JSON.parse(raw) as { at: number; tex: string });
   } catch {
     return null;
+  }
+}
+
+/** Forget the mirror: the deck has it, or the user discarded or recovered it. */
+export function clearEmergencyTex(): void {
+  try {
+    window.localStorage.removeItem(EMERGENCY_KEY);
+  } catch {
+    // Nothing to do; a stale mirror is only a spurious prompt.
   }
 }
 
@@ -115,6 +131,9 @@ async function saveNow(sync = false): Promise<void> {
   try {
     await set(CURRENT_KEY, deck);
     lastSavedDeck = deck;
+    // Only if nothing changed while the write was in flight: a newer edit's mirror is
+    // the one thing standing between it and a crash.
+    if (useStore.getState().deck === deck) clearEmergencyTex();
 
     if (Date.now() - lastSnapshotAt > SNAPSHOT_MS) {
       lastSnapshotAt = Date.now();
@@ -136,6 +155,15 @@ async function saveNow(sync = false): Promise<void> {
   }
 }
 
+/**
+ * The deck this session started from -- restored, or the default for a first visit --
+ * has nothing unsaved in it. Without this, closing an untouched tab mirrored it as if it
+ * had been edited, and the next launch offered to "recover" it (F-016).
+ */
+export function markClean(deck: Deck): void {
+  lastSavedDeck = deck;
+}
+
 /** Force an immediate save, e.g. right after linking a file. */
 export async function flushSave(): Promise<void> {
   if (pending !== null) { window.clearTimeout(pending); pending = null; }
@@ -144,6 +172,7 @@ export async function flushSave(): Promise<void> {
 }
 
 export function startAutosave(): () => void {
+  markClean(useStore.getState().deck);
   void (async () => {
     const link = await restoreLink();
     if (link !== null) {

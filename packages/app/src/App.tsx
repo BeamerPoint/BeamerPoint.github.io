@@ -8,7 +8,9 @@ import { LogPanel } from './panels/LogPanel.js';
 import { FormatPane } from './panels/FormatPane.js';
 import { NotesPane } from './panels/NotesPane.js';
 import { selectCanvasLocked, selectCurrentFrame, selectFrames, useStore } from './state/store.js';
-import { loadSavedDeck, readEmergencyTex, startAutosave } from './state/persist.js';
+import {
+  clearEmergencyTex, loadSavedDeck, markClean, readEmergencyTex, startAutosave,
+} from './state/persist.js';
 import { useColumnLayout } from './ui/useColumnLayout.js';
 import { useShortcuts } from './ui/useShortcuts.js';
 import { usePaste } from './ui/usePaste.js';
@@ -72,14 +74,17 @@ export function App(): React.ReactElement {
     void (async () => {
       const saved = await loadSavedDeck();
       if (saved !== undefined) loadDeck(saved);
+      markClean(useStore.getState().deck);
 
-      // The synchronous .tex mirror is written during teardown, so it can be ahead of
-      // the structured deck if the tab was closed or crashed mid-edit. Offer it rather
-      // than silently picking one, because either choice discards work.
+      // The synchronous .tex mirror only exists while the structured deck is behind it,
+      // so finding one means the tab closed or crashed mid-edit. Offer it rather than
+      // silently picking one, because either choice discards work. The text comparison
+      // stays as a guard for a mirror left by a build that did not clear it.
       const emergency = readEmergencyTex();
       if (emergency === null) return;
       const current = saved === undefined ? null : emitDeck(saved).tex;
       if (current !== emergency.tex) setRecovery(emergency);
+      else clearEmergencyTex();
     })();
     return startAutosave();
   }, [loadDeck]);
@@ -173,12 +178,13 @@ export function App(): React.ReactElement {
               className="bp-primary"
               onClick={() => {
                 loadDeck(parseDeck(recovery.tex).deck);
+                clearEmergencyTex();
                 setRecovery(null);
               }}
             >
               Recover them
             </button>
-            <button onClick={() => setRecovery(null)}>Discard</button>
+            <button onClick={() => { clearEmergencyTex(); setRecovery(null); }}>Discard</button>
           </div>
         )}
       </div>

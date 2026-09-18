@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { emitDeck, newDeck, newFrame, newTextElement } from '@beamerpoint/core';
+import { newDeck, newFrame, newTextElement } from '@beamerpoint/core';
 import type { Deck } from '@beamerpoint/core';
 
 /**
@@ -40,11 +40,24 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe('saving', () => {
-  it('stores the structured deck and mirrors its .tex, which are the same document', async () => {
+  it('stores the structured deck, then drops the mirror it no longer needs', async () => {
     await persist.flushSave();
     const saved = await persist.loadSavedDeck();
     expect(saved).toEqual(useStore.getState().deck);
-    expect(persist.readEmergencyTex()?.tex).toBe(emitDeck(saved!).tex);
+    // F-016 / F-010: a mirror that outlives the save is a false recovery prompt later.
+    expect(persist.readEmergencyTex()).toBeNull();
+  });
+
+  it('keeps the mirror when the deck changed while the save was in flight', async () => {
+    const keyval = await import('idb-keyval');
+    const realSet = keyval.set;
+    vi.spyOn(keyval, 'set').mockImplementationOnce(async (k, v) => {
+      useStore.getState().setSlideTitle(useStore.getState().deck.nodes[0]!.id, 'typed mid-save');
+      await realSet(k, v);
+    });
+    await persist.flushSave();
+    // The mirror holds the older text, but it is the only trace that newer work existed.
+    expect(persist.readEmergencyTex()).not.toBeNull();
   });
 
   it('still saves the deck when the .tex mirror cannot be written', async () => {
@@ -68,6 +81,30 @@ describe('saving', () => {
 describe('the emergency mirror', () => {
   it('reads back null rather than throwing on a damaged entry', () => {
     window.localStorage.setItem(EMERGENCY, '{not json');
+    expect(persist.readEmergencyTex()).toBeNull();
+  });
+
+  // F-016: every launch offered to "recover" a deck nobody had touched.
+  it('is not written when an untouched deck is closed', () => {
+    const stop = persist.startAutosave();
+    window.dispatchEvent(new Event('pagehide'));
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(persist.readEmergencyTex()).toBeNull();
+    stop();
+  });
+
+  it('is not written for a restored deck that was only looked at', () => {
+    const stop = persist.startAutosave();
+    useStore.getState().loadDeck(deckSaying('restored'));
+    persist.markClean(useStore.getState().deck);
+    window.dispatchEvent(new Event('pagehide'));
+    expect(persist.readEmergencyTex()).toBeNull();
+    stop();
+  });
+
+  it('is removed by clearEmergencyTex, which Discard and Recover call', () => {
+    window.localStorage.setItem(EMERGENCY, JSON.stringify({ at: 1, tex: 'x' }));
+    persist.clearEmergencyTex();
     expect(persist.readEmergencyTex()).toBeNull();
   });
 
