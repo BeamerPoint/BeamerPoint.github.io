@@ -59,7 +59,7 @@ export type ElementSpec =
   | { k: 'image'; width: number; align?: 'left' | 'center' | 'right'; caption?: RichText;
       opacity?: number; rotate?: number; trim?: [number, number, number, number] }
   | { k: 'toc' }
-  | { k: 'bibliography' };
+  | { k: 'bibliography'; size?: 'footnotesize' | 'small' | 'scriptsize'; style?: string };
 
 interface AbsSpec { x: number; y: number; w: number; rotate?: number }
 type ShapeSpec =
@@ -124,8 +124,12 @@ export const elementSpec: fc.Arbitrary<ElementSpec> = fc.oneof(
     trim: fc.option(fc.tuple(fc.nat(20), fc.nat(20), fc.nat(20), fc.nat(20)), { nil: undefined }),
   }, { requiredKeys: ['k', 'width'] }),
   fc.constant({ k: 'toc' as const }),
-  // Without `sizeHint`: a reference list WITH one is F-007, which the ledger already has.
-  fc.constant({ k: 'bibliography' as const }),
+  // With a size and a style too, now that F-007 reads the three lines back as one element.
+  fc.record({
+    k: fc.constant('bibliography' as const),
+    size: fc.option(fc.constantFrom('footnotesize', 'small', 'scriptsize'), { nil: undefined }),
+    style: fc.option(fc.constantFrom('plain', 'alpha', 'unsrt'), { nil: undefined }),
+  }, { requiredKeys: ['k'] }),
 );
 
 export interface FrameSpec {
@@ -243,7 +247,11 @@ export function buildDeck(spec: DeckSpec, id: () => string): Deck {
       case 'toc':
         return { id: id(), kind: 'toc', placement: P, options: '' };
       case 'bibliography':
-        return { id: id(), kind: 'bibliography', placement: P, files: ['refs'] };
+        return {
+          id: id(), kind: 'bibliography', placement: P, files: ['refs'],
+          ...(s.size !== undefined ? { sizeHint: s.size } : {}),
+          ...(s.style !== undefined ? { style: s.style } : {}),
+        };
     }
   };
   let usesImage = false;

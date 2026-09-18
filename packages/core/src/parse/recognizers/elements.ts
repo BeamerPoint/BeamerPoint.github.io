@@ -1,5 +1,7 @@
+import { FONT_SIZES_ORDERED } from '../../model/types.js';
 import type {
   BeamerBlockElement,
+  BeamerFontSize,
   ColumnSpec,
   RichText,
   TexString,
@@ -178,6 +180,24 @@ export function recognizeElements(nodes: CstNode[], ctx: RecognizeCtx): Element[
       }
     }
 
+    /*
+     * A reference list, read back as the ONE element the emitter wrote.
+     *
+     * `BibliographyElement` emits up to three lines: its size (`\footnotesize`), its
+     * style, and the `\bibliography{...}` itself. Read one command at a time, the size
+     * went into the prose buffer and came back as an INVISIBLE text element holding a
+     * bare `sym` -- the list lost its size, and deleting that invisible element changed
+     * it (F-007) -- and a style became a second bibliography element of its own. Bytes,
+     * guard and demotions were all clean; only the census saw it.
+     */
+    const bib = readBibliography(nodes, i, ctx);
+    if (bib !== null) {
+      flushProse();
+      attach(bib.element);
+      i = bib.last;
+      continue;
+    }
+
     if (node.n === 'comment') {
       flushProse();
       comments.push(node.value);
@@ -211,6 +231,69 @@ export function recognizeElements(nodes: CstNode[], ctx: RecognizeCtx): Element[
   }
 
   return out;
+}
+
+const FONT_SIZES: ReadonlySet<string> = new Set(FONT_SIZES_ORDERED);
+
+const bareCommand = (n: CstNode | undefined, names: ReadonlySet<string> | string): n is Extract<CstNode, { n: 'cmd' }> =>
+  n !== undefined && n.n === 'cmd' && !n.star && n.opts.length === 0
+  && (typeof names === 'string' ? n.name === names : names.has(n.name));
+
+const oneArg = (n: CstNode | undefined, name: string): n is Extract<CstNode, { n: 'cmd' }> =>
+  n !== undefined && n.n === 'cmd' && n.name === name && !n.star && n.opts.length === 0 && n.args.length === 1;
+
+/**
+ * Read `[\<size>] [\bibliographystyle{s}] \bibliography{files}` starting at `i` as one
+ * `BibliographyElement` -- exactly the lines its emitter writes, in that order.
+ *
+ * All or nothing: a size command that is NOT followed by a reference list is somebody's
+ * prose and is left alone, and a lone `\bibliographystyle` still goes to the ordinary
+ * recognizer. Blank-looking text between the commands is only the newlines the emitter
+ * put there. Returns the index of the last node consumed.
+ */
+function readBibliography(
+  nodes: readonly CstNode[],
+  i: number,
+  ctx: RecognizeCtx,
+): { element: Element; last: number } | null {
+  const skipBlank = (k: number): number => {
+    let j = k;
+    while (j < nodes.length && nodes[j]!.n === 'text' && (nodes[j] as { value: string }).value.trim() === '') j += 1;
+    return j;
+  };
+
+  let j = i;
+  let sizeHint: string | undefined;
+  if (bareCommand(nodes[j], FONT_SIZES) && (nodes[j] as { args: unknown[] }).args.length === 0) {
+    sizeHint = (nodes[j] as { name: string }).name;
+    j = skipBlank(j + 1);
+  }
+  let style: string | undefined;
+  if (oneArg(nodes[j], 'bibliographystyle')) {
+    const s = nodes[j] as Extract<CstNode, { n: 'cmd' }>;
+    style = ctx.src.slice(s.args[0]!.span.start + 1, s.args[0]!.span.end - 1).trim();
+    j = skipBlank(j + 1);
+  }
+  const b = nodes[j];
+  if (!oneArg(b, 'bibliography')) return null;
+  // A bare `\bibliography` with nothing before it is the ordinary case, and the ordinary
+  // recognizer handles it; this path is only for the multi-line form.
+  if (sizeHint === undefined && style === undefined) return null;
+
+  const arg = ctx.src.slice(b.args[0]!.span.start + 1, b.args[0]!.span.end - 1);
+  const first = nodes[i]!;
+  return {
+    last: j,
+    element: {
+      id: ctx.newId(),
+      kind: 'bibliography',
+      placement: { mode: 'flow' },
+      files: arg.split(',').map((f) => f.trim()).filter((f) => f !== ''),
+      ...(style !== undefined ? { style } : {}),
+      ...(sizeHint !== undefined ? { sizeHint: sizeHint as BeamerFontSize } : {}),
+      src: { start: first.span.start, end: b.span.end, line: first.span.line },
+    },
+  };
 }
 
 function isBlockLevel(node: CstNode): boolean {
