@@ -92,3 +92,63 @@ describe('preamble chunks', () => {
     }
   });
 });
+
+// F-021: an end-of-line comment came back on its own line in the next slot, because the
+// modelled lines are re-emitted in the app's order and the comment was a separate chunk.
+describe('a comment at the end of a preamble line', () => {
+  const src = (lines: string[]): string => [
+    ...lines,
+    String.raw`\begin{document}`,
+    String.raw`\begin{frame}{F}`,
+    'x',
+    String.raw`\end{frame}`,
+    String.raw`\end{document}`,
+    '',
+  ].join('\n');
+  const cycle = (tex: string): string => emitDeck(parse(tex).deck).tex;
+  const lineWith = (tex: string, needle: string): string =>
+    tex.split('\n').find((l) => l.includes(needle)) ?? '';
+
+  it.each([
+    [String.raw`\title{T}`, 'title'],
+    [String.raw`\author{A}`, 'author'],
+    [String.raw`\usepackage{amssymb}`, 'usepackage'],
+    [String.raw`\usetheme{Madrid}`, 'usetheme'],
+    [String.raw`\definecolor{brand}{HTML}{112233}`, 'definecolor'],
+    [String.raw`\setbeamercolor{title}{fg=red}`, 'setbeamercolor'],
+    [String.raw`\newcommand{\R}{\mathbb{R}}`, 'newcommand'],
+  ])('stays at the end of %s', (cmd, needle) => {
+    const tex = cycle(src([
+      String.raw`\documentclass[aspectratio=169,11pt]{beamer}`,
+      ...(needle === 'usetheme' ? [] : [String.raw`\usetheme{Madrid}`]),
+      `${cmd} % hand edit`,
+      String.raw`\date{\today}`,
+    ]));
+    expect(lineWith(tex, needle)).toMatch(/% hand edit$/);
+    expect(tex.split('\n').filter((l) => l.includes('hand edit'))).toHaveLength(1);
+    // And it is a fixpoint: saving again changes nothing.
+    expect(cycle(tex)).toBe(tex);
+  });
+
+  it('leaves a comment on its own line where it was', () => {
+    const tex = cycle(src([
+      String.raw`\documentclass[aspectratio=169,11pt]{beamer}`,
+      String.raw`\usetheme{Madrid}`,
+      String.raw`\title{T}`,
+      '% a note on its own line',
+      String.raw`\date{\today}`,
+    ]));
+    expect(tex.split('\n')).toContain('% a note on its own line');
+    expect(cycle(tex)).toBe(tex);
+  });
+
+  it('does not attach a comment on the next line to the command above it', () => {
+    const tex = cycle(src([
+      String.raw`\documentclass[aspectratio=169,11pt]{beamer}`,
+      String.raw`\usetheme{Madrid}`,
+      String.raw`\title{T}`,
+      '% next line',
+    ]));
+    expect(lineWith(tex, String.raw`\title`)).toBe(String.raw`\title{T}`);
+  });
+});

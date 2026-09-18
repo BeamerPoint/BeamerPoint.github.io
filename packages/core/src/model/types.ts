@@ -526,6 +526,17 @@ export interface Preamble {
    */
   bibliography?: { style: string; backend: 'bibtex' };
   custom: PreambleChunk[];
+  /**
+   * A comment at the END of a modelled preamble line, keyed by the line it trails --
+   * `title`, `usepackage:graphicx`, `usetheme`, `definecolor:brand` (see `eolKey`).
+   * The text after the `%`.
+   *
+   * The structured lines are re-emitted in the app's own order, so a comment the parser
+   * kept as a separate chunk landed in the next slot: `\title{T} % note` came back with
+   * the note on its own line after `\date`, which auto-apply did under the cursor of
+   * someone who had only paused typing (F-021). Attached to its line, it stays there.
+   */
+  eolComments?: Record<string, string>;
 }
 
 /* ------------------------------------------------------------------------ deck */

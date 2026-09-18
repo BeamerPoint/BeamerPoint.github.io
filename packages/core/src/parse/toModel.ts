@@ -10,6 +10,7 @@ import type {
   NoteSpec,
   PackageSpec,
   Preamble,
+  PreambleChunk,
   PreambleSlot,
   ResourceRef,
   RichText,
@@ -147,9 +148,21 @@ function parsePreamble(
   let sawTheme = false;
   let sawDocumentClass = false;
 
-  const pushChunk = (tex: string): void => {
+  // The line a same-line comment would belong to: a modelled command's key, or the
+  // chunk just pushed. `end` is where it finished, to tell "same line" from "next line".
+  let trailing: { key: string } | { chunk: PreambleChunk } | null = null;
+  let trailingEnd = 0;
+  const modelled = (key: string, node: CstNode): void => {
+    trailing = { key };
+    trailingEnd = node.span.end;
+  };
+
+  const pushChunk = (tex: string, node?: CstNode): void => {
     unknownChunks += 1;
-    p.custom.push({ id: ctx.newId(), slot, tex, order: (order += 1) });
+    const chunk: PreambleChunk = { id: ctx.newId(), slot, tex, order: (order += 1) };
+    p.custom.push(chunk);
+    trailing = node === undefined ? null : { chunk };
+    trailingEnd = node?.span.end ?? 0;
   };
 
   let pendingComments: string[] = [];
@@ -172,13 +185,23 @@ function parsePreamble(
         p.texProgram = magic[1]!.toLowerCase() as NonNullable<Preamble['texProgram']>;
         continue;
       }
+      // On the same line as what came before it: it belongs to that line (F-021).
+      const t = trailing as { key: string } | { chunk: PreambleChunk } | null;
+      if (t !== null && pendingComments.length === 0
+          && !ctx.src.slice(trailingEnd, node.span.start).includes('\n')) {
+        if ('key' in t) (p.eolComments ??= {})[t.key] = node.value;
+        else t.chunk.tex += `${ctx.src.slice(trailingEnd, node.span.start)}%${node.value}`;
+        trailing = null;
+        continue;
+      }
+      trailing = null;
       pendingComments.push(node.value);
       continue;
     }
 
     if (node.n !== 'cmd') {
       flushComments();
-      pushChunk(slice(ctx.src, node));
+      pushChunk(slice(ctx.src, node), node);
       continue;
     }
 
@@ -188,6 +211,7 @@ function parsePreamble(
       flushComments();
       applyDocumentClass(p, opts[0], ctx.src);
       sawDocumentClass = true;
+      modelled('documentclass', node);
       continue;
     }
 
@@ -198,6 +222,7 @@ function parsePreamble(
         name: literal(ctx.src, args[0]!),
         options: splitOptions(opts[0], ctx.src),
       });
+      modelled(`usepackage:${literal(ctx.src, args[0]!)}`, node);
       continue;
     }
 
@@ -216,6 +241,7 @@ function parsePreamble(
         case 'useinnertheme': p.innerTheme = ref; break;
         case 'useoutertheme': p.outerTheme = ref; break;
       }
+      modelled(name, node);
       continue;
     }
 
@@ -225,6 +251,7 @@ function parsePreamble(
       flushComments();
       p.navigationSymbols = false;
       slot = 'after-settings';
+      modelled('navigation-symbols', node);
       continue;
     }
 
@@ -238,6 +265,7 @@ function parsePreamble(
         spec: literal(ctx.src, args[2]!),
       };
       p.colorDefs.push(def);
+      modelled(`definecolor:${def.name}`, node);
       continue;
     }
 
@@ -252,12 +280,14 @@ function parsePreamble(
         target,
         value,
       });
+      modelled(`${name}:${target}`, node);
       continue;
     }
 
     if (name === 'bibliographystyle' && args.length === 1) {
       flushComments();
       p.bibliography = { style: literal(ctx.src, args[0]!), backend: 'bibtex' };
+      modelled('bibliographystyle', node);
       continue;
     }
 
@@ -265,6 +295,7 @@ function parsePreamble(
       flushComments();
       slot = 'before-document';
       applyTitleCommand(meta, name, args[0]!, opts[0], ctx);
+      modelled(name, node);
       continue;
     }
 
@@ -272,11 +303,12 @@ function parsePreamble(
     // recording them here would duplicate them on the next emit.
     if (isDerivedSetupLine(slice(ctx.src, node))) {
       flushComments();
+      modelled(`setup:${slice(ctx.src, node)}`, node);
       continue;
     }
 
     flushComments();
-    pushChunk(slice(ctx.src, node));
+    pushChunk(slice(ctx.src, node), node);
   }
 
   flushComments();

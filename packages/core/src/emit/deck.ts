@@ -87,7 +87,13 @@ function emitPreamble(w: TexWriter, deck: Deck, _ctx: EmitContext): void {
     ...(dc.t ? ['t'] : []),
     ...dc.extraOptions,
   ];
-  w.line_(`\\documentclass[${classOpts.join(',')}]{beamer}`);
+  // A modelled line, with the comment that trailed it in the file, if any (F-021).
+  const line = (key: string, tex: string): void => {
+    const c = p.eolComments?.[key];
+    w.line_(c === undefined ? tex : `${tex} %${c}`);
+  };
+
+  line('documentclass', `\\documentclass[${classOpts.join(',')}]{beamer}`);
 
   emitChunks(w, p, 'after-documentclass');
 
@@ -98,34 +104,34 @@ function emitPreamble(w: TexWriter, deck: Deck, _ctx: EmitContext): void {
 
   if (derived.length > 0 || userPackages.length > 0) w.blank();
   for (const d of derived) {
-    w.line_(packageLine(d));
-    for (const s of d.setup ?? []) w.line_(s);
+    line(`usepackage:${d.name}`, packageLine(d));
+    for (const s of d.setup ?? []) line(`setup:${s}`, s);
   }
-  for (const u of userPackages) w.line_(packageLine(u));
+  for (const u of userPackages) line(`usepackage:${u.name}`, packageLine(u));
 
   emitChunks(w, p, 'after-packages');
 
   w.blank();
-  w.line_(themeLine('usetheme', p.theme));
-  if (p.colorTheme) w.line_(themeLine('usecolortheme', p.colorTheme));
-  if (p.fontTheme) w.line_(themeLine('usefonttheme', p.fontTheme));
-  if (p.innerTheme) w.line_(themeLine('useinnertheme', p.innerTheme));
-  if (p.outerTheme) w.line_(themeLine('useoutertheme', p.outerTheme));
-  if (!p.navigationSymbols) w.line_('\\setbeamertemplate{navigation symbols}{}');
+  line('usetheme', themeLine('usetheme', p.theme));
+  if (p.colorTheme) line('usecolortheme', themeLine('usecolortheme', p.colorTheme));
+  if (p.fontTheme) line('usefonttheme', themeLine('usefonttheme', p.fontTheme));
+  if (p.innerTheme) line('useinnertheme', themeLine('useinnertheme', p.innerTheme));
+  if (p.outerTheme) line('useoutertheme', themeLine('useoutertheme', p.outerTheme));
+  if (!p.navigationSymbols) line('navigation-symbols', '\\setbeamertemplate{navigation symbols}{}');
 
   emitChunks(w, p, 'after-theme');
 
   if (p.colorDefs.length > 0) {
     w.blank();
     for (const c of p.colorDefs) {
-      w.line_(`\\definecolor{${c.name}}{${c.model}}{${c.spec}}`);
+      line(`definecolor:${c.name}`, `\\definecolor{${c.name}}{${c.model}}{${c.spec}}`);
     }
   }
 
   if (p.beamerSettings.length > 0) {
     w.blank();
     for (const s of p.beamerSettings) {
-      w.line_(`\\${s.cmd}{${s.target}}${s.value}`);
+      line(`${s.cmd}:${s.target}`, `\\${s.cmd}{${s.target}}${s.value}`);
     }
   }
 
@@ -133,7 +139,7 @@ function emitPreamble(w: TexWriter, deck: Deck, _ctx: EmitContext): void {
 
   if (p.bibliography !== undefined) {
     w.blank();
-    w.line_(`\\bibliographystyle{${p.bibliography.style}}`);
+    line('bibliographystyle', `\\bibliographystyle{${p.bibliography.style}}`);
   }
 
   // Title block.
@@ -143,11 +149,13 @@ function emitPreamble(w: TexWriter, deck: Deck, _ctx: EmitContext): void {
     m.author !== undefined || m.institute !== undefined || m.date !== undefined;
   if (titled) {
     w.blank();
-    if (m.title !== undefined) w.line_(titleCommand('title', m.title, m.shortTitle));
-    if (m.subtitle !== undefined) w.line_(`\\subtitle{${emitInline(m.subtitle)}}`);
-    if (m.author !== undefined) w.line_(titleCommand('author', m.author, m.shortAuthor));
-    if (m.institute !== undefined) w.line_(titleCommand('institute', m.institute, m.shortInstitute));
-    if (m.date !== undefined) w.line_(`\\date{${emitInline(m.date)}}`);
+    if (m.title !== undefined) line('title', titleCommand('title', m.title, m.shortTitle));
+    if (m.subtitle !== undefined) line('subtitle', `\\subtitle{${emitInline(m.subtitle)}}`);
+    if (m.author !== undefined) line('author', titleCommand('author', m.author, m.shortAuthor));
+    if (m.institute !== undefined) {
+      line('institute', titleCommand('institute', m.institute, m.shortInstitute));
+    }
+    if (m.date !== undefined) line('date', `\\date{${emitInline(m.date)}}`);
   }
 
   emitChunks(w, p, 'before-document');
