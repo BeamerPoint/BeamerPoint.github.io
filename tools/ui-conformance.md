@@ -47,3 +47,25 @@ Re-run it after any change to a panel, the ribbon or the canvas. Add a row per c
 | View | Guide | Click the top ruler | A vertical guide at that x | Guide created; Clear guides enabled | Pass |
 | View | Guide | Drag it | Guide follows | Moved 250 → 300 | Pass |
 | View | Guide | Double-click it | Guide removed | Removed | Pass |
+| Insert | Table | Click, then click a header cell and type | Header text is edited | Header row lies under the selection's move band; typing goes nowhere | **F-019** |
+| Canvas | Table cell | Select another element, click a cell, type | Cell edited, commits on blur | Typed at the caret; committed to the source on blur | Pass |
+| Canvas | Text box | Click into a selected one-line text box | Caret placed | Whole box covered by the N and S move bands | **F-019** |
+| Canvas | Grey stage around the slide | Click | Deselects | Selection unchanged | Note (part of F-019's way out) |
+| Insert | Equation | Click, then type in the Math panel | Source and KaTeX update | Both updated, no KaTeX error | Pass |
+| Insert | Shapes ▸ right triangle | Pick, drag inside the drawing surface | A triangle is drawn | Three-point path, `\draw … -- cycle` | Pass |
+| Insert | Layouts ▸ Cycle | Pick, type labels, Insert | Diagram of ordinary shapes | Modal closed, labels in the source | Pass |
+| Insert | Chart | Click | Chart and its editor | Line chart with legend and axis | Pass |
+| Chart panel | Data cell | Triple-click, type 9, Tab | Value changes, stays numeric | 3 → 9, numeric, source updated | Pass |
+| Chart panel | Bars | Click | Bar chart | `ybar` in the source, 10 bars drawn | Pass |
+| Chart panel | + Row | Click | An empty row that still compiles | Row of empty cells; the deck compiles | Pass |
+| Source panel | Type a balanced edit | Keyboard in CodeMirror | Canvas locks; auto-applies after 800 ms | Locked (opacity 0.55, no pointer events, status-bar notice), then applied | Pass |
+| Source panel | Auto-apply of an end-of-line comment | Pause after typing | Comment stays where typed | Moved to its own line after `\date` | **F-021** |
+| Source panel | Revert | Unbalanced edit, click Revert | Edit discarded, canvas unlocked | Discarded in the model and the editor; unlocked | Pass |
+| Slide rail | + Section | Click | A heading before the slide | `\section{New section}` | Pass |
+| Slide rail | Rename a section | Triple-click, type, Enter | Renamed; Enter does not add a slide | `\section{Results}`, still two frames | Pass |
+| Notes | Type a note | Open, click, type `100% & …` | `\note` with escaped specials | `\note{Mention 100\% \& the caveat}` | Pass |
+| Canvas | Drop a PNG | Drag-and-drop event with a real file | Picture on the slide, file registered | Inserted; name sanitised to `probe-photo.png`; 320×160 recorded; overlay cleared | Pass |
+| Picture panel | Crop | Click Crop, drag the east edge | Edge on the picture, crop follows the pointer | Edge floats ~200 px off the picture and does not move; crop is ~1/3.4 of the drag | **F-022** |
+| Whole app | Window 800 px wide | Resize | Usable layout | Page scrolls sideways; only 32 px of the format pane visible | **F-020** |
+
+Earlier in the session, and not repeated here: slide-rail drag reordering, Delete and Enter in the rail, element resize and move at every depth, lock aspect, copy/cut/paste/duplicate with a real clipboard, drop of a `.tex` into the import dialog, the transparency slider, attaching a `.bib` and citing from it, the table header-row checkbox and the chart's per-series `×`.
