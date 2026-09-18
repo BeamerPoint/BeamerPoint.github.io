@@ -333,8 +333,10 @@ export function Ribbon(props: Props): React.ReactElement {
 
             <Group label="Undo">
               <Stack>
-                <Small icon={<IconUndo />} label="Undo" title="Undo (Ctrl+Z)" onClick={undo} />
-                <Small icon={<IconRedo />} label="Redo" title="Redo (Ctrl+Y)" onClick={redo} />
+                {/* Disabled while the source panel has unapplied edits: undo replaces the deck and
+                    the source text, which would throw that typing away (F-009). */}
+                <Small icon={<IconUndo />} label="Undo" title="Undo (Ctrl+Z)" disabled={locked} onClick={undo} />
+                <Small icon={<IconRedo />} label="Redo" title="Redo (Ctrl+Y)" disabled={locked} onClick={redo} />
               </Stack>
             </Group>
 

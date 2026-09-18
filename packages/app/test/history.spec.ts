@@ -115,11 +115,8 @@ describe('the source panel lock', () => {
     expect(title()).toBe('v0');
   });
 
-  // F-009 (tools/audit-2026-09.md). `mutate` and `beginGesture` refuse to run while the
-  // source is dirty; `undo` and `redo` do not, and the ribbon's buttons are not disabled.
-  // So undo replaces the deck AND regenerates the source text over the user's unapplied
-  // typing. Remove `.fails` when it is fixed -- vitest will insist.
-  it.fails('does not throw away unapplied source edits when Undo is pressed', () => {
+  // F-009, fixed: undo and redo now obey the same lock as `mutate`.
+  it('does not throw away unapplied source edits when Undo is pressed', () => {
     st().setSlideTitle('f1', 'v1');
     const typed = `${st().source.text}\n% typed by hand, not yet applied`;
     st().editSource(typed);

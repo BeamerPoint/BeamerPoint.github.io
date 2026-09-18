@@ -2369,6 +2369,10 @@ export const useStore = create<AppState>()((set, get) => {
 
     undo() {
       const state = get();
+      // The canvas lock, as `mutate` and `beginGesture` obey it. Undo replaces the deck
+      // AND regenerates the source text, so running it over unapplied typing in the
+      // source panel threw that typing away with no prompt (F-009).
+      if (state.source.status !== 'synced') return;
       const prev = state.history.past[state.history.past.length - 1];
       if (prev === undefined) return;
       const regen = regenerate(prev);
@@ -2388,6 +2392,7 @@ export const useStore = create<AppState>()((set, get) => {
 
     redo() {
       const state = get();
+      if (state.source.status !== 'synced') return; // the same lock as undo, F-009
       const next = state.history.future[0];
       if (next === undefined) return;
       const regen = regenerate(next);
