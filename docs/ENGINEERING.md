@@ -31,9 +31,15 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 347 tests
+npm test             # vitest, 510 tests (BP_FUZZ=1 soaks the property test at 3000 decks)
+npm run test:coverage    # the same, with v8 coverage
 npm run engine:install   # ~540MB TeX Live, optional, one-time
+npm run test:engine      # Playwright: compiles ~210 cases in the real engine (~10 min)
 ```
+
+`tools/audit-2026-09.md` is the ledger of the September 2026 verification sweep: every
+finding, its evidence and its fix. `tools/ui-conformance.md` records the mouse pass and
+the quirks of driving the browser pane.
 
 Typecheck a package: `npx tsc -p packages/<name>/tsconfig.json --noEmit`.
 There is no build/lint step beyond these.
@@ -610,6 +616,41 @@ five source files. If a script must build LaTeX, spell the backslash as `chr(92)
 `\n` silently fails to match and the "assert old in s" guard fires on text that is plainly
 there.
 
+**Byte fixpoint and `guard.ok` prove nothing about PARSING.** A raw element re-emits its
+own bytes, so a deck the parser understood none of is byte-perfect and guard-clean; and
+`health.demoted` counts only what the GUARD demoted, not what a recognizer declined. A
+round-trip test has to assert the element KINDS. `test/helpers/roundTrip.ts`'s
+`expectRoundTrip` does, and it is what found two text boxes merging into one paragraph
+(`emitChildren` now puts a paragraph break between flow texts) and a faded picture with a
+caption or an alignment reading back as raw.
+
+**A field over rich text must not be a plain `<input>` over `richTextToPlain`.** A raw
+island has no plain form, so `\author{A \and B}` showed as "A  B" and the first keystroke
+saved one author; `\date{\today}` showed as an empty box. `TexAwareField` edits plain
+words as words and anything else as LaTeX, read back by `richTextFromTex`, which is
+byte-exact or refuses -- and a refused fragment stays in the field, uncommitted.
+
+**`pointerDrag` deltas are INCREMENTAL.** A handler that adds each one to a value captured
+at pointer-down keeps only the last event's movement: the crop did exactly that and
+followed the mouse at about a third of the speed. Accumulate on the gesture.
+
+**busytex's log is a transcript of several runs**, each with `LOG` and `STDOUT` sections
+that repeat each other, so `parseLog` reads the final run's `LOG` only. Rejoining TeX's
+79-column wraps must test the previous PHYSICAL line: testing the joined one glued TeX's
+help text and memory statistics onto the end of an error.
+
+**The recovery mirror exists only while IndexedDB is behind it.** Written at teardown for
+an untouched deck, it prompted "unsaved changes" on every launch; left after a save, it
+prompted after any release that changed the emitter. `markClean` and the clear-on-save
+make "a mirror exists" mean exactly "the tab closed with unsaved edits".
+
+**A failed compile's PDF is `null`, not absent**, whatever the backend's typings say.
+`toCompileResult` normalises it; the PDF tab called `.slice()` on it before.
+
+**Ask what a ref click hits under viewport emulation.** In the browser pane at 1280x760 a
+`ref` click lands in the screenshot frame at page coordinates, and End/Home/Ctrl+A do not
+move the caret at all. Three "dead controls" in the mouse pass were the driver.
+
 Run `tools/fidelity-audit.md` after touching canvas layout. It compares canvas and PDF
 positions numerically; the first run found three real bugs, the worst of them 17mm. The
 audit is only meaningful if it is read the way it is written: **it pairs a DOM top with a
@@ -630,7 +671,10 @@ For geometry questions, extract the actual transform from the compiled PDF via
 
 ## Status
 
-Forty-six commits on `master`, ~24,150 lines across 110 source files, 347 tests passing.
+77 commits on `master`, ~25,600 lines across 115 source files, 510 tests passing (plus
+the engine conformance matrix). The September 2026 sweep found 22 defects -- seven that
+broke the PDF or lost content (one S1, six S2) -- and all 22 are fixed; see
+`tools/audit-2026-09.md`.
 
 ### Done
 

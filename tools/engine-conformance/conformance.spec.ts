@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from '@playwright/test';
 
 /**
  * Everything the app can make, compiled by the real engine and checked in the PDF.
@@ -64,24 +64,43 @@ function judge(o: Observation): Verdict {
 }
 
 const verdicts: Verdict[] = [];
-let page: Page;
+/** How many cases each area HAS, so a run that died partway is known to be partial. */
+const expected = new Map<string, number>();
+let page: Page | null = null;
 
 test.describe.configure({ mode: 'serial' });
 
-test.beforeAll(async ({ browser }) => {
+test.beforeAll(() => {
   test.skip(!existsSync(ASSETS), 'TeX Live is not installed -- run `npm run engine:install`');
+});
+
+/**
+ * A fresh page, and a fresh engine, for each AREA.
+ *
+ * One page for the whole matrix ran about 210 compiles in a single WASM heap, and the
+ * tab eventually died with "Target crashed" nine minutes in -- during the colour area,
+ * which was then reported as a failure of the colours. The TeX Live payload is cached
+ * by the browser after the first init, so a new page costs seconds, and memory is
+ * bounded by the largest area instead of by the matrix.
+ */
+async function freshPage(browser: Browser): Promise<Page> {
+  await page?.close();
   page = await browser.newPage();
   await page.goto('/harness.html');
   await page.waitForFunction(() => document.body.dataset.ready === 'true');
-  // The first init preloads the whole payload; everything after reuses it.
   await page.evaluate(() => window.bpHarness.init());
-});
+  return page;
+}
+
+test.afterAll(async () => { await page?.close(); });
 
 for (const area of AREAS) {
-  test(`compiles every ${area} case`, async () => {
+  test(`compiles every ${area} case`, async ({ browser }) => {
+    const page = await freshPage(browser);
     const ids = await page.evaluate((a) => window.bpHarness.cases()
       .filter((c) => c.area === a).map((c) => c.id), area);
     expect(ids.length, `cases in ${area}`).toBeGreaterThan(0);
+    expected.set(area, ids.length);
 
     for (const id of ids) {
       const obs = await page.evaluate((i) => window.bpHarness.run(i), id) as Observation;
@@ -95,9 +114,13 @@ for (const area of AREAS) {
 }
 
 test.afterAll(() => {
-  // Only a FULL run writes the checked-in results: a run filtered to one area with `-g`
-  // would otherwise replace the whole table with a subset of it.
-  if (!AREAS.every((a) => verdicts.some((v) => v.obs.area === a))) return;
+  // Only a COMPLETE run writes the checked-in results: a run filtered to one area with
+  // `-g` would otherwise replace the whole table with a subset of it, and so would a run
+  // whose page crashed partway through an area -- which is how a truncated table was
+  // once written with the crash reported as a colour failure.
+  const complete = AREAS.every((a) => expected.has(a)
+    && verdicts.filter((v) => v.obs.area === a).length === expected.get(a));
+  if (!complete) return;
   const failures = join(RESULTS, 'failures');
   rmSync(failures, { recursive: true, force: true });
   mkdirSync(failures, { recursive: true });
