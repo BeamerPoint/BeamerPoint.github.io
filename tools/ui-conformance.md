@@ -24,6 +24,9 @@ Re-run it after any change to a panel, the ribbon or the canvas. Add a row per c
   command is not executed — verified on a bare page with no app code, so it is the driver,
   not BeamerPoint. Select text with a triple-click or a drag instead, or a caret-placed
   typing test will look like the app inserted text in the wrong place.
+- **End and Home do not move the caret either**, for the same reason: verified on a bare
+  `<input>` with no app code. Place the caret with `setSelectionRange` and then type with
+  real keys, or the text lands wherever the click left the caret.
 - A diagram's drawing surface is its canvas size, not its element box: a flow diagram's
   box spans the text column, but only the SVG inside it draws. Aim inside the SVG.
 

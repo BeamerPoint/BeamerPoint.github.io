@@ -173,7 +173,8 @@ interface AppState {
    * number and a node index are not the same thing.
    */
   moveSlideBefore(slideId: string, beforeId: string | null): void;
-  setSlideTitle(slideId: string, title: string): void;
+  /** A string is plain text; rich text is kept as it is (see `setDeckMeta`). */
+  setSlideTitle(slideId: string, title: string | RichText): void;
   addOutlineSlide(): void;
 
   addSection(level?: SectionNode['level']): void;
@@ -336,7 +337,11 @@ interface AppState {
   setElementRotate(slideId: string, elementId: string, deg: number): void;
   returnElementToFlow(slideId: string, elementId: string): void;
 
-  setDeckMeta(patch: Partial<Record<DeckMetaField, string>>): void;
+  /**
+   * A string is plain text and is escaped on the way out; rich text is stored as it is,
+   * which is how a field holding `\and` or `\today` keeps it.
+   */
+  setDeckMeta(patch: Partial<Record<DeckMetaField, string | RichText>>): void;
   setTheme(name: string): void;
   setTexProgram(program: TexProgram): void;
   /** The deck's font family, by package name; `null` is beamer's own default. */
@@ -1155,7 +1160,10 @@ export const useStore = create<AppState>()((set, get) => {
       mutate((deck) =>
         mapFrame(deck, slideId, (f) => ({
           ...f,
-          ...(title === '' ? { title: undefined } : { title: plain(title) }),
+          ...(() => {
+            const rt = typeof title === 'string' ? plain(title) : title;
+            return rt.length === 0 ? { title: undefined } : { title: rt };
+          })(),
         })),
       );
     },
@@ -2237,8 +2245,9 @@ export const useStore = create<AppState>()((set, get) => {
         for (const [k, v] of Object.entries(patch)) {
           const key = k as DeckMetaField;
           if (v === undefined) continue;
-          if (v.trim() === '') delete meta[key];
-          else meta[key] = plain(v);
+          const rt = typeof v === 'string' ? plain(v) : v;
+          if (isBlankRichText(rt)) delete meta[key];
+          else meta[key] = rt;
         }
         return { ...deck, meta };
       });

@@ -1,9 +1,13 @@
+import { useState } from 'react';
 import {
+  emitInline,
   isApproximateTheme,
+  richTextFromTex,
   richTextToPlain,
   themeNeedsUnicodeEngine,
   themeUnavailableReason,
   type Element,
+  type RichText,
 } from '@beamerpoint/core';
 import { findElement, selectCurrentFrame, useStore, type DeckMetaField } from '../state/store.js';
 import { MathEditor } from './MathEditor.js';
@@ -91,16 +95,14 @@ export function FormatPane(): React.ReactElement {
         )}
 
         <section className="bp-format-section">
-          <label className="bp-field">
-            <span>Slide title</span>
-            <input
-              type="text"
-              placeholder="Untitled slide"
-              disabled={locked || frame === undefined}
-              value={frame?.title ? richTextToPlain(frame.title) : ''}
-              onChange={(e) => frame && setSlideTitle(frame.id, e.target.value)}
-            />
-          </label>
+          <TexAwareField
+            key={frame?.id}
+            label="Slide title"
+            placeholder="Untitled slide"
+            disabled={locked || frame === undefined}
+            value={frame?.title}
+            onChange={(v) => frame && setSlideTitle(frame.id, v)}
+          />
         </section>
 
         {showPresentation && <DeckMetaEditor locked={locked} />}
@@ -285,22 +287,85 @@ const META_FIELDS: readonly { key: DeckMetaField; label: string; placeholder: st
 function DeckMetaEditor({ locked }: { locked: boolean }): React.ReactElement {
   const meta = useStore((s) => s.deck.meta);
   const setDeckMeta = useStore((s) => s.setDeckMeta);
-
   return (
     <section className="bp-format-section">
       <h4>Presentation</h4>
       {META_FIELDS.map((f) => (
-        <label className="bp-field" key={f.key}>
-          <span>{f.label}</span>
-          <input
-            type="text"
-            placeholder={f.placeholder}
-            disabled={locked}
-            value={meta[f.key] ? richTextToPlain(meta[f.key]!) : ''}
-            onChange={(e) => setDeckMeta({ [f.key]: e.target.value })}
-          />
-        </label>
+        <TexAwareField
+          key={f.key}
+          label={f.label}
+          placeholder={f.placeholder}
+          disabled={locked}
+          value={meta[f.key]}
+          onChange={(v) => setDeckMeta({ [f.key]: v })}
+        />
       ))}
     </section>
+  );
+}
+
+/** Plain words only -- nothing a plain-text field would lose by round-tripping it. */
+function isPlainText(rt: RichText): boolean {
+  return rt.every((n) => n.t === 'text');
+}
+
+/**
+ * A one-line field over rich text: the slide title, and the presentation's title,
+ * author, institute and date.
+ *
+ * It used to show `richTextToPlain` and write back plain text, which is lossy: a raw
+ * island has no plain form, so `\author{A \and B}` showed as "A  B" and the first
+ * keystroke saved ONE author, and the default deck's `\date{\today}` showed as an empty
+ * box (F-018). A field whose value is plain words is still edited as words and escaped
+ * on the way out, so "R&D" still works; a field holding any LaTeX at all is shown AS
+ * LaTeX and read back with `richTextFromTex`. The mode is decided when the field takes
+ * the focus and held until it loses it, so deleting the last command mid-edit does not
+ * switch the field under the caret. Text that could not stand inside the command --
+ * an unbalanced brace while typing one, a bare `&` -- is kept in the field and not
+ * committed, rather than breaking the document around it.
+ */
+export function TexAwareField({ label, placeholder, disabled, value, onChange }: {
+  label: string;
+  placeholder: string;
+  disabled: boolean;
+  value: RichText | undefined;
+  /** A string is plain text, to be escaped; rich text is stored as it is. */
+  onChange(v: string | RichText): void;
+}): React.ReactElement {
+  const [editing, setEditing] = useState<{ tex: boolean; text: string } | null>(null);
+
+  const texMode = editing?.tex ?? (value !== undefined && !isPlainText(value));
+  const shown = editing?.text
+    ?? (value === undefined ? '' : texMode ? emitInline(value) : richTextToPlain(value));
+  const invalid = editing !== null && editing.tex && richTextFromTex(editing.text) === null;
+
+  return (
+    <label className="bp-field">
+      <span>
+        {label}
+        {texMode && <em className="bp-field-badge" title="This field holds LaTeX and is edited as LaTeX">LaTeX</em>}
+      </span>
+      <input
+        type="text"
+        placeholder={placeholder}
+        disabled={disabled}
+        spellCheck={!texMode}
+        aria-invalid={invalid || undefined}
+        title={invalid ? 'Not committed: unbalanced braces, a comment, or a bare & # ^ _' : undefined}
+        value={shown}
+        onFocus={() => setEditing({ tex: texMode, text: shown })}
+        onBlur={() => setEditing(null)}
+        onChange={(e) => {
+          const text = e.target.value;
+          setEditing({ tex: texMode, text });
+          if (!texMode) {
+            onChange(text);
+            return;
+          }
+          const rt = richTextFromTex(text);
+          if (rt !== null) onChange(rt);
+        }}
+      />
+    </label>
   );
 }

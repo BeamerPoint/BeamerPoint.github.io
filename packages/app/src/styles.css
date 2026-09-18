@@ -493,6 +493,16 @@ body.bp-resizing iframe { pointer-events: none; }
   box-shadow: 0 0 0 1px var(--bp-accent);
 }
 .bp-format input[type="range"] { padding: 0; border: none; }
+/* A field holding LaTeX is edited as LaTeX; say so, and flag text that was not committed. */
+.bp-field-badge {
+  margin-left: 6px; padding: 0 4px; border-radius: 3px; font-style: normal;
+  font-size: 10px; color: var(--bp-accent); border: 1px solid currentColor;
+}
+.bp-format input[aria-invalid="true"],
+.bp-format input[aria-invalid="true"]:focus {
+  border-color: #c0392b; box-shadow: 0 0 0 1px #c0392b;
+}
+.bp-field input[type="text"][spellcheck="false"] { font-family: var(--bp-mono, monospace); }
 .bp-field-inline select { width: auto; }
 
 /* Wrapping keeps a long label from pushing the whole panel into a scrollbar. */

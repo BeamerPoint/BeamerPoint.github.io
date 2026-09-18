@@ -56,6 +56,7 @@ export type { EmitWarning } from './emit/elements.js';
 
 export { parseDeck, type ParseOptions, type ParseResult, type ParseHealth } from './parse/parseDeck.js';
 export { buildCst } from './parse/lexer.js';
+export { richTextFromTex } from './parse/fragment.js';
 export { significantTokens, tokensEqual, type GuardReport } from './parse/guard.js';
 export { reassignIds } from './parse/reid.js';
 export type { CstNode, ParseDiagnostic } from './parse/cst.js';
