@@ -1,3 +1,12 @@
+/*
+ * BeamerPoint
+ *
+ * Author: Abolfazl Mohebbi, PhD
+ *         Professor in Mechanical and Biomedical Engineering,
+ *         Polytechnique Montreal
+ *         abolfazl.mohebbi@polymtl.ca
+ */
+
 import { useEffect, useRef, useState } from 'react';
 import * as pdfjs from 'pdfjs-dist';
 import PdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker';

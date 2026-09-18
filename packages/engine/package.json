@@ -2,9 +2,15 @@
   "name": "@beamerpoint/engine",
   "version": "0.1.0",
   "private": true,
+  "author": {
+    "name": "Abolfazl Mohebbi, PhD (Professor in Mechanical and Biomedical Engineering, Polytechnique Montreal)",
+    "email": "abolfazl.mohebbi@polymtl.ca"
+  },
   "type": "module",
   "main": "./src/index.ts",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "dependencies": {
     "@beamerpoint/core": "0.1.0",
     "texlyre-busytex": "^1.4.0"

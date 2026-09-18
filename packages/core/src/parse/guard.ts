@@ -1,3 +1,12 @@
+/*
+ * BeamerPoint
+ *
+ * Author: Abolfazl Mohebbi, PhD
+ *         Professor in Mechanical and Biomedical Engineering,
+ *         Polytechnique Montreal
+ *         abolfazl.mohebbi@polymtl.ca
+ */
+
 import type { Deck, DocNode, Element, FrameNode, Id, RawElement } from '../model/types.js';
 import { emitElement, type EmitContext } from '../emit/elements.js';
 import { emitFrameStandalone } from '../emit/deck.js';

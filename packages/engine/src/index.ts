@@ -1,3 +1,12 @@
+/*
+ * BeamerPoint
+ *
+ * Author: Abolfazl Mohebbi, PhD
+ *         Professor in Mechanical and Biomedical Engineering,
+ *         Polytechnique Montreal
+ *         abolfazl.mohebbi@polymtl.ca
+ */
+
 export type {
   EngineId, TexProgram, EngineCapabilities, VirtualFile, CompileJob,
   CompileResult, Diagnostic, DiagnosticSeverity, EngineStatus, LatexEngine, EngineFactory,

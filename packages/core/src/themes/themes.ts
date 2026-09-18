@@ -1,3 +1,12 @@
+/*
+ * BeamerPoint
+ *
+ * Author: Abolfazl Mohebbi, PhD
+ *         Professor in Mechanical and Biomedical Engineering,
+ *         Polytechnique Montreal
+ *         abolfazl.mohebbi@polymtl.ca
+ */
+
 import type { FootlineSpec, HeadlineSpec, ThemeSpec } from './spec.js';
 import { MEASURED, hasMeasuredColors, type MeasuredTheme } from './measured.js';
 import { titleLayoutFor } from './titleLayout.js';

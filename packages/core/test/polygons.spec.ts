@@ -1,3 +1,12 @@
+/*
+ * BeamerPoint
+ *
+ * Author: Abolfazl Mohebbi, PhD
+ *         Professor in Mechanical and Biomedical Engineering,
+ *         Polytechnique Montreal
+ *         abolfazl.mohebbi@polymtl.ca
+ */
+
 import { describe, expect, it } from 'vitest';
 import { POLYGON_KINDS, polygonPoints } from '../src/model/polygons.js';
 import { emitDeck } from '../src/emit/deck.js';

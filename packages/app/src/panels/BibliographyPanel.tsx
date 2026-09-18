@@ -1,3 +1,12 @@
+/*
+ * BeamerPoint
+ *
+ * Author: Abolfazl Mohebbi, PhD
+ *         Professor in Mechanical and Biomedical Engineering,
+ *         Polytechnique Montreal
+ *         abolfazl.mohebbi@polymtl.ca
+ */
+
 import { useEffect, useRef, useState } from 'react';
 import { AUTHORED_CITE_STYLES, CITE_COMMAND, type CiteStyle } from '@beamerpoint/core';
 import { useStore } from '../state/store.js';

@@ -1,3 +1,12 @@
+/*
+ * BeamerPoint
+ *
+ * Author: Abolfazl Mohebbi, PhD
+ *         Professor in Mechanical and Biomedical Engineering,
+ *         Polytechnique Montreal
+ *         abolfazl.mohebbi@polymtl.ca
+ */
+
 import { useEffect, useSyncExternalStore } from 'react';
 import type { Deck, RichText } from '@beamerpoint/core';
 import { findElement, useStore } from '../state/store.js';

@@ -2,6 +2,10 @@
   "name": "beamerpoint",
   "private": true,
   "version": "0.1.0",
+  "author": {
+    "name": "Abolfazl Mohebbi, PhD (Professor in Mechanical and Biomedical Engineering, Polytechnique Montreal)",
+    "email": "abolfazl.mohebbi@polymtl.ca"
+  },
   "type": "module",
   "workspaces": [
     "packages/core",

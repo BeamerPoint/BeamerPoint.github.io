@@ -1,3 +1,12 @@
+/*
+ * BeamerPoint
+ *
+ * Author: Abolfazl Mohebbi, PhD
+ *         Professor in Mechanical and Biomedical Engineering,
+ *         Polytechnique Montreal
+ *         abolfazl.mohebbi@polymtl.ca
+ */
+
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { Element, ImageElement, ImageTrim, ResourceRef } from '@beamerpoint/core';
 import type { ResizeGrip } from '../state/store.js';

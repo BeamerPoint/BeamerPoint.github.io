@@ -1,4 +1,13 @@
 // @vitest-environment happy-dom
+/*
+ * BeamerPoint
+ *
+ * Author: Abolfazl Mohebbi, PhD
+ *         Professor in Mechanical and Biomedical Engineering,
+ *         Polytechnique Montreal
+ *         abolfazl.mohebbi@polymtl.ca
+ */
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { newDeck, newFrame, newTextElement } from '@beamerpoint/core';
 import type { Deck } from '@beamerpoint/core';

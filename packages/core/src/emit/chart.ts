@@ -1,3 +1,12 @@
+/*
+ * BeamerPoint
+ *
+ * Author: Abolfazl Mohebbi, PhD
+ *         Professor in Mechanical and Biomedical Engineering,
+ *         Polytechnique Montreal
+ *         abolfazl.mohebbi@polymtl.ca
+ */
+
 import type { ChartElement, SeriesSpec } from '../model/types.js';
 import { cellText, isNumericColumn, symbolicCoords } from '../model/chartOps.js';
 import { tikzColor } from './tikz.js';

@@ -238,3 +238,10 @@ account for all of them.
 Overlays/animations (`\pause`, `\onslide`, `<2->`) are deliberately out of scope for v1,
 but they are **preserved on import** — the model carries `overlay` on elements, frames and
 list items, so opening an animated deck does not destroy it.
+
+## Author
+
+**Abolfazl Mohebbi, PhD**  
+Professor in Mechanical and Biomedical Engineering  
+Polytechnique Montreal  
+[abolfazl.mohebbi@polymtl.ca](mailto:abolfazl.mohebbi@polymtl.ca)

@@ -1,3 +1,12 @@
+/*
+ * BeamerPoint
+ *
+ * Author: Abolfazl Mohebbi, PhD
+ *         Professor in Mechanical and Biomedical Engineering,
+ *         Polytechnique Montreal
+ *         abolfazl.mohebbi@polymtl.ca
+ */
+
 import type { Anchor, Mm, RichText, TikzElement, TikzShape, TikzStyle } from './types.js';
 import { newId } from './ids.js';
 import { roundMm } from '../geometry/paper.js';
