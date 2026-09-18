@@ -9,7 +9,7 @@ import { toCompileResult, type BackendResult } from '../src/compileResult.js';
  * 'slice')` over the previous compile's pages.
  */
 
-const job = { jobId: 'j', passes: 'auto' as const };
+const job = { jobId: 'j' };
 const run = (r: Partial<BackendResult>) =>
   toCompileResult(job, { success: true, log: '', exitCode: 0, ...r }, 5);
 

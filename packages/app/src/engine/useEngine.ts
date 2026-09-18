@@ -137,7 +137,6 @@ export function useEngine(): {
         ok: false,
         log: err instanceof Error ? err.message : String(err),
         diagnostics: [],
-        passesRun: 0,
         durationMs: 0,
       });
     } finally {

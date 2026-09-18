@@ -226,7 +226,6 @@ export class BusytexEngine implements LatexEngine {
         diagnostics: [
           { severity: 'error', code: 'engine.failure', message, raw: message },
         ],
-        passesRun: 0,
         durationMs: Date.now() - started,
       };
     }

@@ -61,7 +61,10 @@ export interface CompileResult {
   synctex?: Uint8Array;
   log: string;
   diagnostics: Diagnostic[];
-  passesRun: number;
+  // There is deliberately no `passesRun`. There was, and it was `passes === 'auto' ? 2 :
+  // passes` whatever actually ran (F-006): busytex takes only a boolean `rerun` and does
+  // not say how many passes it made, and its transcript counts its own debug retries as
+  // runs, so the number could not be measured. Nothing read it.
   durationMs: number;
 }
 

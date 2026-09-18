@@ -21,7 +21,7 @@ export interface BackendResult {
  * means TeX aborted after opening the output file, and is no more a PDF than null is.
  */
 export function toCompileResult(
-  job: Pick<CompileJob, 'jobId' | 'passes'>,
+  job: Pick<CompileJob, 'jobId'>,
   result: BackendResult,
   durationMs: number,
 ): CompileResult {
@@ -34,7 +34,6 @@ export function toCompileResult(
     ...(synctex !== undefined ? { synctex } : {}),
     log: result.log,
     diagnostics: parseLog(result.log),
-    passesRun: job.passes === 'auto' ? 2 : Number(job.passes),
     durationMs,
   };
 }
