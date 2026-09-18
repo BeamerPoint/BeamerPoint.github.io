@@ -660,7 +660,11 @@ body.bp-resizing iframe { pointer-events: none; }
 .bp-handle-n, .bp-handle-s { cursor: ns-resize; }
 
 /* Crop: the element shows the full image, and these mark the kept region. */
-.bp-overlay-crop { outline: 1px dashed var(--bp-warn); outline-offset: -1px; }
+/* The kept region is a sheet over the picture, so it is inert; only its edges take the pointer. */
+.bp-overlay-crop {
+  outline: 1px dashed var(--bp-warn); outline-offset: -1px; pointer-events: none;
+}
+.bp-overlay-crop > .bp-crop-edge { pointer-events: auto; }
 .bp-crop-edge { position: absolute; background: var(--bp-warn); opacity: 0.75; }
 .bp-crop-edge:hover { opacity: 1; }
 .bp-crop-n, .bp-crop-s { cursor: ns-resize; }

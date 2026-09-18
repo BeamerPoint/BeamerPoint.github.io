@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { Element, ImageElement, ImageTrim, ResourceRef } from '@beamerpoint/core';
 import type { ResizeGrip } from '../state/store.js';
 import { screenPxToMm, useCanvasGeometry } from './CanvasContext.js';
@@ -65,8 +65,6 @@ const BAND_INSET_PX = 2;
 export function SelectionOverlay(props: Props): React.ReactElement {
   const { el, resource, mode } = props;
   const geometry = useCanvasGeometry();
-  /** The element box as a crop drag began; the node may be replaced mid-drag. */
-  const cropBox = useRef<{ width: number; height: number } | null>(null);
 
   /** Start a drag, bracketing it so the whole gesture costs one undo entry. */
   const begin = (
@@ -99,66 +97,15 @@ export function SelectionOverlay(props: Props): React.ReactElement {
         </div>
       );
     }
-
-    const trim = (el as ImageElement).trim ?? { left: 0, bottom: 0, right: 0, top: 0 };
-    // The element box shows the CROPPED image, so a pixel of drag corresponds to
-    // (visible image pixels / box pixels) of trim.
-    const visibleW = Math.max(1, intrinsic.w - trim.left - trim.right);
-    const visibleH = Math.max(1, intrinsic.h - trim.top - trim.bottom);
-
-    const onCropDrag = (edge: Edge, dx: number, dy: number): void => {
-      const box = cropBox.current;
-      if (box === null) return;
-
-      const perPxX = visibleW / Math.max(1, box.width);
-      const perPxY = visibleH / Math.max(1, box.height);
-      const next: ImageTrim = { ...trim };
-
-      if (edge === 'w') next.left = trim.left + dx * perPxX;
-      if (edge === 'e') next.right = trim.right - dx * perPxX;
-      if (edge === 'n') next.top = trim.top + dy * perPxY;
-      if (edge === 's') next.bottom = trim.bottom - dy * perPxY;
-
-      // Never let the crop collapse or invert: keep at least 10% of each axis.
-      const minW = intrinsic.w * 0.1;
-      const minH = intrinsic.h * 0.1;
-      next.left = Math.max(0, Math.min(next.left, intrinsic.w - next.right - minW));
-      next.right = Math.max(0, Math.min(next.right, intrinsic.w - next.left - minW));
-      next.top = Math.max(0, Math.min(next.top, intrinsic.h - next.bottom - minH));
-      next.bottom = Math.max(0, Math.min(next.bottom, intrinsic.h - next.top - minH));
-
-      props.onTrim({
-        left: Math.round(next.left * 10) / 10,
-        bottom: Math.round(next.bottom * 10) / 10,
-        right: Math.round(next.right * 10) / 10,
-        top: Math.round(next.top * 10) / 10,
-      });
-    };
-
-    const onCropDown = (edge: Edge) => (e: React.PointerEvent): void => {
-      // Measured at pointer-DOWN: the drag runs off window listeners, so the node this
-      // event came from may well be replaced before the first move arrives.
-      const box = e.currentTarget.parentElement?.getBoundingClientRect();
-      cropBox.current = box === undefined
-        ? null
-        : { width: box.width, height: box.height };
-      begin(e, (dx, dy) => onCropDrag(edge, dx, dy));
-    };
-
     return (
-      <div className="bp-overlay bp-overlay-crop">
-        {(['n', 's', 'e', 'w'] as Edge[]).map((edge) => (
-          <div
-            key={edge}
-            className={`bp-crop-edge bp-crop-${edge}`}
-            style={cropEdgeStyle(edge, inv)}
-            onPointerDown={onCropDown(edge)}
-          />
-        ))}
-        <span className="bp-overlay-label" style={labelStyle(inv)}>
-          crop {Math.round(visibleW)}&times;{Math.round(visibleH)} px
-        </span>
-      </div>
+      <CropOverlay
+        trim={(el as ImageElement).trim ?? { left: 0, bottom: 0, right: 0, top: 0 }}
+        intrinsic={intrinsic}
+        inv={inv}
+        scale={geometry.scale}
+        onTrim={props.onTrim}
+        begin={begin}
+      />
     );
   }
 
@@ -232,6 +179,134 @@ export function SelectionOverlay(props: Props): React.ReactElement {
         {props.sizeMm !== null
           && ` · ${Math.round(props.sizeMm.w)} × ${Math.round(props.sizeMm.h)} mm`}
       </span>
+    </div>
+  );
+}
+
+/**
+ * Crop edges, on the PICTURE rather than on the element box.
+ *
+ * In crop mode the canvas shows the whole uncropped image, faded, and the kept region
+ * is marked on it. Three things were wrong here, all found with the mouse (F-022):
+ *
+ *  - The edges were drawn on the element box, which for a flow picture spans the whole
+ *    text column, so the east edge floated over empty slide far from the picture.
+ *  - A pixel of drag was converted as if the box showed the CROPPED image, while the
+ *    canvas was showing the full one.
+ *  - `pointerDrag` reports INCREMENTAL deltas, and each was added to the trim captured at
+ *    pointer-down -- so every move replaced the last instead of adding to it, the trim
+ *    reflected one event's worth of movement, and the edge did not follow the pointer.
+ *
+ * The overlay is laid over the `<img>` itself, the kept region is placed in percentages
+ * of the full image, and the gesture accumulates its own total from where it started.
+ */
+function CropOverlay({ trim, intrinsic, inv, scale, onTrim, begin }: {
+  trim: ImageTrim;
+  intrinsic: { w: number; h: number };
+  inv: number;
+  scale: number;
+  onTrim(next: ImageTrim): void;
+  begin(e: React.PointerEvent, onMove: (dx: number, dy: number, mods: DragMods) => void): void;
+}): React.ReactElement {
+  const ref = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+
+  // Where the picture is inside the element, in the element's own (unscaled) pixels.
+  useLayoutEffect(() => {
+    const host = ref.current?.parentElement;
+    const img = host?.querySelector<HTMLImageElement>('.bp-image img');
+    if (host == null || img == null) return;
+    const measure = (): void => {
+      const a = img.getBoundingClientRect();
+      const b = host.getBoundingClientRect();
+      const next = {
+        left: (a.left - b.left) / scale,
+        top: (a.top - b.top) / scale,
+        width: a.width / scale,
+        height: a.height / scale,
+      };
+      setBox((prev) => (prev !== null
+        && Math.abs(prev.left - next.left) < 0.5 && Math.abs(prev.top - next.top) < 0.5
+        && Math.abs(prev.width - next.width) < 0.5 && Math.abs(prev.height - next.height) < 0.5
+        ? prev : next));
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(img);
+    ro.observe(host);
+    return () => ro.disconnect();
+  }, [scale]);
+
+  const onCropDown = (edge: Edge) => (e: React.PointerEvent): void => {
+    // Measured at pointer-DOWN, from the picture on screen: trim units per screen pixel.
+    const img = ref.current?.parentElement?.querySelector('.bp-image img')?.getBoundingClientRect();
+    if (img === undefined || img.width === 0 || img.height === 0) return;
+    const perPxX = intrinsic.w / img.width;
+    const perPxY = intrinsic.h / img.height;
+    const start = trim;
+    let totalX = 0;
+    let totalY = 0;
+    begin(e, (dx, dy) => {
+      totalX += dx;
+      totalY += dy;
+      const next: ImageTrim = { ...start };
+      if (edge === 'w') next.left = start.left + totalX * perPxX;
+      if (edge === 'e') next.right = start.right - totalX * perPxX;
+      if (edge === 'n') next.top = start.top + totalY * perPxY;
+      if (edge === 's') next.bottom = start.bottom - totalY * perPxY;
+
+      // Never let the crop collapse or invert: keep at least 10% of each axis.
+      const minW = intrinsic.w * 0.1;
+      const minH = intrinsic.h * 0.1;
+      next.left = Math.max(0, Math.min(next.left, intrinsic.w - next.right - minW));
+      next.right = Math.max(0, Math.min(next.right, intrinsic.w - next.left - minW));
+      next.top = Math.max(0, Math.min(next.top, intrinsic.h - next.bottom - minH));
+      next.bottom = Math.max(0, Math.min(next.bottom, intrinsic.h - next.top - minH));
+
+      onTrim({
+        left: Math.round(next.left * 10) / 10,
+        bottom: Math.round(next.bottom * 10) / 10,
+        right: Math.round(next.right * 10) / 10,
+        top: Math.round(next.top * 10) / 10,
+      });
+    });
+  };
+
+  const visibleW = Math.max(1, intrinsic.w - trim.left - trim.right);
+  const visibleH = Math.max(1, intrinsic.h - trim.top - trim.bottom);
+  const pct = (v: number, of: number): string => `${(v / of) * 100}%`;
+
+  return (
+    <div
+      ref={ref}
+      className="bp-overlay bp-overlay-crop-host"
+      style={box === null ? { visibility: 'hidden' } : {
+        inset: 'auto', left: box.left, top: box.top, width: box.width, height: box.height,
+      }}
+    >
+      <div
+        className="bp-overlay-crop"
+        style={{
+          position: 'absolute',
+          left: pct(trim.left, intrinsic.w),
+          right: pct(trim.right, intrinsic.w),
+          top: pct(trim.top, intrinsic.h),
+          bottom: pct(trim.bottom, intrinsic.h),
+        }}
+      >
+        {(['n', 's', 'e', 'w'] as Edge[]).map((edge) => (
+          <div
+            key={edge}
+            className={`bp-crop-edge bp-crop-${edge}`}
+            style={cropEdgeStyle(edge, inv)}
+            onPointerDown={onCropDown(edge)}
+          />
+        ))}
+        <span className="bp-overlay-label" style={labelStyle(inv)}>
+          crop {Math.round(visibleW)}&times;{Math.round(visibleH)} px
+        </span>
+      </div>
     </div>
   );
 }
