@@ -5,6 +5,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    // The engine-conformance runner starts its own server with this set. With HMR on, any
+    // edit anywhere in the app reloads the harness page mid-sweep and kills the run --
+    // which is exactly what happened the first time it ran.
+    ...(process.env.BP_HARNESS === '1' ? { hmr: false } : {}),
     watch: {
       // The TeX Live bundles are ~686MB of static assets that never change during
       // development. Watching them is pointless, and on Windows the watcher dies with

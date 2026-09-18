@@ -4,3 +4,5 @@ dist/
 packages/app/public/core/busytex/
 .vite/
 coverage/
+test-results/
+playwright-report/
