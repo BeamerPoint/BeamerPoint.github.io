@@ -34,12 +34,52 @@ describe('a real failure: minted without shell escape', () => {
     expect(findMissingFiles(log)).toEqual([]);
   });
 
-  // F-013 (tools/audit-2026-09.md). busytex's log is several sections -- TEXMFLOG, LOG,
-  // STDOUT, STDERR -- and LOG and STDOUT both carry the same error, so every diagnostic is
-  // reported twice. Remove `.fails` when it is fixed.
-  it.fails('reports each error once', () => {
-    const messages = errors.map((e) => e.message);
-    expect(messages).toEqual([...new Set(messages)]);
+  // F-013, fixed. busytex's log is several runs of sections -- TEXMFLOG, LOG, STDOUT,
+  // STDERR -- and the final run's LOG and STDOUT carry the same messages, so every
+  // diagnostic used to be reported twice.
+  it('reports each diagnostic once', () => {
+    const all = parseLog(log).map((d) => `${d.severity}:${d.message}`);
+    expect(all).toEqual([...new Set(all)]);
+    expect(errors.filter((e) => e.message.startsWith('Package minted Error'))).toHaveLength(1);
+  });
+
+  it('ends an error where TeX ended it, not at the next line starting with "!"', () => {
+    // Joining against the accumulated line glued TeX's help text and memory statistics on.
+    const minted = errors.find((e) => e.message.startsWith('Package minted Error'))!;
+    expect(minted.message.endsWith('attempting to substitute fallback style.')).toBe(true);
+    expect(minted.message).not.toContain('Hercule Poirot');
+    expect(minted.message).not.toContain('memory');
+  });
+
+  it('does not call the engine having no shell escape a warning', () => {
+    // epstopdf says so on every compile, whatever the deck; nothing the user does clears it.
+    const notice = parseLog(log).filter((d) => d.message === 'Shell escape feature is not enabled.');
+    expect(notice.map((d) => d.severity)).toEqual(['info']);
+  });
+
+  it('still reads the minted package\'s own shell-escape warning as a warning', () => {
+    expect(parseLog(log).some((d) => d.severity === 'warning' && /Shell escape disabled/.test(d.message)))
+      .toBe(true);
+  });
+});
+
+describe('a busytex transcript of several runs', () => {
+  const run = (log: string, stdout: string): string[] => [
+    '$ pdflatex main.tex', 'EXITCODE: 0', '', 'TEXMFLOG:', '/texlive/x.sty', '==',
+    'MISSFONTLOG:', '', '==', 'LOG:', log, '==', 'STDOUT:', stdout, '==', 'STDERR:', '', '======', '',
+  ];
+
+  it('reads only the final run, whose pass is the one that counts', () => {
+    const transcript = [
+      ...run("LaTeX Warning: Reference `eq' on page 1 undefined on input line 9.", ''),
+      ...run('(./main.tex)', ''),
+    ].join('\n');
+    expect(parseLog(transcript)).toEqual([]);
+  });
+
+  it('falls back to the final run\'s terminal output when it wrote no log', () => {
+    const transcript = run('', '! Undefined control sequence.\nl.4 \\foo').join('\n');
+    expect(parseLog(transcript).map((d) => d.line)).toEqual([4]);
   });
 });
 

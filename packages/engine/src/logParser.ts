@@ -45,19 +45,64 @@ export function findMissingFiles(log: string): MissingFile[] {
   return [...out.values()];
 }
 
-/** Rejoin lines that TeX wrapped at exactly the print-line limit. */
+/**
+ * Rejoin lines that TeX wrapped at exactly the print-line limit.
+ *
+ * Whether to join is a question about the PREVIOUS PHYSICAL line -- was it cut at the
+ * limit? -- not about the joined line built so far. Asking the joined line, as this
+ * used to, meant that once one wrap was repaired the result was always over the limit,
+ * and every following line was glued on until one happened to start with `!` or `(`:
+ * a minted error arrived carrying TeX's help text, "Pretend that you're Hercule Poirot"
+ * and the memory statistics (F-013).
+ */
 function unwrap(log: string, limit = 79): string[] {
   const raw = log.split(/\r?\n/);
   const out: string[] = [];
+  let prevPhysical = 0;
   for (const line of raw) {
-    const prev = out[out.length - 1];
-    if (prev !== undefined && prev.length >= limit && !/^[!(]/.test(line)) {
-      out[out.length - 1] = prev + line;
-      continue;
+    if (out.length > 0 && prevPhysical >= limit && line !== '' && !/^[!(]/.test(line)) {
+      out[out.length - 1] += line;
+    } else {
+      out.push(line);
     }
-    out.push(line);
+    prevPhysical = line.length;
   }
   return out;
+}
+
+/**
+ * The part of busytex's output that is the TeX log of the final run.
+ *
+ * busytex returns a transcript of every run it made, each a `$ command` header followed
+ * by `TEXMFLOG:`, `MISSFONTLOG:`, `LOG:`, `STDOUT:` and `STDERR:` sections separated by
+ * `==` lines, with `======` between runs. The final run's `LOG` and `STDOUT` carry the
+ * SAME messages, so parsing the whole transcript reported every error and warning twice
+ * (F-013); and an earlier run's log holds the warnings a later pass resolved. So: the
+ * last run's `LOG`, or failing that its `STDOUT`. Anything not in this shape -- a plain
+ * TeX log from another engine -- is returned whole.
+ */
+function finalRunLog(log: string): string {
+  const lines = log.split(/\r?\n/);
+  if (!lines.includes('LOG:')) return log;
+
+  const runs: Array<Map<string, string[]>> = [];
+  let run = new Map<string, string[]>();
+  let section: string[] | null = null;
+  for (const line of lines) {
+    if (line === '======') { runs.push(run); run = new Map(); section = null; continue; }
+    if (line === '==') { section = null; continue; }
+    const head = /^(TEXMFLOG|MISSFONTLOG|LOG|STDOUT|STDERR):$/.exec(line);
+    if (head !== null) { section = []; run.set(head[1]!, section); continue; }
+    section?.push(line);
+  }
+  runs.push(run);
+
+  const lastWith = (key: string): string[] | undefined => runs
+    .map((r) => r.get(key))
+    .filter((s): s is string[] => s !== undefined && s.some((l) => l.trim() !== ''))
+    .at(-1);
+  const body = lastWith('LOG') ?? lastWith('STDOUT');
+  return body === undefined ? log : body.join('\n');
 }
 
 /**
@@ -94,7 +139,7 @@ class FileStack {
 }
 
 export function parseLog(log: string): Diagnostic[] {
-  const lines = unwrap(log);
+  const lines = unwrap(finalRunLog(log));
   const out: Diagnostic[] = [];
   const files = new FileStack();
 
@@ -155,7 +200,7 @@ export function parseLog(log: string): Diagnostic[] {
       }
       const at = /on input line (\d+)/.exec(message);
       out.push({
-        severity: 'warning',
+        severity: isEnvironmentNotice(warn[2] ?? '', message) ? 'info' : 'warning',
         code: `latex.${(warn[2] || warn[1]!).toLowerCase()}-warning`,
         message: message.trim(),
         ...(at !== null && files.inMain() ? { line: Number(at[1]) } : {}),
@@ -169,6 +214,18 @@ export function parseLog(log: string): Diagnostic[] {
   }
 
   return out;
+}
+
+/**
+ * A warning that describes the engine rather than the document.
+ *
+ * graphicx loads `epstopdf` for every deck, and in a browser with no shell escape it
+ * announces "Shell escape feature is not enabled." on every compile. Nothing in the
+ * deck caused it and nothing the user does will clear it, so as a warning it only
+ * teaches people to ignore the warnings list (F-013). Kept, as information.
+ */
+function isEnvironmentNotice(pkg: string, message: string): boolean {
+  return pkg === 'epstopdf' && /^Shell escape feature is not enabled\.?$/.test(message.trim());
 }
 
 function classifyError(message: string): string {
