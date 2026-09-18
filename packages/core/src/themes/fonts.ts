@@ -1,3 +1,5 @@
+import type { Preamble } from '../model/types.js';
+
 /**
  * The deck's font family.
  *
@@ -64,3 +66,45 @@ export const DECK_FONT_PACKAGES: readonly string[] = DECK_FONTS
 export function deckFontByPackage(pkg: string | null): DeckFont | undefined {
   return DECK_FONTS.find((f) => f.pkg === pkg);
 }
+
+/**
+ * The CSS font stack the canvas draws with, for what the PDF will actually use.
+ *
+ * Every theme's canvas spec said `sans` and nothing read the font package or the font
+ * theme, so choosing Palatino changed the PDF and left the editor in Latin Modern Sans,
+ * title page included (F-017). This follows the same measured rule the picker does:
+ * beamer typesets in `\familydefault`, which is the SANS family unless the serif font
+ * theme is loaded -- so a serif package alone changes nothing, and the serif font theme
+ * with no serif package is Computer Modern Roman.
+ *
+ * The stacks are the nearest faces a browser is likely to have, named by what TeX Live
+ * ships first; the canvas is an approximation and says so, but a serif slide must at
+ * least look serif.
+ */
+export function canvasFontStack(
+  preamble: Pick<Preamble, 'packages' | 'fontTheme'>,
+  /** The theme's own canvas spec asks for serif. */
+  themeSerif = false,
+): string {
+  const chosen = DECK_FONTS.find((f) => f.pkg !== null && preamble.packages.some((p) => p.name === f.pkg));
+  const serifTheme = themeSerif || preamble.fontTheme?.name === 'serif';
+  const family = serifTheme
+    ? (chosen?.serif === true ? chosen.family : 'cmr')
+    : (chosen !== undefined && !chosen.serif ? chosen.family : 'cmss');
+  return CSS_STACKS[family] ?? CSS_STACKS['cmss']!;
+}
+
+const CSS_STACKS: Readonly<Record<string, string>> = {
+  cmss: 'Latin Modern Sans, "CMU Sans Serif", Segoe UI, system-ui, sans-serif',
+  lmss: 'Latin Modern Sans, "CMU Sans Serif", Segoe UI, system-ui, sans-serif',
+  cmr: 'Latin Modern Roman, "CMU Serif", Georgia, serif',
+  phv: '"TeX Gyre Heros", "Nimbus Sans", Helvetica, Arial, sans-serif',
+  pag: '"TeX Gyre Adventor", "URW Gothic", "Century Gothic", "Avant Garde", sans-serif',
+  ptm: '"TeX Gyre Termes", "Nimbus Roman", "Times New Roman", Times, serif',
+  ppl: '"TeX Gyre Pagella", "URW Palladio L", "Palatino Linotype", Palatino, "Book Antiqua", serif',
+  bch: '"Bitstream Charter", Charter, "Charis SIL", Georgia, serif',
+  pbk: '"TeX Gyre Bonum", "URW Bookman", "Bookman Old Style", Bookman, serif',
+  pnc: '"TeX Gyre Schola", "Century Schoolbook", "New Century Schoolbook", serif',
+  put: '"Utopia", "Adobe Utopia", Georgia, serif',
+  LinuxLibertineT: '"Linux Libertine O", "Linux Libertine", "Libertinus Serif", Georgia, serif',
+};

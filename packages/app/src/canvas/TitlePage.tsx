@@ -1,5 +1,6 @@
 import {
   PX_PER_MM,
+  canvasFontStack,
   richTextToPlain,
   type Deck,
   type RichText,
@@ -150,9 +151,7 @@ export function TitlePage({ deck, theme, showPlaceholders }: Props): React.React
         ...(layout.align === 'center'
           ? { left: mm(layout.anchorMm), transform: 'translateX(-50%)' }
           : { left: mm(layout.anchorMm) }),
-        fontFamily: theme.fontFamily === 'serif'
-          ? 'Latin Modern Roman, Georgia, serif'
-          : 'Latin Modern Sans, Segoe UI, system-ui, sans-serif',
+        fontFamily: canvasFontStack(deck.preamble, theme.fontFamily === 'serif'),
       }}
     >
       {boxLines.length > 0 && (

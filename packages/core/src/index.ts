@@ -74,7 +74,7 @@ export {
   type ThemeShape, type HeadlineKind, type FootlineKind,
 } from './themes/catalogue.js';
 export {
-  DECK_FONTS, DECK_FONT_PACKAGES, deckFontByPackage, type DeckFont,
+  DECK_FONTS, DECK_FONT_PACKAGES, deckFontByPackage, canvasFontStack, type DeckFont,
 } from './themes/fonts.js';
 export type {
   ThemeSpec, HeadlineSpec, FootlineSpec, FootlineCell, FrametitleSpec, BlockSpec, BlockStyle,

@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import type { ImageTrim, RichText } from '@beamerpoint/core';
 import {
   PAPER,
+  canvasFontStack,
   PX_PER_MM,
   resolveTheme,
   richTextToPlain,
@@ -163,9 +164,7 @@ export function SlideCanvas(props: Props): React.ReactElement {
           height: designH,
           background: theme.background,
           color: theme.foreground,
-          fontFamily: theme.fontFamily === 'serif'
-            ? 'Latin Modern Roman, Georgia, serif'
-            : 'Latin Modern Sans, Segoe UI, system-ui, sans-serif',
+          fontFamily: canvasFontStack(deck.preamble, theme.fontFamily === 'serif'),
           fontSize: deck.preamble.documentClass.fontSize * (PX_PER_MM / 2.845),
         }}
         onMouseDown={() => onSelectElement(null)}

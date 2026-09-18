@@ -1,5 +1,5 @@
 import {
-  PAPER, PX_PER_MM, resolveTheme, richTextToPlain,
+  PAPER, PX_PER_MM, canvasFontStack, resolveTheme, richTextToPlain,
   type Deck, type FrameNode, type SectionNode,
 } from '@beamerpoint/core';
 import { useEffect, useRef } from 'react';
@@ -47,9 +47,7 @@ function Thumb({ deck, frame }: { deck: Deck; frame: FrameNode }): React.ReactEl
           position: 'relative',
           transform: `scale(${scale})`,
           fontSize: deck.preamble.documentClass.fontSize * (PX_PER_MM / 2.845),
-          fontFamily: theme.fontFamily === 'serif'
-            ? 'Latin Modern Roman, Georgia, serif'
-            : 'Latin Modern Sans, Segoe UI, system-ui, sans-serif',
+          fontFamily: canvasFontStack(deck.preamble, theme.fontFamily === 'serif'),
         }}
       >
         {theme.headline.kind === 'miniframes' && !frame.options.plain && (
