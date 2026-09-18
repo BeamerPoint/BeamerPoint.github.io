@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  newDeck, newFrame, newListElement, newTextElement,
+  newDeck, newFrame, newTextElement,
 } from '@beamerpoint/core';
 import type { Deck, FrameNode } from '@beamerpoint/core';
 import { useStore } from '../src/state/store.js';

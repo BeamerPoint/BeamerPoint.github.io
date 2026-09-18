@@ -24,8 +24,8 @@ function diagram(): TikzElement {
 function load(): void {
   const base = newDeck({ title: 'T' });
   const el: TikzElement = {
-    id: 'd1', kind: 'tikz', mode: 'canvas',
-    placement: { mode: 'absolute', x: 10, y: 10, w: 80, z: 0, driver: 'textpos' },
+    id: 'd1', kind: 'tikz', mode: 'shapes',
+    placement: { mode: 'absolute', x: 10, y: 10, w: 80, driver: 'textpos' },
     canvasSize: { w: 80, h: 40 },
     shapes: [],
   };
