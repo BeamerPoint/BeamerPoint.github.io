@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
  * Widths of the three fixed columns. The canvas column takes whatever is left, so it
@@ -12,6 +12,37 @@ export interface ColumnWidths {
 }
 
 export const DEFAULT_WIDTHS: ColumnWidths = { slides: 210, panel: 460, inspector: 230 };
+
+/** The canvas column never goes below this. */
+const CANVAS_MIN = 220;
+/** Three splitters of `--bp-splitter` (6px). */
+const SPLITTERS_PX = 18;
+/** Which column gives way first when the window is too narrow, in order. */
+const SHRINK_ORDER: readonly (keyof ColumnWidths)[] = ['panel', 'slides', 'inspector'];
+
+/**
+ * The widths to DRAW at a given window width: the chosen ones, narrowed until the
+ * canvas keeps `CANVAS_MIN`.
+ *
+ * This used to be a resize listener that wrote the narrowed width back into the chosen
+ * one, which had three faults (F-020): it never ran at load, so a window that opened
+ * narrow simply overflowed -- at 800px the page scrolled sideways and only 32px of the
+ * format pane was on screen; it shrank only the source panel, so it gave up long before
+ * the other columns had anything left to give; and it overwrote the user's layout, so
+ * making the window narrow once lost it for good. Derived at render, the chosen widths
+ * come back as soon as the window is wide enough again. Below the sum of the minimums
+ * (788px) the page still scrolls, which is a better failure than a crushed canvas.
+ */
+export function fitColumns(widths: ColumnWidths, available: number): ColumnWidths {
+  const out = { ...widths };
+  let overflow = out.slides + out.panel + out.inspector + SPLITTERS_PX + CANVAS_MIN - available;
+  for (const key of SHRINK_ORDER) {
+    if (overflow <= 0) break;
+    const give = Math.min(overflow, out[key] - LIMITS[key].min);
+    if (give > 0) { out[key] -= give; overflow -= give; }
+  }
+  return out;
+}
 
 /** Per-column bounds. Below the minimum a column stops being usable. */
 const LIMITS: Readonly<Record<keyof ColumnWidths, { min: number; max: number }>> = {
@@ -56,8 +87,14 @@ export interface ColumnLayout {
 export function useColumnLayout(): ColumnLayout {
   const [widths, setWidths] = useState<ColumnWidths>(load);
 
+  // What is on screen, which a drag starts from: dragging a column the window has
+  // narrowed must move it at once, not first "use up" the width it was not given.
+  const drawn = useRef<ColumnWidths>(widths);
   const resize = useCallback((key: keyof ColumnWidths, deltaPx: number) => {
-    setWidths((w) => ({ ...w, [key]: clamp(key, w[key] + deltaPx) }));
+    setWidths((w) => {
+      const from = Math.min(w[key], drawn.current[key]);
+      return { ...w, [key]: clamp(key, from + deltaPx) };
+    });
   }, []);
 
   const commit = useCallback(() => {
@@ -81,25 +118,19 @@ export function useColumnLayout(): ColumnLayout {
     });
   }, []);
 
-  // Keep the layout usable if the window shrinks below the sum of the fixed columns.
+  // The window's width, so the columns can be FITTED to it at render time.
+  const [available, setAvailable] = useState(() => window.innerWidth);
   useEffect(() => {
-    const onResize = (): void => {
-      const available = window.innerWidth;
-      setWidths((w) => {
-        const fixed = w.slides + w.panel + w.inspector;
-        // Leave at least 280px for the canvas.
-        if (fixed + 280 <= available) return w;
-        const overflow = fixed + 280 - available;
-        return { ...w, panel: clamp('panel', w.panel - overflow) };
-      });
-    };
+    const onResize = (): void => setAvailable(window.innerWidth);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  const fitted = fitColumns(widths, available);
+  drawn.current = fitted;
   const gridTemplate =
-    `${widths.slides}px var(--bp-splitter) minmax(280px, 1fr) ` +
-    `var(--bp-splitter) ${widths.panel}px var(--bp-splitter) ${widths.inspector}px`;
+    `${fitted.slides}px var(--bp-splitter) minmax(${CANVAS_MIN}px, 1fr) ` +
+    `var(--bp-splitter) ${fitted.panel}px var(--bp-splitter) ${fitted.inspector}px`;
 
   return { widths, resize, commit, reset, gridTemplate };
 }
