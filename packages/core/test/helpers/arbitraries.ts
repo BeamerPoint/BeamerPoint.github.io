@@ -2,7 +2,7 @@ import fc from 'fast-check';
 import { newDeck, newFrame } from '../../src/model/factory.js';
 import { LST_LANGUAGES } from '../../src/emit/lstLanguages.js';
 import type {
-  Deck, Element, Inline, InlineStyle, ListItem, Placement, RichText, TikzShape,
+  Deck, DocNode, Element, Inline, InlineStyle, ListItem, Placement, RichText, TikzShape,
 } from '../../src/model/types.js';
 
 /**
@@ -52,9 +52,14 @@ export type ElementSpec =
   | { k: 'columns'; left: RichText; right: RichText }
   | { k: 'math'; env: 'equation' | 'equation*' | 'align' | 'align*' | 'gather' | 'gather*'; body: string }
   | { k: 'code'; language: string; code: string }
-  | { k: 'table'; rows: number; cols: number; cells: string[] }
+  | { k: 'table'; rows: number; cols: number; cells: string[]; merge?: boolean }
   | { k: 'tikz'; shapes: ShapeSpec[] }
-  | { k: 'pause' };
+  | { k: 'pause' }
+  | { k: 'chart'; type: 'line' | 'bar' | 'hbar' | 'scatter'; rows: number[][]; logY: boolean }
+  | { k: 'image'; width: number; align?: 'left' | 'center' | 'right'; caption?: RichText;
+      opacity?: number; rotate?: number; trim?: [number, number, number, number] }
+  | { k: 'toc' }
+  | { k: 'bibliography' };
 
 interface AbsSpec { x: number; y: number; w: number; rotate?: number }
 type ShapeSpec =
@@ -97,20 +102,60 @@ export const elementSpec: fc.Arbitrary<ElementSpec> = fc.oneof(
   fc.record({ k: fc.constant('code' as const), language: fc.constantFrom(...LST_LANGUAGES), code: fc.constantFrom(...CODE_BODIES) }),
   fc.integer({ min: 1, max: 4 }).chain((rows) => fc.integer({ min: 1, max: 4 }).chain((cols) =>
     fc.array(word, { minLength: rows * cols, maxLength: rows * cols })
-      .map((cells): ElementSpec => ({ k: 'table', rows, cols, cells })))),
+      .chain((cells) => fc.boolean().map((merge): ElementSpec => ({
+        k: 'table', rows, cols, cells, ...(merge && cols >= 2 ? { merge: true } : {}),
+      }))))),
   fc.record({ k: fc.constant('tikz' as const), shapes: fc.array(shapeSpec, { minLength: 1, maxLength: 4 }) }),
   fc.constant({ k: 'pause' as const }),
+  fc.record({
+    k: fc.constant('chart' as const),
+    type: fc.constantFrom('line' as const, 'bar' as const, 'hbar' as const, 'scatter' as const),
+    rows: fc.array(fc.tuple(fc.integer({ min: 1, max: 9 }), fc.integer({ min: 1, max: 99 }), fc.integer({ min: 1, max: 99 }))
+      .map((t) => [...t]), { minLength: 2, maxLength: 5 }),
+    logY: fc.boolean(),
+  }),
+  fc.record({
+    k: fc.constant('image' as const),
+    width: fc.integer({ min: 10, max: 100 }).map((n) => n / 100),
+    align: fc.option(fc.constantFrom('left' as const, 'center' as const, 'right' as const), { nil: undefined }),
+    caption: fc.option(richText, { nil: undefined }),
+    opacity: fc.option(fc.integer({ min: 1, max: 9 }).map((n) => n / 10), { nil: undefined }),
+    rotate: fc.option(fc.integer({ min: -180, max: 180 }).filter((d) => d !== 0), { nil: undefined }),
+    trim: fc.option(fc.tuple(fc.nat(20), fc.nat(20), fc.nat(20), fc.nat(20)), { nil: undefined }),
+  }, { requiredKeys: ['k', 'width'] }),
+  fc.constant({ k: 'toc' as const }),
+  // Without `sizeHint`: a reference list WITH one is F-007, which the ledger already has.
+  fc.constant({ k: 'bibliography' as const }),
 );
 
-export interface DeckSpec { title: string; frames: Array<{ title: string; els: ElementSpec[] }> }
+export interface FrameSpec {
+  title: string;
+  els: ElementSpec[];
+  plain?: boolean;
+  vAlign?: 't' | 'c' | 'b';
+  noNumber?: boolean;
+  breaks?: boolean;
+  note?: string;
+  /** A section heading placed before this frame. */
+  section?: { level: 'section' | 'subsection'; title: string };
+}
+export interface DeckSpec { title: string; frames: FrameSpec[] }
 
 export const deckSpec: fc.Arbitrary<DeckSpec> = fc.record({
   title: plainText,
   frames: fc.array(fc.record({
     title: plainText,
     els: fc.array(elementSpec, { minLength: 1, maxLength: 4 }),
-  }), { minLength: 1, maxLength: 3 }),
+    plain: fc.option(fc.boolean(), { nil: undefined }),
+    vAlign: fc.option(fc.constantFrom('t' as const, 'c' as const, 'b' as const), { nil: undefined }),
+    noNumber: fc.option(fc.boolean(), { nil: undefined }),
+    breaks: fc.option(fc.boolean(), { nil: undefined }),
+    note: fc.option(plainText, { nil: undefined }),
+    section: fc.option(fc.record({ level: fc.constantFrom('section' as const, 'subsection' as const), title: plainText }), { nil: undefined }),
+  }, { requiredKeys: ['title', 'els'] }), { minLength: 1, maxLength: 3 }),
 });
+
+export const IMAGE_ID = 'img-resource';
 
 /* ------------------------------------------------------------------ build */
 
@@ -157,25 +202,76 @@ export function buildDeck(spec: DeckSpec, id: () => string): Deck {
         return { id: id(), kind: 'code', placement: P, backend: 'listings', language: s.language, code: s.code, options: {} };
       case 'table':
         return {
-          id: id(), kind: 'table', placement: P, style: 'booktabs', fit: 'natural', floatWrapper: 'none', merges: [],
+          id: id(), kind: 'table', placement: P, style: 'booktabs', fit: 'natural', floatWrapper: 'none', merges: s.merge === true ? [{ row: 0, col: 0, colspan: 2 }] : [],
           columns: Array.from({ length: s.cols }, () => ({ id: id(), align: 'l' as const })),
           topRule: { k: 'toprule' },
           rows: Array.from({ length: s.rows }, (_, r) => ({
             id: id(),
             ...(r === s.rows - 1 ? { ruleBelow: { k: 'bottomrule' as const } } : {}),
-            cells: Array.from({ length: s.cols }, (_, c) => ({ id: id(), content: [{ t: 'text' as const, s: s.cells[r * s.cols + c]! }] })),
+            // A cell covered by a merge is blank, as the table editor leaves it.
+            cells: Array.from({ length: s.cols }, (_, c) => ({
+              id: id(),
+              content: s.merge === true && r === 0 && c === 1 ? [] : [{ t: 'text' as const, s: s.cells[r * s.cols + c]! }],
+            })),
           })),
         };
       case 'tikz':
         return { id: id(), kind: 'tikz', placement: P, mode: 'shapes', canvasSize: { w: 120, h: 60 }, shapes: s.shapes.map(shape) };
       case 'pause':
         return { id: id(), kind: 'pause', placement: P };
+      case 'chart':
+        return {
+          id: id(), kind: 'chart', placement: P, chartType: s.type,
+          data: { columns: ['Year', 'Alpha', 'Beta'], rows: s.rows },
+          series: [{ id: id(), xCol: 0, yCol: 1, label: 'Alpha' }, { id: id(), xCol: 0, yCol: 2, label: 'Beta' }],
+          axis: { grid: 'major', ...(s.logY ? { ymode: 'log' as const } : {}) },
+          // Millimetres, as the chart editor writes them. A width in textwidth units is declined by the
+          // chart recognizer on purpose (it is not a shape the editor makes) and reads back as a drawing.
+          size: { w: { v: 90, u: 'mm' }, h: { v: 50, u: 'mm' } },
+        };
+      case 'image':
+        usesImage = true;
+        return {
+          id: id(), kind: 'image', placement: P, resourceId: IMAGE_ID, keepAspect: true,
+          width: { v: s.width, u: 'textwidth' },
+          ...(s.align !== undefined ? { align: s.align } : {}),
+          ...(s.caption !== undefined ? { caption: s.caption } : {}),
+          ...(s.opacity !== undefined ? { opacity: s.opacity } : {}),
+          ...(s.rotate !== undefined ? { rotate: s.rotate } : {}),
+          ...(s.trim !== undefined ? { trim: { left: s.trim[0], bottom: s.trim[1], right: s.trim[2], top: s.trim[3] } } : {}),
+        };
+      case 'toc':
+        return { id: id(), kind: 'toc', placement: P, options: '' };
+      case 'bibliography':
+        return { id: id(), kind: 'bibliography', placement: P, files: ['refs'] };
     }
   };
+  let usesImage = false;
 
   const base = newDeck({ title: spec.title });
+  const nodes: DocNode[] = [];
+  for (const f of spec.frames) {
+    if (f.section !== undefined) {
+      nodes.push({ kind: 'section', id: id(), level: f.section.level, title: [{ t: 'text', s: f.section.title }], starred: false });
+    }
+    const frame = { ...newFrame(f.title, f.els.map(element)), id: id() };
+    nodes.push({
+      ...frame,
+      options: {
+        ...(f.vAlign !== undefined ? { vAlign: f.vAlign } : {}),
+        ...(f.plain === true ? { plain: true } : {}),
+        ...(f.noNumber === true ? { noframenumbering: true } : {}),
+        ...(f.breaks === true ? { allowframebreaks: true } : {}),
+      },
+      notes: f.note === undefined ? [] : [{ id: id(), content: [{ t: 'text', s: f.note }] }],
+    });
+  }
   return {
     ...base,
-    nodes: spec.frames.map((f) => ({ ...newFrame(f.title, f.els.map(element)), id: id() })),
+    nodes,
+    resources: usesImage ? [{
+      id: IMAGE_ID, path: 'images/probe.png', kind: 'image', mime: 'image/png',
+      bytes: 1, sha256: 'x', originalName: 'probe.png', intrinsic: { w: 64, h: 32 },
+    }] : [],
   };
 }
