@@ -64,7 +64,7 @@ export async function buildProject(
       // Only complain about a file the document will actually ask for. A resource
       // whose element has been deleted is still on the deck, and reporting it made
       // a clean compile look broken.
-      if (emitted.tex.includes(res.path)) warnings.push(`Missing resource: ${res.path}`);
+      if (isReferenced(emitted.tex, res.path, res.kind)) warnings.push(`Missing resource: ${res.path}`);
       continue;
     }
     files.push({ path: res.path, content: bytes });
@@ -81,6 +81,24 @@ export async function buildProject(
   for (const w of emitted.warnings) warnings.push(w.message);
 
   return { files, tex: emitted.tex, sourceMap: emitted.sourceMap, frameLines, warnings, notes };
+}
+
+/**
+ * Whether the document will ask for this file.
+ *
+ * An image is named by its path verbatim. A bibliography is NOT: BibTeX takes
+ * `\bibliography{refs}` without the extension, so looking for `refs.bib` in the text
+ * never matched, and a missing .bib was never reported -- every citation silently
+ * became [?] with nothing to say why (F-012).
+ */
+function isReferenced(tex: string, path: string, kind: string): boolean {
+  if (tex.includes(path)) return true;
+  if (kind !== 'bib') return false;
+  const stem = path.replace(/\.bib$/i, '');
+  for (const m of tex.matchAll(/\\bibliography\{([^}]*)\}/g)) {
+    if (m[1]!.split(',').some((f) => f.trim() === stem)) return true;
+  }
+  return false;
 }
 
 /**

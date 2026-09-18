@@ -54,12 +54,16 @@ describe('buildProject', () => {
     expect(p.warnings).toEqual([]);
   });
 
-  // F-012 (tools/audit-2026-09.md). The check is `tex.includes(res.path)`, and the path
-  // is `refs.bib` while the document says `\bibliography{refs}` -- so a missing .bib is
-  // never reported, and every citation silently becomes [?]. Remove `.fails` when fixed.
-  it.fails('warns about a missing .bib the reference list asks for', async () => {
+  // F-012, fixed. The path is `refs.bib` while the document says `\bibliography{refs}`, so
+  // looking for the path in the text never matched and every citation became [?] silently.
+  it('warns about a missing .bib the reference list asks for', async () => {
     const p = await buildProject(deckOf([bibEl], { resources: [bibRes] }), resolverFrom({}), { target: 'preview' });
     expect(p.warnings).toEqual(['Missing resource: refs.bib']);
+  });
+
+  it('does not warn about a stored .bib that no reference list uses', async () => {
+    const p = await buildProject(deckOf([newTextElement('x')], { resources: [bibRes] }), resolverFrom({}), { target: 'preview' });
+    expect(p.warnings).toEqual([]);
   });
 
   it('appends cached aux files after the resources', async () => {
