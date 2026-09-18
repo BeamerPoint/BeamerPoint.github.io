@@ -16,10 +16,22 @@ export interface ExportResult {
   missing: string[];
 }
 
+/**
+ * A file name from the deck's title: letters, digits, spaces, hyphens and underscores.
+ *
+ * In ANY script. `\w` is ASCII-only, so "Présentation über Physik" exported as
+ * `Prsentation-ber-Physik` and a title wholly in Persian, Greek or Chinese became
+ * `presentation` (F-011). Combining marks and the zero-width non-joiner are kept because
+ * they are part of how those words are spelled. Truncated by code POINT, so a character
+ * outside the BMP is never cut in half.
+ */
 function baseName(deck: Deck): string {
-  const title = deck.meta.title ? richTextToPlain(deck.meta.title) : '';
-  const cleaned = title.replace(/[^\w -]+/g, '').trim().replace(/\s+/g, '-');
-  return cleaned === '' ? 'presentation' : cleaned.slice(0, 60);
+  const title = deck.meta.title ? richTextToPlain(deck.meta.title).normalize('NFC') : '';
+  const cleaned = title
+    .replace(/[^\p{L}\p{M}\p{N}_ \u200C-]+/gu, '')
+    .trim()
+    .replace(/\s+/g, '-');
+  return cleaned === '' ? 'presentation' : Array.from(cleaned).slice(0, 60).join('');
 }
 
 export function download(blob: Blob, filename: string): void {

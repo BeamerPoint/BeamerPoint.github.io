@@ -68,12 +68,23 @@ describe('exporting', () => {
     expect((await exportDeck(deckTitled(''))).filename).toBe('presentation.tex');
   });
 
-  // F-011 (tools/audit-2026-09.md). Remove `.fails` when it is fixed -- vitest will insist.
-  it.fails('keeps accented and non-Latin letters in the file name', async () => {
+  // F-011, fixed.
+  it('keeps accented and non-Latin letters in the file name', async () => {
     // The sanitiser used ASCII `\w`, which drops every letter outside A-Z: an accented
     // title lost letters mid-word and a Persian or Greek one became "presentation".
     expect((await exportDeck(deckTitled('Présentation über Physik'))).filename)
       .toBe('Présentation-über-Physik.tex');
     expect((await exportDeck(deckTitled('ارائه نهایی'))).filename).toBe('ارائه-نهایی.tex');
+  });
+
+  it('keeps the zero-width non-joiner a Persian word is spelled with', async () => {
+    const word = `می${String.fromCharCode(0x200c)}خواهم`;
+    expect((await exportDeck(deckTitled(word))).filename).toBe(`${word}.tex`);
+  });
+
+  it('truncates by character, never splitting one outside the BMP', async () => {
+    const letter = String.fromCodePoint(0x1d538);
+    const name = (await exportDeck(deckTitled(letter.repeat(70)))).filename.replace(/\.tex$/, '');
+    expect(name).toBe(letter.repeat(60));
   });
 });
