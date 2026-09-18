@@ -32,8 +32,21 @@ import { COLLECTIONS, type Collection } from '../../packageIndex.js';
  */
 
 export interface BusytexOptions {
-  /** Where the WASM and .data bundles are served from. */
+  /**
+   * Where the engine itself is served from: the worker, `busytex.js` and `busytex.wasm`.
+   *
+   * Must be the page's OWN origin: texlyre-busytex builds its worker from this path, and a
+   * Worker cannot be constructed from another origin.
+   */
   basePath?: string;
+  /**
+   * Where the TeX Live data packages are served from: `texlive-*.js`, their `.data` and
+   * the manifests. Defaults to `basePath`. May be another origin (with CORS): the pipeline
+   * loads each package with `importScripts` and resolves its `.data` beside it
+   * (`BusytexPipeline.locateFile`). The desktop app serves the engine from `app://` and
+   * the data from the web site this way.
+   */
+  dataPath?: string;
   /** Cumulative collections. `extra` is needed for textpos and other extras. */
   collections?: Collection[];
   /** Optional on-demand package endpoint for anything beyond the bundles. */
@@ -81,6 +94,7 @@ export class BusytexEngine implements LatexEngine {
   constructor(opts: BusytexOptions = {}) {
     this.opts = {
       basePath: opts.basePath ?? DEFAULT_BASE,
+      dataPath: opts.dataPath ?? opts.basePath ?? DEFAULT_BASE,
       collections: opts.collections ?? ['basic', 'recommended', 'extra'],
       ...(opts.remoteEndpoint !== undefined ? { remoteEndpoint: opts.remoteEndpoint } : {}),
     };
@@ -95,6 +109,11 @@ export class BusytexEngine implements LatexEngine {
         32 * 1024 * 1024,
       ),
     };
+  }
+
+  /** The loader script of one TeX Live collection. Its `.data` is resolved beside it. */
+  packageUrl(collection: Collection): string {
+    return `${this.opts.dataPath}/texlive-${collection}.js`;
   }
 
   status(): EngineStatus {
@@ -118,7 +137,7 @@ export class BusytexEngine implements LatexEngine {
     for (const c of COLLECTIONS) {
       if (!this.opts.collections.includes(c)) continue;
       try {
-        out[c] = await runner.isPackageCached(`${this.opts.basePath}/texlive-${c}.js`);
+        out[c] = await runner.isPackageCached(this.packageUrl(c));
       } catch {
         return null;
       }
@@ -166,9 +185,7 @@ export class BusytexEngine implements LatexEngine {
 
       const runner = new mod.BusyTexRunner({
         busytexBasePath: this.opts.basePath,
-        preloadDataPackages: this.opts.collections.map(
-          (c) => `${this.opts.basePath}/texlive-${c}.js`,
-        ),
+        preloadDataPackages: this.opts.collections.map((c) => this.packageUrl(c)),
         engineMode: 'combined',
         verbose: false,
       });

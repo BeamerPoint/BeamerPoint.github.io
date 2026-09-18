@@ -16,6 +16,7 @@ import {
 } from '@beamerpoint/engine';
 import { useStore } from '../state/store.js';
 import { useEngine } from '../engine/useEngine.js';
+import { dataBase } from '../engine/assetPaths.js';
 
 interface Props {
   missing: MissingFile[];
@@ -62,7 +63,7 @@ export function MissingPackages({ missing }: Props): React.ReactElement {
     void (async () => {
       const found: Origins = {};
       for (const m of packages) {
-        found[m.file] = await packageOrigin(m.file, '/core/busytex');
+        found[m.file] = await packageOrigin(m.file, dataBase());
       }
       const { installedCollections } = await import('../engine/useEngine.js');
       const installed = await installedCollections();

@@ -19,6 +19,7 @@ import {
 } from '@beamerpoint/engine';
 import { useStore } from '../state/store.js';
 import { getResourceBytes } from '../state/resources.js';
+import { dataBase, engineBase } from './assetPaths.js';
 
 /**
  * Owns the single engine instance for the app.
@@ -30,7 +31,8 @@ let engineSingleton: LatexEngine | null = null;
 
 function getEngine(): LatexEngine {
   engineSingleton ??= new BusytexEngine({
-    basePath: '/core/busytex',
+    basePath: engineBase(),
+    dataPath: dataBase(),
     collections: ['basic', 'recommended', 'extra'],
   });
   if (import.meta.env.DEV) {
@@ -70,6 +72,10 @@ export function useEngine(): {
   const install = useCallback(async () => {
     if (busy.current) return;
     busy.current = true;
+    // The engine is ~540 MB in IndexedDB. Without persistent storage the browser may evict
+    // it under disk pressure and the user silently downloads it again. Best effort: a
+    // browser that declines still works, it just keeps the cache as ordinary storage.
+    void navigator.storage?.persist?.().catch(() => false);
     try {
       await getEngine().init({
         onProgress: (s) => {

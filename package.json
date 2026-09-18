@@ -10,7 +10,8 @@
   "workspaces": [
     "packages/core",
     "packages/engine",
-    "packages/app"
+    "packages/app",
+    "packages/desktop"
   ],
   "scripts": {
     "dev": "npm run dev -w @beamerpoint/app",
@@ -20,7 +21,9 @@
     "test:coverage": "vitest run --coverage",
     "test:engine": "playwright test",
     "typecheck": "tsc -b",
-    "engine:install": "node node_modules/texlyre-busytex/scripts/cli.cjs download-assets ./packages/app/public/core"
+    "engine:install": "node node_modules/texlyre-busytex/scripts/cli.cjs download-assets ./packages/app/public/core",
+    "desktop:dev": "npm run build && npm run start -w @beamerpoint/desktop",
+    "desktop:dist": "npm run build && npm run dist -w @beamerpoint/desktop"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

@@ -35,7 +35,15 @@ npm test             # vitest, 510 tests (BP_FUZZ=1 soaks the property test at 3
 npm run test:coverage    # the same, with v8 coverage
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 npm run test:engine      # Playwright: compiles ~210 cases in the real engine (~10 min)
+npm run desktop:dev      # the Electron app against the local build
+npm run desktop:dist     # an installer for this OS, in packages/desktop/release/
 ```
+
+Deployment is two GitHub Actions workflows: `pages.yml` (web app on GitHub Pages, on push
+to `main`) and `desktop.yml` (Electron installers as a GitHub Release, on a `v*` tag). The
+README's "Install" and "Deploying" sections are the user-facing version. In Git Bash, set
+`MSYS_NO_PATHCONV=1` before `BP_BASE=/x/`, or MSYS rewrites the base into
+`/Program Files/Git/x/` and the built site loads nothing.
 
 `tools/audit-2026-09.md` is the ledger of the September 2026 verification sweep: every
 finding, its evidence and its fix. `tools/ui-conformance.md` records the mouse pass and
@@ -646,6 +654,18 @@ make "a mirror exists" mean exactly "the tab closed with unsaved edits".
 
 **A failed compile's PDF is `null`, not absent**, whatever the backend's typings say.
 `toCompileResult` normalises it; the PDF tab called `.slice()` on it before.
+
+**The TeX engine and its data are served from two paths, because a Worker must be
+same-origin.** texlyre-busytex builds its worker from `${busytexBasePath}/busytex_worker.js`,
+so the engine (worker, `busytex.js`, `busytex.wasm`, ~35 MB) follows the app's own origin
+and base (`engine/assetPaths.ts`). The data (`texlive-*.js` and `.data`, ~540 MB) is loaded
+with `importScripts` and a `.data` fetch resolved BESIDE each loader
+(`BusytexPipeline.locateFile`), so it may live anywhere with CORS: `VITE_TEX_DATA_URL`.
+The desktop app depends on exactly this -- engine from `app://`, data from the Pages site --
+and it was rehearsed with the data on a second origin and an empty cache. A data host must
+send a JavaScript MIME type for the loaders, or `importScripts` refuses them. The
+Emscripten cache is keyed by the WORKER's path, so moving the data does not cost anyone a
+re-download. Never write `'/core/busytex'` again: under Pages' `/<repo>/` it 404s.
 
 **Ask what a ref click hits under viewport emulation.** In the browser pane at 1280x760 a
 `ref` click lands in the screenshot frame at page coordinates, and End/Home/Ctrl+A do not

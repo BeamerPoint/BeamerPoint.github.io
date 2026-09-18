@@ -6,3 +6,4 @@ packages/app/public/core/busytex/
 coverage/
 test-results/
 playwright-report/
+packages/desktop/release/

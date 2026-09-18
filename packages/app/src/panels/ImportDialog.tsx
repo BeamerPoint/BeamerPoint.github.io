@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { packageOrigin, type Collection } from '@beamerpoint/engine';
 import type { ElementKind } from '@beamerpoint/core';
 import { matchResources, type ImportAnalysis, type ResourceMatch } from '../io/importTex.js';
+import { dataBase } from '../engine/assetPaths.js';
 
 interface Props {
   filename: string;
@@ -49,7 +50,7 @@ export function ImportDialog({ filename, analysis, onCancel, onConfirm }: Props)
     void (async () => {
       const bad: Array<{ name: string; collection: Collection | null }> = [];
       for (const name of report.packages) {
-        const origin = await packageOrigin(`${name}.sty`, '/core/busytex');
+        const origin = await packageOrigin(`${name}.sty`, dataBase());
         if (origin.conclusive && origin.collection === null) {
           bad.push({ name, collection: null });
         }

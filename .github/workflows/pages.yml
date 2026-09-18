@@ -1,0 +1,93 @@
+# BeamerPoint -- deploy the web app to GitHub Pages.
+#
+# Author: Abolfazl Mohebbi, PhD
+#         Professor in Mechanical and Biomedical Engineering,
+#         Polytechnique Montreal
+#         abolfazl.mohebbi@polymtl.ca
+#
+# The TeX Live engine (~650 MB) is not in git -- two of its files are over git's 100 MB
+# limit -- so it is downloaded here and deployed as part of the Pages artifact, which
+# never goes through git. The download is cached, keyed on the texlyre-busytex version.
+
+name: Deploy web app
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # The desktop workspace depends on Electron; the web build does not need its binary.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: |
+          npx tsc -p packages/core/tsconfig.json --noEmit
+          npx tsc -p packages/engine/tsconfig.json --noEmit
+          npx tsc -p packages/app/tsconfig.json --noEmit
+
+      - run: npm test
+
+      - name: Engine version
+        id: engine
+        run: echo "version=$(node -p "require('./node_modules/texlyre-busytex/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the TeX Live engine
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: packages/app/public/core/busytex
+          key: busytex-${{ steps.engine.outputs.version }}
+
+      - name: Download the TeX Live engine
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: npm run engine:install
+
+      # A project site lives under /<repo>/; a user or organisation site (<name>.github.io)
+      # at the root. The engine's paths follow the base (packages/app/src/engine/assetPaths.ts).
+      - name: Build
+        run: |
+          REPO="${{ github.event.repository.name }}"
+          if [[ "$REPO" == *.github.io ]]; then BASE=/; else BASE="/$REPO/"; fi
+          BP_BASE="$BASE" npm run build
+
+      # biber is shipped by texlyre-busytex but unused: the app's pipeline is BibTeX.
+      - name: Drop unused assets
+        run: rm -f packages/app/dist/core/busytex/biber.*
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: packages/app/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

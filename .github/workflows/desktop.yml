@@ -1,0 +1,82 @@
+# BeamerPoint -- build the desktop app for Windows, macOS and Linux, and publish a release.
+#
+# Author: Abolfazl Mohebbi, PhD
+#         Professor in Mechanical and Biomedical Engineering,
+#         Polytechnique Montreal
+#         abolfazl.mohebbi@polymtl.ca
+#
+# Push a tag such as v0.2.0 to release. The installers bundle the TeX engine (~35 MB) but
+# not its data (~540 MB): that is fetched on first use from the GitHub Pages site, whose
+# URL is baked into the web build here as VITE_TEX_DATA_URL. So the Pages site must be
+# deployed before a desktop release is useful.
+#
+# Unsigned for now: Windows shows SmartScreen once, macOS needs "Open Anyway" once (see
+# the README). Signing is a secrets-and-config change here, not a code change.
+
+name: Release desktop app
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # npm 11 may skip install scripts; Electron's fetches its own binary.
+      - name: Fetch the Electron binary
+        run: node node_modules/electron/install.js
+
+      - run: npm test
+
+      - name: Engine version
+        id: engine
+        shell: bash
+        run: echo "version=$(node -p "require('./node_modules/texlyre-busytex/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the TeX Live engine
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: packages/app/public/core/busytex
+          key: busytex-${{ steps.engine.outputs.version }}
+
+      - name: Download the TeX Live engine
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: npm run engine:install
+
+      - name: Build the web app for the desktop
+        shell: bash
+        run: |
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+          if [[ "$REPO" == *.github.io ]]; then SITE="https://$REPO"; else SITE="https://${OWNER,,}.github.io/$REPO"; fi
+          VITE_TEX_DATA_URL="$SITE/core/busytex" npm run build
+
+      - name: Build and publish the installers
+        shell: bash
+        working-directory: packages/desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm run build
+          npx electron-builder --config electron-builder.yml --publish always \
+            -c.publish.owner="${{ github.repository_owner }}" \
+            -c.publish.repo="${{ github.event.repository.name }}"

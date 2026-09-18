@@ -29,6 +29,48 @@ This downloads TeX Live 2026 compiled to WebAssembly into `packages/app/public/c
 It is roughly **540 MB**, because Beamer lives in TeX Live's *extra* collection and needs
 basic + recommended + extra. It is a one-time download, cached in the browser afterwards.
 
+## Install
+
+**On the web**: open `https://<owner>.github.io/<repo>/`. Nothing to install. The first
+PDF compile downloads the TeX engine (~540 MB) once, and the browser keeps it. Use a
+Chromium-based browser (Chrome, Edge, Brave, Arc): that is what the app is tested in, and
+"Save to file" needs it. Firefox and Safari are untested.
+
+**On the desktop**: download the installer for your system from the repository's
+**Releases** page. The app is the same one, in its own window; it fetches the TeX engine
+from the web site on first use, like the browser does. The builds are not yet code-signed,
+so each system asks once:
+
+- **Windows** (`BeamerPoint-Setup-x.y.z.exe`): SmartScreen says "Windows protected your
+  PC" -- choose **More info → Run anyway**. Installed apps update themselves.
+- **macOS** (`.dmg`, `arm64` for Apple silicon, `x64` for Intel): after dragging it to
+  Applications, the first open is blocked -- go to **System Settings → Privacy & Security**
+  and choose **Open Anyway** (or run `xattr -dr com.apple.quarantine
+  /Applications/BeamerPoint.app`). An unsigned Mac app cannot update itself; it tells you
+  when a new version is out.
+- **Linux**: `chmod +x BeamerPoint-*.AppImage` and run it, or install the `.deb`.
+
+## Deploying
+
+Both are GitHub Actions, in `.github/workflows/`:
+
+- **`pages.yml`** -- every push to `main` tests, builds, downloads the TeX engine (cached)
+  and deploys the site to GitHub Pages. Enable it once under *Settings → Pages → Source:
+  GitHub Actions*. The repository must be public for free Pages.
+- **`desktop.yml`** -- pushing a tag such as `v0.2.0` builds the Windows, macOS and Linux
+  installers and publishes them as a GitHub Release. Bump `version` in
+  `packages/desktop/package.json` to match the tag.
+
+Locally: `npm run desktop:dev` runs the desktop app against your local build, and
+`npm run desktop:dist` builds an installer for the current system into
+`packages/desktop/release/`. A distributable build needs `VITE_TEX_DATA_URL` set to where
+the TeX data is served (the Pages site's `/core/busytex`), because installers do not
+bundle it.
+
+GitHub Pages has a soft bandwidth limit of 100 GB a month, about 150 first-time engine
+downloads. If the app outgrows it, host the `texlive-*` files anywhere that sends CORS
+headers and set `VITE_TEX_DATA_URL` to it -- no code change.
+
 ## Layout
 
 ```

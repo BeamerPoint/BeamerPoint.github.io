@@ -1,0 +1,60 @@
+# BeamerPoint desktop packaging (electron-builder).
+#
+# Author: Abolfazl Mohebbi, PhD
+#         Professor in Mechanical and Biomedical Engineering,
+#         Polytechnique Montreal
+#         abolfazl.mohebbi@polymtl.ca
+#
+# The web app is bundled as resources/web WITHOUT the TeX Live data (texlive-*, ~540 MB):
+# that is fetched on first use from the web site, whose URL the web build baked in as
+# VITE_TEX_DATA_URL. The engine itself (worker + WASM, ~35 MB) must be bundled, because a
+# Worker has to come from the app's own origin.
+
+appId: ca.polymtl.beamerpoint
+productName: BeamerPoint
+copyright: Copyright © 2026 Abolfazl Mohebbi
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - package.json
+
+extraResources:
+  - from: ../app/dist
+    to: web
+    filter:
+      - "**/*"
+      - "!core/busytex/texlive-*"
+      - "!core/busytex/biber.*"
+
+# Unsigned for now. macOS arm64 still gets the ad-hoc signature it needs to run at all.
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: BeamerPoint-Setup-${version}.${ext}
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+
+mac:
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  artifactName: BeamerPoint-${version}-${arch}.${ext}
+
+linux:
+  category: Office
+  maintainer: Abolfazl Mohebbi <abolfazl.mohebbi@polymtl.ca>
+  target: [AppImage, deb]
+  artifactName: BeamerPoint-${version}-${arch}.${ext}
+
+publish:
+  provider: github
+  releaseType: release

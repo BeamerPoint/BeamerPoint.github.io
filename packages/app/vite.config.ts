@@ -12,6 +12,10 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  // Where the app is served from. GitHub Pages serves a project site under `/<repo>/`,
+  // and the TeX engine's path follows this (`engine/assetPaths.ts`), so the Pages build
+  // sets BP_BASE. The desktop app and local development serve from the root.
+  base: process.env.BP_BASE ?? '/',
   server: {
     port: 5173,
     // The engine-conformance runner starts its own server with this set. With HMR on, any

@@ -17,6 +17,7 @@
  * `buildProject`, and pdf.js, and nothing else.
  */
 import * as pdfjs from 'pdfjs-dist';
+import { dataBase, engineBase } from '../engine/assetPaths.js';
 import PdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker';
 import { MEASURED, type Deck, type PreambleChunk } from '@beamerpoint/core';
 import {
@@ -84,7 +85,9 @@ async function init(): Promise<void> {
     getBytes: async (resourceId) => (resourceId === IMAGE_RESOURCE_ID ? png
       : resourceId === BIB_RESOURCE_ID ? bib : undefined),
   };
-  const e = new BusytexEngine({ basePath: '/core/busytex', collections: ['basic', 'recommended', 'extra'] });
+  const e = new BusytexEngine({
+    basePath: engineBase(), dataPath: dataBase(), collections: ['basic', 'recommended', 'extra'],
+  });
   await e.init();
   engine = e;
 }
