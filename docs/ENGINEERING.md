@@ -14,7 +14,7 @@ The distinguishing requirement: **the LaTeX source is a first-class, editable vi
 a one-way export.** Canvas edits appear in the source; source edits come back to the
 canvas; anything the app does not understand is preserved byte-for-byte.
 
-## Scope, as agreed with the user
+## Scope
 
 | Area | Decision |
 | --- | --- |
@@ -47,7 +47,7 @@ README's "Install" and "Deploying" sections are the user-facing version. In Git 
 
 `tools/audit-2026-09.md` is the ledger of the September 2026 verification sweep: every
 finding, its evidence and its fix. `tools/ui-conformance.md` records the mouse pass and
-the quirks of driving the browser pane.
+the quirks of driving the app with an automated browser.
 
 Typecheck a package: `npx tsc -p packages/<name>/tsconfig.json --noEmit`.
 There is no build/lint step beyond these.
@@ -238,7 +238,7 @@ every move, so one drag buried the 100-deep stack and Ctrl+Z undid two pixels.
 **`requestAnimationFrame` does not fire when the window is not being painted.** Known for
 pdf.js here; it bit again in the selection tracking, which coalesced `selectionchange`
 through rAF -- so the whole text-formatting feature was dead, with no error, whenever the
-app sat behind another window. Measured in the browser pane, where rAF never fires at
+app sat behind another window. Measured in an automated browser, where rAF never fires at
 all. Coalesce with a timeout; keep rAF for things that are genuinely about painting.
 
 **`\large` is a control word, so the space after it is not content.** The parser kept it
@@ -667,7 +667,7 @@ send a JavaScript MIME type for the loaders, or `importScripts` refuses them. Th
 Emscripten cache is keyed by the WORKER's path, so moving the data does not cost anyone a
 re-download. Never write `'/core/busytex'` again: under Pages' `/<repo>/` it 404s.
 
-**Ask what a ref click hits under viewport emulation.** In the browser pane at 1280x760 a
+**Ask what a ref click hits under viewport emulation.** In an automated browser at 1280x760 a
 `ref` click lands in the screenshot frame at page coordinates, and End/Home/Ctrl+A do not
 move the caret at all. Three "dead controls" in the mouse pass were the driver.
 
@@ -792,7 +792,7 @@ broke the PDF or lost content (one S1, six S2) -- and all 22 are fixed; see
 
 ### Not done
 
-Everything the user and I agreed on is now done. What is left is smaller, and none of it
+Everything in the agreed scope is now done. What is left is smaller, and none of it
 has been asked for yet:
 
 1. Rich text inside a diagram label, and multi-point polyline editing

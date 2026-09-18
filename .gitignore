@@ -7,3 +7,13 @@ coverage/
 test-results/
 playwright-report/
 packages/desktop/release/
+
+# AI assistant files -- local only, never published
+CLAUDE.md
+CLAUDE.local.md
+**/CLAUDE.md
+**/CLAUDE.local.md
+.claude/
+**/.claude/
+.claudeignore
+.mcp.json
