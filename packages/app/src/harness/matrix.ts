@@ -32,6 +32,8 @@ export interface Expect {
   bytes?: string[];
   /** Regex sources matched against the TeX log. */
   log?: string[];
+  /** Compare the theme's colours, as beamer reports them, against `MEASURED[theme]`. */
+  colours?: string;
   /**
    * A defect already in the audit ledger. The case is asserted to FAIL the way the ledger
    * says, so it cannot quietly start passing unnoticed -- when it is fixed, the runner
@@ -42,7 +44,9 @@ export interface Expect {
 
 export interface Case {
   id: string;
-  area: 'element' | 'theme' | 'font' | 'language' | 'output' | 'program' | 'pin';
+  area: 'element' | 'theme' | 'font' | 'language' | 'output' | 'program' | 'pin' | 'colour';
+  /** For a hand-written `{ tex }` case; a deck case takes its program from the deck. */
+  program?: 'pdflatex' | 'xelatex' | 'lualatex';
   /** Compile with PDF compression off, so the PDF's own bytes are readable. */
   raw?: boolean;
   /** Needs a real image in the resource store. */
@@ -388,7 +392,58 @@ const PIN_CASES: Case[] = [
     expect: { pages: 1, bytes: ['/ca\\s+1\\b'] } },
 ];
 
+/* ================================================================== colours */
+
+/**
+ * The theme-colour sweep of `tools/theme-colours.md`, made executable.
+ *
+ * That document claims its sweep "reproduces the checked-in table for all 35 themes with
+ * no differences". This checks the claim instead of trusting it: each theme is asked for
+ * every beamer colour -- STARRED and inside a group, or the answers depend on the order
+ * they were asked in -- and every answer is compared with `MEASURED`.
+ */
+export const COLOUR_FIELDS: ReadonlyArray<readonly [string, string]> = [
+  ['normalText', 'normal text'], ['structure', 'structure'], ['alertedText', 'alerted text'],
+  ['frametitle', 'frametitle'], ['title', 'title'], ['subtitle', 'subtitle'],
+  ['author', 'author'], ['institute', 'institute'], ['date', 'date'],
+  ['blockTitle', 'block title'], ['blockBody', 'block body'],
+  ['blockTitleAlerted', 'block title alerted'], ['blockBodyAlerted', 'block body alerted'],
+  ['blockTitleExample', 'block title example'], ['blockBodyExample', 'block body example'],
+  ['palettePrimary', 'palette primary'], ['paletteSecondary', 'palette secondary'],
+  ['paletteTertiary', 'palette tertiary'], ['sectionInHeadFoot', 'section in head/foot'],
+  ['authorInHeadFoot', 'author in head/foot'], ['titleInHeadFoot', 'title in head/foot'],
+  ['dateInHeadFoot', 'date in head/foot'], ['backgroundCanvas', 'background canvas'],
+  ['sidebar', 'sidebar'],
+];
+
+function colourProbe(theme: string): string {
+  return [
+    '\\documentclass[aspectratio=169,11pt]{beamer}',
+    `\\usetheme{${theme}}`,
+    '\\makeatletter',
+    '\\newcommand\\bpask[2]{%',
+    '  \\begingroup\\usebeamercolor*{#2}%',
+    '  \\@ifundefined{\\string\\color@#2.fg}{}{\\extractcolorspec{#2.fg}{\\bptmp}\\typeout{BPC|#1|fg|\\bptmp}}%',
+    '  \\@ifundefined{\\string\\color@#2.bg}{}{\\extractcolorspec{#2.bg}{\\bptmp}\\typeout{BPC|#1|bg|\\bptmp}}%',
+    '  \\endgroup',
+    '}',
+    '\\makeatother',
+    '\\begin{document}',
+    ...COLOUR_FIELDS.map(([k, name]) => `\\bpask{${k}}{${name}}`),
+    '\\begin{frame}{x}y\\end{frame}',
+    '\\end{document}',
+    '',
+  ].join('\n');
+}
+
+const COLOUR_CASES: Case[] = THEME_IDS.map((theme): Case => ({
+  id: `colour-${theme}`, area: 'colour',
+  program: themeNeedsUnicodeEngine(theme) ? 'xelatex' : 'pdflatex',
+  build: () => ({ tex: colourProbe(theme) }),
+  expect: { pages: 1, colours: theme },
+}));
+
 export const CASES: readonly Case[] = [
   ...ELEMENTS, ...THEMES_CASES, ...FONT_CASES, ...LANGUAGE_CASES,
-  ...OUTPUT_CASES, ...PROGRAM_CASES, ...PIN_CASES,
+  ...OUTPUT_CASES, ...PROGRAM_CASES, ...PIN_CASES, ...COLOUR_CASES,
 ];

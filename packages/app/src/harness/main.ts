@@ -9,12 +9,14 @@
  */
 import * as pdfjs from 'pdfjs-dist';
 import PdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker';
-import { type Deck, type PreambleChunk } from '@beamerpoint/core';
+import { MEASURED, type Deck, type PreambleChunk } from '@beamerpoint/core';
 import {
   BusytexEngine, buildProject, findMissingFiles, jobForProject, type CompileResult,
   type ResourceResolver,
 } from '@beamerpoint/engine';
-import { BIB_RESOURCE_ID, CASES, IMAGE_RESOURCE_ID, type Case, type Expect } from './matrix.js';
+import {
+  BIB_RESOURCE_ID, CASES, COLOUR_FIELDS, IMAGE_RESOURCE_ID, type Case, type Expect,
+} from './matrix.js';
 
 pdfjs.GlobalWorkerOptions.workerPort = new PdfWorker();
 
@@ -34,6 +36,8 @@ export interface Observation {
   /** Present only for `raw` cases: which byte patterns matched. */
   bytes?: Record<string, boolean>;
   log: Record<string, boolean>;
+  /** For colour cases: every field whose colour differs from `MEASURED`, as `field.side`. */
+  colourDiff?: string[];
   /** The whole log, returned only when the case failed, so the failure has evidence. */
   fullLog?: string;
   harnessError?: string;
@@ -97,6 +101,45 @@ function instrumentTex(tex: string, c: Case): string {
   return head + tex.replace('\\begin{document}', `\\typeout{${marker(c.id)}}\n\\begin{document}`);
 }
 
+/**
+ * `\extractcolorspec` answers in whichever model the theme author used. Converted exactly
+ * as `tools/theme-colours.md` does, and an unknown model throws rather than becoming black.
+ */
+function toHex(model: string, spec: string): string {
+  const n = spec.split(',').map(Number);
+  let rgb: number[];
+  if (model === 'rgb') rgb = n;
+  else if (model === 'gray') rgb = [n[0]!, n[0]!, n[0]!];
+  else if (model === 'cmyk') rgb = [0, 1, 2].map((i) => (1 - n[i]!) * (1 - n[3]!));
+  else if (model === 'RGB') rgb = n.map((v) => v / 255);
+  else throw new Error(`unknown colour model: ${model}`);
+  return `#${rgb.map((v) => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0')).join('')}`;
+}
+
+function colourDiff(theme: string, log: string): string[] {
+  const got: Record<string, { fg?: string; bg?: string }> = {};
+  for (const line of log.split('\n')) {
+    if (!line.startsWith('BPC|')) continue;
+    const [, field, side, rest] = line.split('|');
+    const m = /^\{([^}]*)\}\{([^}]*)\}/.exec(rest ?? '');
+    if (m !== null && (side === 'fg' || side === 'bg')) (got[field!] ??= {})[side] = toHex(m[1]!, m[2]!);
+  }
+  const want = MEASURED[theme];
+  const diffs: string[] = [];
+  // Without these two, an empty probe compared against a missing row would pass
+  // vacuously -- a check that cannot fail.
+  if (want === undefined) diffs.push(`no MEASURED row for ${theme}`);
+  if (Object.keys(got).length < 20) diffs.push(`only ${Object.keys(got).length} colours in the log`);
+  for (const [field] of COLOUR_FIELDS) {
+    for (const side of ['fg', 'bg'] as const) {
+      const w = ((want ?? {}) as Record<string, { fg?: string; bg?: string }>)[field]?.[side];
+      const g = got[field]?.[side];
+      if (w !== g) diffs.push(`${field}.${side}: measured ${w ?? '-'}, beamer says ${g ?? '-'}`);
+    }
+  }
+  return diffs;
+}
+
 async function pdfFacts(pdf: Uint8Array): Promise<{ pages: number; text: string }> {
   const task = pdfjs.getDocument({ data: pdf.slice() });
   const doc = await task.promise;
@@ -123,10 +166,12 @@ async function run(id: string): Promise<Observation> {
     const built = c.build();
     let result: CompileResult;
     if ('tex' in built) {
+      const program = c.program ?? 'pdflatex';
       result = await engine!.compile({
         jobId: id, mainFile: 'main.tex',
         files: [{ path: 'main.tex', content: instrumentTex(built.tex, c) }],
-        program: 'pdflatex', passes: 1, runBibtex: false, timeoutMs: 60_000,
+        program, passes: 1, runBibtex: false,
+        timeoutMs: program === 'pdflatex' ? 60_000 : 240_000,
       });
     } else {
       // Always through the real builder: TypeScript then enforces `VirtualFile.content`,
@@ -158,6 +203,7 @@ async function run(id: string): Promise<Observation> {
       text: facts.text.slice(0, 4000),
       log: Object.fromEntries((c.expect.log ?? []).map((re) => [re, new RegExp(re).test(log)])),
     };
+    if (c.expect.colours !== undefined) obs.colourDiff = colourDiff(c.expect.colours, log);
     if (c.raw === true && pdf != null) {
       const s = new TextDecoder('latin1').decode(pdf);
       obs.bytes = Object.fromEntries((c.expect.bytes ?? []).map((re) => [re, new RegExp(re).test(s)]));

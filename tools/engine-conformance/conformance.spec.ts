@@ -13,7 +13,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 const ASSETS = 'packages/app/public/core/busytex/texlive-basic.js';
 const RESULTS = join('tools', 'engine-conformance', 'results');
-const AREAS = ['element', 'theme', 'font', 'language', 'output', 'program', 'pin'] as const;
+const AREAS = ['element', 'theme', 'font', 'language', 'output', 'program', 'pin', 'colour'] as const;
 
 interface Expect {
   ok?: boolean; pages?: number; minPages?: number; text?: string[]; notText?: string[];
@@ -22,7 +22,7 @@ interface Expect {
 interface Observation {
   id: string; area: string; expect: Expect; ok: boolean; marker: boolean; pdfBytes: number;
   pages: number; durationMs: number; errors: string[]; missing: string[]; text: string;
-  bytes?: Record<string, boolean>; log: Record<string, boolean>; fullLog?: string;
+  bytes?: Record<string, boolean>; log: Record<string, boolean>; colourDiff?: string[]; fullLog?: string;
   harnessError?: string;
 }
 interface Verdict { obs: Observation; status: 'pass' | 'fail' | 'known'; problems: string[] }
@@ -58,6 +58,7 @@ function judge(o: Observation): Verdict {
   for (const [re, hit] of Object.entries(o.bytes ?? {})) if (!hit) problems.push(`PDF bytes lack /${re}/`);
   if ((e.bytes?.length ?? 0) > 0 && o.bytes === undefined) problems.push('byte checks requested but not run');
   for (const [re, hit] of Object.entries(o.log)) if (!hit) problems.push(`log lacks /${re}/`);
+  for (const d of o.colourDiff ?? []) problems.push(`colour ${d}`);
 
   return { obs: o, status: problems.length === 0 ? 'pass' : 'fail', problems };
 }
@@ -94,7 +95,9 @@ for (const area of AREAS) {
 }
 
 test.afterAll(() => {
-  if (verdicts.length === 0) return;
+  // Only a FULL run writes the checked-in results: a run filtered to one area with `-g`
+  // would otherwise replace the whole table with a subset of it.
+  if (!AREAS.every((a) => verdicts.some((v) => v.obs.area === a))) return;
   const failures = join(RESULTS, 'failures');
   rmSync(failures, { recursive: true, force: true });
   mkdirSync(failures, { recursive: true });
