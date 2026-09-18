@@ -671,6 +671,20 @@ const ALIGN_ENVS: Readonly<Record<string, 'left' | 'center' | 'right'>> = {
   flushright: 'right',
 };
 
+/**
+ * The graphic inside a figure or an alignment environment: a bare `\includegraphics`,
+ * or -- for a see-through picture -- the one-node `tikzpicture` the emitter wraps it in.
+ *
+ * Both wrappers used to accept only the bare command, so a transparent picture that ALSO
+ * had a caption or an alignment was declined whole and came back as raw: the LaTeX
+ * intact, but its transparency, caption and alignment no longer editable (F-015).
+ */
+function recognizeGraphic(node: CstNode, ctx: RecognizeCtx): ImageElement | null {
+  if (node.n === 'cmd' && node.name === 'includegraphics') return recognizeIncludegraphics(node, ctx);
+  if (node.n === 'env' && node.name === 'tikzpicture') return recognizeTransparentImage(node, ctx);
+  return null;
+}
+
 /** `\begin{center}\includegraphics{...}\end{center}` and its left/right siblings. */
 function recognizeAlignedImage(
   node: Extract<CstNode, { n: 'env' }>,
@@ -684,10 +698,7 @@ function recognizeAlignedImage(
   );
   if (significant.length !== 1) return null;
 
-  const only = significant[0]!;
-  if (only.n !== 'cmd' || only.name !== 'includegraphics') return null;
-
-  const img = recognizeIncludegraphics(only, ctx);
+  const img = recognizeGraphic(significant[0]!, ctx);
   if (img === null) return null;
   return { ...img, align, src: node.span };
 }
@@ -788,9 +799,10 @@ function recognizeFigure(
 
     if (child.n === 'cmd' && child.name === 'centering' && child.args.length === 0) continue;
 
-    if (child.n === 'cmd' && child.name === 'includegraphics') {
+    if ((child.n === 'cmd' && child.name === 'includegraphics')
+        || (child.n === 'env' && child.name === 'tikzpicture')) {
       if (graphic !== null) return null;
-      graphic = recognizeIncludegraphics(child, ctx);
+      graphic = recognizeGraphic(child, ctx);
       if (graphic === null) return null;
       continue;
     }

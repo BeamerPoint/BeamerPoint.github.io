@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emitDeck } from '../src/emit/deck.js';
 import { parseDeck } from '../src/parse/parseDeck.js';
-import { newDeck, newFrame } from '../src/model/factory.js';
+import { newDeck, newFrame, plain } from '../src/model/factory.js';
 import { makeSeededIdFactory } from '../src/model/ids.js';
 import type { Deck, Element, ImageElement } from '../src/model/types.js';
 import { expectRoundTrip } from './helpers/roundTrip.js';
@@ -108,7 +108,7 @@ describe('picture transparency', () => {
     expect(imageOf(round(two).deck)).toBeUndefined();
   });
 
-  it('keeps the crop, rotation and caption of a faded picture', () => {
+  it('keeps the rotation and height of a faded picture', () => {
     const tex = emitDeck(deckWith({
       opacity: 0.4,
       rotate: 15,
@@ -119,5 +119,23 @@ describe('picture transparency', () => {
     expect(img?.opacity).toBe(0.4);
     expect(img?.rotate).toBe(15);
     expect(emitDeck(round(tex).deck).tex).toBe(tex);
+  });
+
+  // F-015, fixed. The figure and alignment recognizers accepted only a bare
+  // \includegraphics, so either of these came back as an uneditable raw block.
+  it('keeps the caption of a faded picture', () => {
+    const deck = deckWith({ opacity: 0.4, caption: plain('A faded one') });
+    expect(emitDeck(deck).tex).toContain('\\caption{A faded one}');
+    expectRoundTrip(deck);
+    const img = imageOf(round(emitDeck(deck).tex).deck);
+    expect(img?.opacity).toBe(0.4);
+  });
+
+  it.each(['left', 'center', 'right'] as const)('keeps a faded picture aligned %s', (align) => {
+    const deck = deckWith({ opacity: 0.4, align });
+    expectRoundTrip(deck);
+    const img = imageOf(round(emitDeck(deck).tex).deck);
+    expect(img?.align).toBe(align);
+    expect(img?.opacity).toBe(0.4);
   });
 });

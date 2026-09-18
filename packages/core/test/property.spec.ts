@@ -3,7 +3,7 @@ import fc from 'fast-check';
 import { makeSeededIdFactory } from '../src/model/ids.js';
 import { emitDeck } from '../src/emit/deck.js';
 import { newDeck, newFrame, newTextElement } from '../src/model/factory.js';
-import { buildDeck, deckSpec, type DeckSpec } from './helpers/arbitraries.js';
+import { buildDeck, deckSpec } from './helpers/arbitraries.js';
 import { expectRoundTrip } from './helpers/roundTrip.js';
 
 /**
@@ -21,17 +21,10 @@ import { expectRoundTrip } from './helpers/roundTrip.js';
 
 const RUNS = process.env.BP_FUZZ === '1' ? 3000 : 60;
 
-/** F-015: a transparent picture that also has a caption or any explicit alignment. */
-function hasFadedCaptionedOrAlignedImage(spec: DeckSpec): boolean {
-  return spec.frames.some((f) => f.els.some((e) => e.k === 'image' && e.opacity !== undefined
-    && (e.caption !== undefined || e.align !== undefined)));
-}
-
 describe('the round-trip property', () => {
   it('holds for random decks built the way the editor builds them', () => {
     fc.assert(
       fc.property(deckSpec, (spec) => {
-        fc.pre(!hasFadedCaptionedOrAlignedImage(spec));
         expectRoundTrip(buildDeck(spec, makeSeededIdFactory('g')));
       }),
       { numRuns: RUNS, verbose: 1 },
