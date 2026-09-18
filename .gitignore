@@ -3,3 +3,4 @@ dist/
 *.tsbuildinfo
 packages/app/public/core/busytex/
 .vite/
+coverage/
