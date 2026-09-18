@@ -46,8 +46,16 @@ export function PdfPanel(): React.ReactElement {
   const tokenRef = useRef(0);
 
   useEffect(() => {
+    // `== null`, not `=== undefined`: a failed compile once arrived as `pdf: null`, and
+    // this guard let it through to `pdf.slice()` -- a raw TypeError over the previous
+    // compile's pages (F-008). The engine now normalises it; this is the second fence.
     const pdf = result?.pdf;
-    if (pdf === undefined) { setPages([]); return; }
+    if (pdf == null || pdf.length === 0) {
+      ++tokenRef.current;
+      setPages([]);
+      setRenderError(null);
+      return;
+    }
 
     const token = ++tokenRef.current;
     setRenderError(null);

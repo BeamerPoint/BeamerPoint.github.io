@@ -5,7 +5,7 @@ import type {
   EngineStatus,
   LatexEngine,
 } from '../../LatexEngine.js';
-import { parseLog } from '../../logParser.js';
+import { toCompileResult, type BackendResult } from '../../compileResult.js';
 import { COLLECTIONS, type Collection } from '../../packageIndex.js';
 
 /**
@@ -55,13 +55,7 @@ interface BusytexEngineLike {
     verbose?: 'silent' | 'info' | 'debug';
     additionalFiles?: Array<{ path: string; content: string | Uint8Array }>;
     remoteEndpoint?: string;
-  }): Promise<{
-    success: boolean;
-    pdf?: Uint8Array;
-    synctex?: Uint8Array;
-    log: string;
-    exitCode: number;
-  }>;
+  }): Promise<BackendResult>;
 }
 
 export class BusytexEngine implements LatexEngine {
@@ -221,18 +215,7 @@ export class BusytexEngine implements LatexEngine {
 
       this.state = { s: 'ready' };
 
-      return {
-        jobId: job.jobId,
-        // A zero-length PDF means TeX aborted after opening the output file. Treating
-        // that as success shows the user an empty preview with no explanation.
-        ok: result.success && result.pdf !== undefined && result.pdf.length > 0,
-        ...(result.pdf !== undefined ? { pdf: result.pdf } : {}),
-        ...(result.synctex !== undefined ? { synctex: result.synctex } : {}),
-        log: result.log,
-        diagnostics: parseLog(result.log),
-        passesRun: job.passes === 'auto' ? 2 : Number(job.passes),
-        durationMs: Date.now() - started,
-      };
+      return toCompileResult(job, result, Date.now() - started);
     } catch (err) {
       this.state = { s: 'ready' };
       const message = err instanceof Error ? err.message : String(err);
