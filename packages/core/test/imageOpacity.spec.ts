@@ -4,6 +4,7 @@ import { parseDeck } from '../src/parse/parseDeck.js';
 import { newDeck, newFrame } from '../src/model/factory.js';
 import { makeSeededIdFactory } from '../src/model/ids.js';
 import type { Deck, Element, ImageElement } from '../src/model/types.js';
+import { expectRoundTrip } from './helpers/roundTrip.js';
 
 /**
  * A see-through picture.
@@ -75,6 +76,7 @@ describe('picture transparency', () => {
     // The recognizer runs before the chart and drawing ones. Without that, this
     // becomes a canvas holding one raw shape and the slider has nothing to drive.
     const tex = emitDeck(deckWith({ opacity: 0.35 })).tex;
+    expectRoundTrip(deckWith({ opacity: 0.35 }));
     const r = round(tex);
     const img = imageOf(r.deck);
     expect(img?.kind).toBe('image');

@@ -4,6 +4,7 @@ import { parseDeck } from '../src/parse/parseDeck.js';
 import { newDeck, newFrame, newListElement, newTextElement } from '../src/model/factory.js';
 import { makeSeededIdFactory } from '../src/model/ids.js';
 import type { Deck, Element, FrameNode, ListElement } from '../src/model/types.js';
+import { expectRoundTrip } from './helpers/roundTrip.js';
 
 /**
  * Overlays: `\pause`, and a spec on a bullet.
@@ -36,11 +37,13 @@ const pause: Element = { id: 'p1', kind: 'pause', placement: { mode: 'flow' } };
 describe('\\pause', () => {
   it('emits the one command, on its own line', () => {
     const tex = emitDeck(deckOf(newTextElement('One'), pause, newTextElement('Two'))).tex;
+    expectRoundTrip(deckOf(newTextElement('One'), pause, newTextElement('Two')));
     expect(tex).toMatch(/One\s*\n\s*\\pause\s*\n\s*Two/);
   });
 
   it('round-trips as a pause, not as a raw island', () => {
     const tex = emitDeck(deckOf(newTextElement('One'), pause, newTextElement('Two'))).tex;
+    expectRoundTrip(deckOf(newTextElement('One'), pause, newTextElement('Two')));
     const r = round(tex);
     expect(r.health.demoted).toBe(0);
     expect(r.guard.ok).toBe(true);
@@ -94,6 +97,7 @@ describe('an overlay spec on a bullet', () => {
     // The lexer sees `\item<2->` as the command plus the TEXT `<2-> B`, so without
     // peeling it the spec became part of the bullet and showed as literal characters.
     const tex = emitDeck(deckOf(listWith([undefined, '<2->', undefined]))).tex;
+    expectRoundTrip(deckOf(listWith([undefined, '<2->', undefined])));
     const r = round(tex);
     const frame = r.deck.nodes.find((n): n is FrameNode => n.kind === 'frame');
     const list = frame!.children[0] as ListElement;
@@ -108,6 +112,7 @@ describe('an overlay spec on a bullet', () => {
   it('survives every spec shape beamer allows', () => {
     for (const spec of ['<1->', '<2>', '<1,3>', '<+->', '<2-4>', '<beamer:1->']) {
       const tex = emitDeck(deckOf(listWith([spec]))).tex;
+      expectRoundTrip(deckOf(listWith([spec])));
       const r = round(tex);
       expect(r.health.demoted, spec).toBe(0);
       expect(emitDeck(r.deck).tex, spec).toBe(tex);

@@ -5,6 +5,7 @@ import { newDeck, newFrame, newTikzElement } from '../src/model/factory.js';
 import { makeSeededIdFactory } from '../src/model/ids.js';
 import { addShape, setShapeLabel } from '../src/model/shapeOps.js';
 import type { Deck, TikzElement, TikzShape } from '../src/model/types.js';
+import { expectRoundTrip } from './helpers/roundTrip.js';
 
 /**
  * Text written inside a rectangle or an ellipse.
@@ -42,7 +43,9 @@ function withShapes(...shapes: TikzShape[]): TikzElement {
 }
 
 function texOf(el: TikzElement): string {
-  return emitDeck(deckWith(el)).tex;
+  // Anything the app emits from its own model must come back as the same model. Tests
+  // that exercise a DECLINE tamper with the text afterwards, so this never blocks them.
+  return expectRoundTrip(deckWith(el)).tex;
 }
 
 function round(tex: string) {

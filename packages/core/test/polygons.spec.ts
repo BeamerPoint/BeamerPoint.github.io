@@ -6,6 +6,7 @@ import { newDeck, newFrame, newTikzElement } from '../src/model/factory.js';
 import { makeSeededIdFactory } from '../src/model/ids.js';
 import { addShape, isAttachable, attachEndpoint, shapeFromDrag } from '../src/model/shapeOps.js';
 import type { TikzElement, TikzShape } from '../src/model/types.js';
+import { expectRoundTrip } from './helpers/roundTrip.js';
 
 const BOX = { x: 10, y: 20, w: 40, h: 25 };
 
@@ -59,6 +60,7 @@ describe('polygon shapes', () => {
     const deck = newDeck({ title: 'T' });
     deck.nodes = [newFrame('Shapes', [el])];
     const tex = emitDeck(deck).tex;
+    expectRoundTrip(deck);
     const round = parseDeck(tex, { newId: makeSeededIdFactory('r') });
 
     expect(emitDeck(round.deck).tex).toBe(tex);
@@ -116,6 +118,7 @@ describe('arrow attachment is limited to named nodes', () => {
     const deck = newDeck({ title: 'T' });
     deck.nodes = [newFrame('F', [attached])];
     const tex = emitDeck(deck).tex;
+    expectRoundTrip(deck);
 
     const defined = new Set([...tex.matchAll(/\\node\[[^\]]*\]\s*\((bp\w+)\)/g)].map((m) => m[1]!));
     const used = [...tex.matchAll(/\((bp\w+)\.(?:north|south|east|west|center)\)/g)].map((m) => m[1]!);

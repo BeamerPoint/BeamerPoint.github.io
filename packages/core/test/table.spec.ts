@@ -5,6 +5,7 @@ import { newDeck, newFrame, newTableElement, newTextElement, plain } from '../sr
 import { makeSeededIdFactory } from '../src/model/ids.js';
 import { derivePackages } from '../src/emit/derivePackages.js';
 import type { Deck, Element, TableElement } from '../src/model/types.js';
+import { expectRoundTrip } from './helpers/roundTrip.js';
 
 function deckWith(el: Element): Deck {
   const deck = newDeck({ title: 'T' });
@@ -13,10 +14,7 @@ function deckWith(el: Element): Deck {
 }
 
 function roundTrip(deck: Deck): { tex: string; round: ReturnType<typeof parseDeck> } {
-  const tex = emitDeck(deck).tex;
-  const round = parseDeck(tex, { newId: makeSeededIdFactory('r') });
-  expect(emitDeck(round.deck).tex).toBe(tex);
-  return { tex, round };
+  return expectRoundTrip(deck);
 }
 
 /** The table on the first frame of a parsed deck, or undefined if it degraded. */

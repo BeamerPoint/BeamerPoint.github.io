@@ -8,6 +8,7 @@ import {
   addChartColumn, removeChartColumn, replaceChartData, setChartCell,
 } from '../src/model/chartOps.js';
 import type { ChartElement, Deck } from '../src/model/types.js';
+import { expectRoundTrip } from './helpers/roundTrip.js';
 
 /**
  * pgfplots charts.
@@ -23,12 +24,7 @@ function deckWith(el: ChartElement): Deck {
 }
 
 function roundTrip(deck: Deck): { tex: string; round: ReturnType<typeof parseDeck> } {
-  const tex = emitDeck(deck).tex;
-  const round = parseDeck(tex, { newId: makeSeededIdFactory('r') });
-  expect(emitDeck(round.deck).tex).toBe(tex);
-  expect(round.guard.ok).toBe(true);
-  expect(round.health.demoted).toBe(0);
-  return { tex, round };
+  return expectRoundTrip(deck);
 }
 
 function chartOf(round: ReturnType<typeof parseDeck>): ChartElement {

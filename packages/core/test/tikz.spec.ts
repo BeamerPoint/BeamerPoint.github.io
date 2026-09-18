@@ -7,6 +7,7 @@ import { derivePackages } from '../src/emit/derivePackages.js';
 import { TIKZ_LIBRARIES } from '../src/emit/tikz.js';
 import { addShape, shapeFromDrag } from '../src/model/shapeOps.js';
 import type { Deck, TikzElement, TikzShape } from '../src/model/types.js';
+import { expectRoundTrip } from './helpers/roundTrip.js';
 
 function deckWith(el: TikzElement): Deck {
   const deck = newDeck({ title: 'T' });
@@ -15,10 +16,7 @@ function deckWith(el: TikzElement): Deck {
 }
 
 function roundTrip(deck: Deck): { tex: string; round: ReturnType<typeof parseDeck> } {
-  const tex = emitDeck(deck).tex;
-  const round = parseDeck(tex, { newId: makeSeededIdFactory('r') });
-  expect(emitDeck(round.deck).tex).toBe(tex);
-  return { tex, round };
+  return expectRoundTrip(deck);
 }
 
 function firstPicture(round: ReturnType<typeof parseDeck>): TikzElement | undefined {

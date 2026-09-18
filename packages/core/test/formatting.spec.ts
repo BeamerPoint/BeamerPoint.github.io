@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { emitDeck } from '../src/emit/deck.js';
 import { parseDeck } from '../src/parse/parseDeck.js';
 import { newDeck, newFrame, newTableElement, newTikzElement } from '../src/model/factory.js';
-import { makeSeededIdFactory } from '../src/model/ids.js';
 import { addShape, shapeFromDrag } from '../src/model/shapeOps.js';
 import { derivePackages } from '../src/emit/derivePackages.js';
 import { TIKZ_LIBRARIES, TIKZ_LIBRARIES_LEGACY } from '../src/emit/tikz.js';
 import { DERIVED_SETUP_LINES } from '../src/emit/derivePackages.js';
 import type { Deck, Element, TikzElement } from '../src/model/types.js';
+import { expectRoundTrip } from './helpers/roundTrip.js';
 
 /**
  * The formatting properties the UI gained: shape rotation and shadow, and table
@@ -21,12 +20,7 @@ function deckWith(el: Element): Deck {
 }
 
 function roundTrip(deck: Deck): { tex: string; round: ReturnType<typeof parseDeck> } {
-  const tex = emitDeck(deck).tex;
-  const round = parseDeck(tex, { newId: makeSeededIdFactory('r') });
-  expect(emitDeck(round.deck).tex).toBe(tex);
-  expect(round.guard.ok).toBe(true);
-  expect(round.health.demoted).toBe(0);
-  return { tex, round };
+  return expectRoundTrip(deck);
 }
 
 describe('shape rotation and shadow', () => {

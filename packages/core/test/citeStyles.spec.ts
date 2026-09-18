@@ -5,6 +5,7 @@ import { newDeck, newFrame } from '../src/model/factory.js';
 import { makeSeededIdFactory } from '../src/model/ids.js';
 import { derivePackages } from '../src/emit/derivePackages.js';
 import type { CiteStyle, Deck, RichText } from '../src/model/types.js';
+import { expectRoundTrip } from './helpers/roundTrip.js';
 
 /**
  * `\citep`, `\citet`, and the two biblatex commands.
@@ -68,6 +69,7 @@ describe('citation commands', () => {
   it('round-trips every style with nothing demoted', () => {
     for (const style of ['p', 't', 'auto', 'text'] as CiteStyle[]) {
       const tex = emitDeck(deckWithCites(cite(style))).tex;
+      expectRoundTrip(deckWithCites(cite(style)));
       const r = round(tex);
       expect(r.health.demoted, style).toBe(0);
       expect(r.guard.ok, style).toBe(true);

@@ -5,6 +5,7 @@ import { newDeck, newFrame, newTextElement, plain } from '../src/model/factory.j
 import { makeSeededIdFactory } from '../src/model/ids.js';
 import { derivePackages } from '../src/emit/derivePackages.js';
 import type { Deck, Element, Placement } from '../src/model/types.js';
+import { expectRoundTrip } from './helpers/roundTrip.js';
 
 /**
  * Free placement and rotation, through the round trip.
@@ -84,6 +85,7 @@ describe('an element with children, placed freely', () => {
     // whole frame was demoted to one raw block.
     for (const rotate of [undefined, 15]) {
       const tex = emitDeck(deckWithBlock(rotate)).tex;
+      expectRoundTrip(deckWithBlock(rotate));
       const round = parseDeck(tex, { newId: makeSeededIdFactory('r') });
       expect(round.guard.mismatches, `rotate=${String(rotate)}`).toEqual([]);
       expect(round.health.demoted).toBe(0);

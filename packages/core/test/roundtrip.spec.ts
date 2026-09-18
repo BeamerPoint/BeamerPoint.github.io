@@ -4,6 +4,7 @@ import { parseDeck } from '../src/parse/parseDeck.js';
 import { newDeck, newFrame, newListElement, newTextElement, plain } from '../src/model/factory.js';
 import { makeSeededIdFactory } from '../src/model/ids.js';
 import type { Deck } from '../src/model/types.js';
+import { expectRoundTrip } from './helpers/roundTrip.js';
 
 /**
  * The fixpoint property: emitting a deck, parsing it back, and emitting again must
@@ -11,11 +12,9 @@ import type { Deck } from '../src/model/types.js';
  * view disagree about what the document is.
  */
 function expectFixpoint(deck: Deck): { round: ReturnType<typeof parseDeck>; tex: string } {
-  const tex = emitDeck(deck).tex;
-  const round = parseDeck(tex, { newId: makeSeededIdFactory('r') });
-  const again = emitDeck(round.deck).tex;
-  expect(again).toBe(tex);
-  return { round, tex };
+  // Bytes alone prove nothing about parsing: an all-raw deck is byte-perfect. The shared
+  // helper adds the guard, the whole-document fixpoint and the kind census.
+  return expectRoundTrip(deck);
 }
 
 describe('round trip fixpoint', () => {

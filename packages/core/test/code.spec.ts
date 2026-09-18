@@ -6,6 +6,7 @@ import { makeSeededIdFactory } from '../src/model/ids.js';
 import { derivePackages, isDerivedSetupLine } from '../src/emit/derivePackages.js';
 import { LST_LANGUAGES, LST_SETUP, LST_DEFINITIONS } from '../src/emit/lstLanguages.js';
 import type { CodeElement, Deck, Element } from '../src/model/types.js';
+import { expectRoundTrip } from './helpers/roundTrip.js';
 
 /**
  * Source listings, through emit and parse.
@@ -22,12 +23,7 @@ function deckWith(el: Element): Deck {
 }
 
 function roundTrip(deck: Deck): { tex: string; round: ReturnType<typeof parseDeck> } {
-  const tex = emitDeck(deck).tex;
-  const round = parseDeck(tex, { newId: makeSeededIdFactory('r') });
-  expect(emitDeck(round.deck).tex).toBe(tex);
-  expect(round.guard.ok).toBe(true);
-  expect(round.health.demoted).toBe(0);
-  return { tex, round };
+  return expectRoundTrip(deck);
 }
 
 function codeOf(round: ReturnType<typeof parseDeck>): CodeElement {

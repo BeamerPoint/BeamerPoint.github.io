@@ -8,6 +8,7 @@ import {
   resizeShape, restyleShape, setCanvasSize, shapeBounds,
 } from '../src/model/shapeOps.js';
 import type { TikzElement, TikzShape } from '../src/model/types.js';
+import { expectRoundTrip } from './helpers/roundTrip.js';
 
 const RECT: TikzShape = { id: 'r1', t: 'rect', x: 10, y: 10, w: 30, h: 20, style: {} };
 const OVAL: TikzShape = { id: 'e1', t: 'ellipse', cx: 70, cy: 20, rx: 15, ry: 10, style: {} };
@@ -206,6 +207,7 @@ describe('shape operations', () => {
     const deck = newDeck({ title: 'T' });
     deck.nodes = [newFrame('F', [el])];
     const tex = emitDeck(deck).tex;
+    expectRoundTrip(deck);
     const round = parseDeck(tex, { newId: makeSeededIdFactory('r') });
     expect(emitDeck(round.deck).tex).toBe(tex);
     expect(round.guard.ok).toBe(true);

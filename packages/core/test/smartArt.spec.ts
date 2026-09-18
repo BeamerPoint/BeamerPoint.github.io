@@ -1,3 +1,4 @@
+import { expectRoundTrip } from './helpers/roundTrip.js';
 import { describe, expect, it } from 'vitest';
 import { SMART_ART, buildSmartArt, newSmartArtElement } from '../src/model/smartArt.js';
 import { emitDeck } from '../src/emit/deck.js';
@@ -68,6 +69,7 @@ describe('prebuilt diagram layouts', () => {
       deck.nodes = [newFrame('D', [newSmartArtElement(spec.kind, spec.sample)])];
 
       const tex = emitDeck(deck).tex;
+      expectRoundTrip(deck);
       const round = parseDeck(tex, { newId: makeSeededIdFactory('r') });
 
       expect(emitDeck(round.deck).tex, spec.kind).toBe(tex);
@@ -81,6 +83,7 @@ describe('prebuilt diagram layouts', () => {
       const deck = newDeck({ title: 'T' });
       deck.nodes = [newFrame('D', [newSmartArtElement(spec.kind, spec.sample)])];
       const tex = emitDeck(deck).tex;
+      expectRoundTrip(deck);
 
       const defined = new Set(
         [...tex.matchAll(/\\node\[[^\]]*\]\s*\((bp\w+)\)/g)].map((m) => m[1]!),

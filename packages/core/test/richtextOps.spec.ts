@@ -10,6 +10,7 @@ import { parseDeck } from '../src/parse/parseDeck.js';
 import { newDeck, newFrame } from '../src/model/factory.js';
 import { makeSeededIdFactory } from '../src/model/ids.js';
 import type { Element, RichText } from '../src/model/types.js';
+import { expectRoundTrip } from './helpers/roundTrip.js';
 
 /**
  * Styling a range of characters.
@@ -188,6 +189,7 @@ describe('inline style over a range', () => {
     const deck = newDeck({ title: 'T' });
     deck.nodes = [newFrame('F', [textElement(content)])];
     const first = emitDeck(deck).tex;
+    expectRoundTrip(deck);
     const round = parseDeck(first, { newId: makeSeededIdFactory('r') });
 
     expect(round.health.demoted).toBe(0);

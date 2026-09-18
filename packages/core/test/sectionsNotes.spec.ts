@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { emitDeck } from '../src/emit/deck.js';
 import { parseDeck } from '../src/parse/parseDeck.js';
 import { newDeck, newFrame, newTocElement, newTextElement, plain } from '../src/model/factory.js';
-import { makeSeededIdFactory } from '../src/model/ids.js';
 import type { Deck, SectionNode } from '../src/model/types.js';
+import { expectRoundTrip } from './helpers/roundTrip.js';
 
 /**
  * Sections, the outline slide and speaker notes.
@@ -15,12 +15,7 @@ import type { Deck, SectionNode } from '../src/model/types.js';
  */
 
 function roundTrip(deck: Deck): { tex: string; round: ReturnType<typeof parseDeck> } {
-  const tex = emitDeck(deck).tex;
-  const round = parseDeck(tex, { newId: makeSeededIdFactory('r') });
-  expect(emitDeck(round.deck).tex).toBe(tex);
-  expect(round.guard.ok).toBe(true);
-  expect(round.health.demoted).toBe(0);
-  return { tex, round };
+  return expectRoundTrip(deck);
 }
 
 function section(level: SectionNode['level'], title: string): SectionNode {
