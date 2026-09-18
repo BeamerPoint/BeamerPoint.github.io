@@ -55,6 +55,32 @@ export function emitElement(w: TexWriter, el: Element, ctx: EmitContext): void {
   if (ownParagraph) w.blank();
 }
 
+/**
+ * Emit a container's children -- a frame's, a block's, a column's.
+ *
+ * A flow text element is a paragraph, and nothing used to END it: two text boxes in a
+ * row were written with one newline between them, which LaTeX reads as a space.
+ * Measured, the PDF set them as ONE paragraph on one line while the canvas drew two
+ * boxes, and the next reparse merged them into one element for good (F-014) -- the
+ * tabular lesson, fixed for tables and never for text.
+ *
+ * So a flow text that follows another flow text gets a blank line before it. A `\pause`
+ * between them does not end the paragraph either (`One \pause Two` is one line on the
+ * second overlay), so it does not reset the rule. Only between two texts: blank lines
+ * around every text would also land just inside `\begin{block}{...}`, noise in every
+ * file for nothing.
+ */
+export function emitChildren(w: TexWriter, els: readonly Element[], ctx: EmitContext): void {
+  let textBefore = false;
+  for (const el of els) {
+    const isText = el.kind === 'text' && el.placement.mode === 'flow' && !isBlankRichText(el.content);
+    if (isText && textBefore) w.blank();
+    emitElement(w, el, ctx);
+    if (isText) textBefore = true;
+    else if (el.kind !== 'pause') textBefore = false;
+  }
+}
+
 function emitAbsoluteWrapper(
   w: TexWriter,
   el: Element,
@@ -268,7 +294,7 @@ function emitElementBody(w: TexWriter, el: Element, ctx: EmitContext): void {
       const title = el.title === undefined ? '' : emitInline(el.title);
       w.line_(`\\begin{${el.variant}}{${title}}`);
       w.indented(() => {
-        for (const child of el.children) emitElement(w, child, ctx);
+        emitChildren(w, el.children, ctx);
       });
       w.line_(`\\end{${el.variant}}`);
       return;
@@ -283,7 +309,7 @@ function emitElementBody(w: TexWriter, el: Element, ctx: EmitContext): void {
             const valign = col.valign === undefined ? '' : `[${col.valign}]`;
             w.line_(`\\begin{column}${valign}{${lengthToTex(col.width)}}`);
             w.indented(() => {
-              for (const child of col.children) emitElement(w, child, ctx);
+              emitChildren(w, col.children, ctx);
             });
             w.line_('\\end{column}');
           });

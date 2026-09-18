@@ -6,7 +6,7 @@ import type {
   Preamble,
   SectionNode,
 } from '../model/types.js';
-import { emitElement, type EmitContext, type EmitWarning } from './elements.js';
+import { emitChildren, type EmitContext, type EmitWarning } from './elements.js';
 import { emitInline } from './inline.js';
 import { derivePackages, packageLine } from './derivePackages.js';
 import { TexWriter, type SourceMap } from './writer.js';
@@ -235,7 +235,7 @@ function emitFrame(w: TexWriter, frame: FrameNode, ctx: EmitContext): void {
         w.blank();
       }
 
-      for (const el of frame.children) emitElement(w, el, ctx);
+      emitChildren(w, frame.children, ctx);
 
       for (const note of frame.notes) {
         w.span(note.id, 'note', () => {

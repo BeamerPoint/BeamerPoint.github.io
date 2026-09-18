@@ -21,19 +21,6 @@ import { expectRoundTrip } from './helpers/roundTrip.js';
 
 const RUNS = process.env.BP_FUZZ === '1' ? 3000 : 60;
 
-/**
- * F-014, excluded so the property can keep looking past it. Two FLOW text elements in a
- * row are emitted with one newline between them, which LaTeX reads as a space: the PDF
- * sets them as one paragraph, and a reparse merges them into one element. Delete this
- * exclusion when F-014 is fixed -- the pinned regression below will already insist.
- */
-function hasAdjacentFlowText(spec: DeckSpec): boolean {
-  return spec.frames.some((f) => f.els.some((e, i) => {
-    const next = f.els[i + 1];
-    return e.k === 'text' && e.abs === undefined && next?.k === 'text' && next.abs === undefined;
-  }));
-}
-
 /** F-015: a transparent picture that also has a caption or any explicit alignment. */
 function hasFadedCaptionedOrAlignedImage(spec: DeckSpec): boolean {
   return spec.frames.some((f) => f.els.some((e) => e.k === 'image' && e.opacity !== undefined
@@ -44,7 +31,6 @@ describe('the round-trip property', () => {
   it('holds for random decks built the way the editor builds them', () => {
     fc.assert(
       fc.property(deckSpec, (spec) => {
-        fc.pre(!hasAdjacentFlowText(spec));
         fc.pre(!hasFadedCaptionedOrAlignedImage(spec));
         expectRoundTrip(buildDeck(spec, makeSeededIdFactory('g')));
       }),
@@ -54,15 +40,34 @@ describe('the round-trip property', () => {
 });
 
 describe('counterexamples the property found, pinned', () => {
-  // F-014 (tools/audit-2026-09.md). Found by the property after 541 runs, shrunk to two
-  // words. Measured in the engine: the PDF sets "FIRSTPARA SECONDPARA" on ONE baseline.
-  // Remove `.fails` when fixed.
-  it.fails('keeps two text boxes on a slide as two paragraphs', () => {
+  // F-014, fixed. Found by the property after 541 runs, shrunk to two words. Measured in
+  // the engine before the fix: the PDF set "FIRSTPARA SECONDPARA" on ONE baseline.
+  it('keeps two text boxes on a slide as two paragraphs', () => {
     const deck = {
       ...newDeck({ title: 'T' }),
       nodes: [newFrame('F', [newTextElement('First'), newTextElement('Second')])],
     };
     expect(emitDeck(deck).tex).toMatch(/First\n\s*\n\s*Second/);
     expectRoundTrip(deck);
+  });
+
+  it('keeps them apart across a pause, which does not end a paragraph either', () => {
+    // `One \pause Two` is one line on the second overlay.
+    const deck = {
+      ...newDeck({ title: 'T' }),
+      nodes: [newFrame('F', [
+        newTextElement('One'),
+        { id: 'p', kind: 'pause' as const, placement: { mode: 'flow' as const } },
+        newTextElement('Two'),
+      ])],
+    };
+    expect(emitDeck(deck).tex).toMatch(/One\n\s*\\pause\n\s*\n\s*Two/);
+    expectRoundTrip(deck);
+  });
+
+  it('adds no blank line where there is no second paragraph to separate', () => {
+    // Just inside a block, or before a list, a blank line is noise for nothing.
+    const tex = emitDeck({ ...newDeck({ title: 'T' }), nodes: [newFrame('F', [newTextElement('Only')])] }).tex;
+    expect(tex).toMatch(/\\frametitle\{F\}\n\n\s*Only\n\\end\{frame\}/);
   });
 });
