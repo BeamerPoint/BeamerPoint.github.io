@@ -43,6 +43,8 @@ const HEIGHT_GRIPS: readonly ResizeGrip[] = ['n', 's'];
 const HANDLE_PX = 11;
 /** Screen pixels the grab bands are thick. */
 const BAND_PX = 12;
+/** Screen pixels of each band that lie INSIDE the element, over its edge. */
+const BAND_INSET_PX = 2;
 
 /**
  * Drag handles for the selected element.
@@ -253,13 +255,22 @@ function gripOffset(grip: ResizeGrip, inv: number): React.CSSProperties {
   return out;
 }
 
-/** The grab band around one edge, thick enough to hit at the canvas' own scale. */
+/**
+ * The grab band around one edge, thick enough to hit at the canvas' own scale.
+ *
+ * It lies OUTSIDE the element, with only a `BAND_INSET_PX` lip over the edge itself.
+ * Centred on the edge, as it used to be, half of each band was inside the box -- and a
+ * line of text or a table row is 7-10 screen pixels tall at the canvas' usual zoom, so
+ * the north and south bands met over it: a selected one-line text box could not be
+ * clicked into anywhere, and a new table's header row started a move (F-019).
+ */
 function bandStyle(edge: Edge, inv: number): React.CSSProperties {
   const t = BAND_PX * inv;
-  const outset = `${-t / 2}px`;
+  const outset = `${-(BAND_PX - BAND_INSET_PX) * inv}px`;
+  const along = `${-t}px`;
   const out: React.CSSProperties = edge === 'n' || edge === 's'
-    ? { height: `${t}px`, left: outset, right: outset }
-    : { width: `${t}px`, top: outset, bottom: outset };
+    ? { height: `${t}px`, left: along, right: along }
+    : { width: `${t}px`, top: along, bottom: along };
   out[edge === 'n' ? 'top' : edge === 's' ? 'bottom' : edge === 'w' ? 'left' : 'right'] = outset;
   return out;
 }

@@ -120,7 +120,18 @@ export function SlideCanvas(props: Props): React.ReactElement {
 
   return (
     <CanvasContext.Provider value={geometry}>
-    <div className="bp-canvas-wrap" ref={wrapRef}>
+    <div
+      className="bp-canvas-wrap"
+      ref={wrapRef}
+      // The grey around the slide deselects, as it does in any editor. Before, the only
+      // way out of a selection was to select something ELSE -- and a selected text box's
+      // own interior was under its move bands (F-019). The backdrop only: a press on the
+      // rulers adds a guide and must not also drop the selection.
+      onMouseDown={(e) => {
+        const t = e.target as HTMLElement;
+        if (t === e.currentTarget || t.classList.contains('bp-stage')) onSelectElement(null);
+      }}
+    >
       {/*
         * The stage carries the scale and does NOT clip; the paper inside it does clip,
         * because slide content must not spill past the page edge. The rulers live on
