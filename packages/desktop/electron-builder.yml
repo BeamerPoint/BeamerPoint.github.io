@@ -50,6 +50,10 @@ mac:
   artifactName: BeamerPoint-${version}-${arch}.${ext}
 
 linux:
+  # Without this the executable is named after the npm package, `@beamerpoint/desktop`,
+  # and the AppImage build refuses the `@` and `/`.
+  executableName: beamerpoint
+  syncDesktopName: true
   category: Office
   maintainer: Abolfazl Mohebbi <abolfazl.mohebbi@polymtl.ca>
   target: [AppImage, deb]
