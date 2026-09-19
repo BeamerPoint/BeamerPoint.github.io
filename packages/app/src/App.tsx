@@ -30,6 +30,7 @@ import { StatusBar } from './ui/StatusBar.js';
 import { FileLinkButton } from './ui/SaveIndicator.js';
 import { useImageImport } from './ui/useImageImport.js';
 import { useTexImport, isTexFile } from './ui/useTexImport.js';
+import { isZipFile } from './io/importProject.js';
 import { useEngine } from './engine/useEngine.js';
 import { ImportDialog } from './panels/ImportDialog.js';
 import { exportDeck } from './io/exportProject.js';
@@ -153,6 +154,7 @@ export function App(): React.ReactElement {
         <ImportDialog
           filename={texImport.pending.filename}
           analysis={texImport.pending.analysis}
+          onChooseMain={texImport.chooseMain}
           onCancel={texImport.cancel}
           onConfirm={(files) => void texImport.confirm(files)}
         />
@@ -214,7 +216,7 @@ export function App(): React.ReactElement {
           onDrop={(e) => {
             // A dropped .tex is an import, not an image. Intercept it before the
             // image handler tells the user it is "not an image".
-            const tex = [...e.dataTransfer.files].find(isTexFile);
+            const tex = [...e.dataTransfer.files].find((f) => isTexFile(f) || isZipFile(f));
             if (tex !== undefined) {
               e.preventDefault();
               e.stopPropagation();

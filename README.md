@@ -108,6 +108,26 @@ GitHub Pages has a soft bandwidth limit of 100 GB a month, about 150 first-time 
 downloads. If the app outgrows it, host the `texlive-*` files anywhere that sends CORS
 headers and set `VITE_TEX_DATA_URL` to it -- no code change.
 
+## Importing an existing presentation
+
+**Home ▸ Import** (or drag the file onto the slide) takes either:
+
+- **a `.tex` file** — one self-contained document. Its pictures can be picked in the
+  import dialog or added later; or
+- **a whole project as a `.zip`** — the shape Overleaf's *Menu ▸ Download ▸ Source*
+  produces. The main file is found automatically (you choose if there are several), and
+  every `\input{…}`, `\include{…}`, `\subfile{…}` and `\import{…}{…}` is **merged into one
+  deck**, so slides kept in separate files become editable too. Pictures are found in the
+  archive, including through `\graphicspath` and without file extensions; `.pdf` figures
+  are shown on the canvas. The project's other files — a local `.sty` or theme, a `.bib`,
+  data files — are kept at their paths, so the project compiles as it did for its author.
+
+Before anything replaces your open deck, the dialog reports how many slides and files came
+through, what stayed raw LaTeX, and anything that will not compile here (for example
+`.eps` figures, which need converting to PDF first). Exporting afterwards gives one
+`main.tex` together with the project's folders; the original split into several `.tex`
+files is not kept.
+
 ## Layout
 
 ```

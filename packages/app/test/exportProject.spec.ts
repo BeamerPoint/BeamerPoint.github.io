@@ -66,6 +66,23 @@ describe('exporting', () => {
     expect(Object.keys(zip.files).sort()).toEqual(['images/', 'images/a.png', 'main.tex']);
   });
 
+  // An imported project's support files -- a local .sty, a .bib -- are resources of kind
+  // 'other' and 'bib'. Export has to put them back where the project had them.
+  it('writes an imported project back with its folders and support files', async () => {
+    stored.set('img', new Uint8Array([1]));
+    stored.set('sty', new TextEncoder().encode('\\ProvidesPackage{localmacros}'));
+    stored.set('bib', new TextEncoder().encode('@article{a}'));
+    await exportDeck(deckTitled('Deck', [
+      image('img', 'figures/heatmap.png'),
+      { id: 'sty', path: 'localmacros.sty', kind: 'other', mime: 'text/x-tex', bytes: 1, sha256: '', originalName: 'localmacros.sty' },
+      { id: 'bib', path: 'refs.bib', kind: 'bib', mime: 'text/x-bibtex', bytes: 1, sha256: '', originalName: 'refs.bib' },
+    ]));
+    const zip = await JSZip.loadAsync(await downloads[0]!.blob.arrayBuffer());
+    expect(Object.keys(zip.files).filter((p) => !p.endsWith('/')).sort())
+      .toEqual(['figures/heatmap.png', 'localmacros.sty', 'main.tex', 'refs.bib']);
+    expect(await zip.file('localmacros.sty')!.async('string')).toContain('ProvidesPackage');
+  });
+
   it('names a missing file inside the archive instead of shipping one that cannot build', async () => {
     const r = await exportDeck(deckTitled('Deck', [image('gone', 'images/gone.png')]));
     expect(r.missing).toEqual(['images/gone.png']);

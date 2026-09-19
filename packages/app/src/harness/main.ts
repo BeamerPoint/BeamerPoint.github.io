@@ -25,7 +25,8 @@ import {
   type ResourceResolver,
 } from '@beamerpoint/engine';
 import {
-  BIB_RESOURCE_ID, CASES, COLOUR_FIELDS, IMAGE_RESOURCE_ID, type Case, type Expect,
+  BIB_RESOURCE_ID, CASES, COLOUR_FIELDS, IMAGE_RESOURCE_ID, LOCAL_STY, STY_RESOURCE_ID,
+  type Case, type Expect,
 } from './matrix.js';
 
 pdfjs.GlobalWorkerOptions.workerPort = new PdfWorker();
@@ -81,9 +82,11 @@ async function init(): Promise<void> {
   if (engine !== null) return;
   const png = await probePng();
   const bib = new TextEncoder().encode(BIB);
+  const sty = new TextEncoder().encode(LOCAL_STY);
   resolver = {
     getBytes: async (resourceId) => (resourceId === IMAGE_RESOURCE_ID ? png
-      : resourceId === BIB_RESOURCE_ID ? bib : undefined),
+      : resourceId === BIB_RESOURCE_ID ? bib
+        : resourceId === STY_RESOURCE_ID ? sty : undefined),
   };
   const e = new BusytexEngine({
     basePath: engineBase(), dataPath: dataBase(), collections: ['basic', 'recommended', 'extra'],

@@ -337,7 +337,7 @@ export function Ribbon(props: Props): React.ReactElement {
             <Group label="File">
               <Big icon={<IconNew size={20} />} label="New" title="Start an empty deck" onClick={resetDeck} />
               <Stack>
-                <Small icon={<IconOpen />} label="Import .tex" onClick={props.onImportTex} />
+                <Small icon={<IconOpen />} label="Import" title="Import a .tex file, or a whole project as a .zip" onClick={props.onImportTex} />
                 <Small icon={<IconExport />} label={deck.resources.length > 0 ? 'Export project' : 'Export .tex'} onClick={props.onExport} />
                 <Small icon={<IconSave />} label="Save as…" title="Autosave straight to a .tex file on disk" disabled={!canLinkFile()} onClick={() => void linkFile()} />
               </Stack>

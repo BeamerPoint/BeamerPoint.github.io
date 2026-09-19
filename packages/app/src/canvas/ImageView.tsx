@@ -14,6 +14,44 @@ import { measuredRects } from '../state/store.js';
 import { useCanvasGeometry } from './CanvasContext.js';
 import { InlineText } from './InlineText.js';
 
+/** Rendered first pages of PDF figures, by resource id: drawing one is not free. */
+const pdfPreviews = new Map<string, Promise<Blob | null>>();
+
+/**
+ * Page 1 of a PDF figure, as a PNG, at roughly 1600 px wide.
+ *
+ * pdf.js is imported only here and only for a PDF, so an ordinary deck never loads it
+ * for the canvas, and headless tests that render images never touch it. A PDF that
+ * cannot be read gives null, which shows the usual missing-file placeholder.
+ */
+function pdfFirstPage(id: string, bytes: Uint8Array): Promise<Blob | null> {
+  let pending = pdfPreviews.get(id);
+  if (pending === undefined) {
+    pending = (async () => {
+      try {
+        const pdfjs = await import('pdfjs-dist');
+        const task = pdfjs.getDocument({ data: bytes.slice() });
+        const doc = await task.promise;
+        const page = await doc.getPage(1);
+        const base = page.getViewport({ scale: 1 });
+        const viewport = page.getViewport({ scale: Math.min(4, 1600 / Math.max(1, base.width)) });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.ceil(viewport.width);
+        canvas.height = Math.ceil(viewport.height);
+        const ctx = canvas.getContext('2d');
+        if (ctx === null) return null;
+        await page.render({ canvas, canvasContext: ctx, viewport }).promise;
+        void task.destroy();
+        return await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+      } catch {
+        return null;
+      }
+    })();
+    pdfPreviews.set(id, pending);
+  }
+  return pending;
+}
+
 /**
  * An image on the canvas.
  *
@@ -47,10 +85,13 @@ export function ImageView({
     void (async () => {
       const bytes = await getResourceBytes(el.resourceId);
       if (bytes === undefined) { setMissing(true); return; }
-      // Copy into a fresh buffer: the stored Uint8Array may be a view into a larger one.
-      const blob = new Blob([bytes.slice().buffer as ArrayBuffer], {
-        type: resource?.mime ?? 'image/png',
-      });
+      // A PDF figure -- common in real projects -- cannot be shown by an <img>. Its first
+      // page is drawn once with pdf.js and shown as a PNG; the compile uses the PDF itself.
+      const blob = resource?.mime === 'application/pdf'
+        ? await pdfFirstPage(el.resourceId, bytes)
+        // Copy into a fresh buffer: the stored Uint8Array may be a view into a larger one.
+        : new Blob([bytes.slice().buffer as ArrayBuffer], { type: resource?.mime ?? 'image/png' });
+      if (blob === null) { setMissing(true); return; }
       objectUrl = URL.createObjectURL(blob);
       if (disposed) { URL.revokeObjectURL(objectUrl); return; }
       setMissing(false);

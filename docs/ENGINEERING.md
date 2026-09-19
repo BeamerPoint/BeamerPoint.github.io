@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 519 tests (BP_FUZZ=1 soaks the property test at 3000 decks)
+npm test             # vitest, 543 tests (BP_FUZZ=1 soaks the property test at 3000 decks)
 npm run test:coverage    # the same, with v8 coverage
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 npm run test:engine      # Playwright: compiles ~210 cases in the real engine (~10 min)
@@ -674,6 +674,20 @@ send a JavaScript MIME type for the loaders, or `importScripts` refuses them. Th
 Emscripten cache is keyed by the WORKER's path, so moving the data does not cost anyone a
 re-download. Never write `'/core/busytex'` again: under Pages' `/<repo>/` it 404s.
 
+**A project zip is MERGED before parsing, and every other file keeps its path.**
+`core/project/inlineInputs.ts` replaces each `\input`/`\include`/`\subfile`/`\import`
+with the file it names, found with the LEXER so a commented-out include and one inside a
+listing are left alone; the parser then sees one ordinary document and the included slides
+are editable. The split layout is not kept -- the user's decision. Images take their REAL
+path before `attachResourceFile` sees them: an extensionless `\includegraphics{plot}`
+via `\graphicspath` would otherwise be renamed into `images/` and leave its folder.
+Every remaining file is stored as a `kind: 'other'` resource, which `buildProject` ships
+to the compiler and export writes back -- so a local `.sty` just works, pinned by the
+`project-local-sty` engine case. The import dialog must not call a package "not bundled"
+when the archive carries its `.sty`: the same false alarm as the textpos lesson, and the
+first real zip raised it. A `.pdf` figure is drawn on the canvas from its first page with
+pdf.js, loaded only when a PDF figure is shown.
+
 **Ask what a ref click hits under viewport emulation.** In an automated browser at 1280x760 a
 `ref` click lands in the screenshot frame at page coordinates, and End/Home/Ctrl+A do not
 move the caret at all. Three "dead controls" in the mouse pass were the driver.
@@ -732,7 +746,9 @@ broke the PDF or lost content (one S1, six S2) -- and all 22 are fixed; see
 - **Import**: open an external `.tex` by button or by dropping it on the canvas. The
   dialog reports what became editable AND what stayed raw before replacing the open
   deck, checks the theme and every `\usepackage` against the bundled collections, and
-  matches picked image files onto the paths the file references
+  matches picked image files onto the paths the file references. A project `.zip`
+  (Overleaf's source download) is merged into one deck and its files kept at their paths
+  -- see the zip-import lesson
 - **Code blocks**: `listings`, `verbatim` and `minted`, typed in place on the canvas,
   with a measured language list, line numbers, a border and a caption. `[fragile]` is
   derived on the frame, and the languages `listings` does not ship are defined in the

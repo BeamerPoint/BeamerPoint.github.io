@@ -12,10 +12,13 @@ import { packageOrigin, type Collection } from '@beamerpoint/engine';
 import type { ElementKind } from '@beamerpoint/core';
 import { matchResources, type ImportAnalysis, type ResourceMatch } from '../io/importTex.js';
 import { dataBase } from '../engine/assetPaths.js';
+import type { ProjectAnalysis } from '../io/importProject.js';
 
 interface Props {
   filename: string;
-  analysis: ImportAnalysis;
+  analysis: ImportAnalysis | ProjectAnalysis;
+  /** For a project with several documents: re-analyse from another main file. */
+  onChooseMain?(path: string): void;
   onCancel(): void;
   onConfirm(files: Map<string, File>): void;
 }
@@ -37,11 +40,26 @@ function plural(n: number, word: string): string {
  * including, prominently, what did NOT come through as editable. A summary that only
  * counted the successes would be the kind of flattery this app is built to avoid.
  */
-export function ImportDialog({ filename, analysis, onCancel, onConfirm }: Props): React.ReactElement {
+/** Past this, warn: it all goes into the browser's storage. */
+const LARGE_PROJECT_BYTES = 100 * 1024 * 1024;
+
+function megabytes(n: number): string {
+  if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))} KB`;
+  return `${(n / (1024 * 1024)).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+}
+
+export function ImportDialog({
+  filename, analysis, onChooseMain, onCancel, onConfirm,
+}: Props): React.ReactElement {
   const { report } = analysis;
+  const project = 'project' in analysis ? analysis.project : undefined;
   const [matches, setMatches] = useState<ResourceMatch[]>(
     () => matchResources(report.missingResources, []),
   );
+  // Choosing another main file re-analyses the project; the picks belong to the old one.
+  useEffect(() => {
+    setMatches(matchResources(report.missingResources, []));
+  }, [report.missingResources.join('|')]);
   const [unbundled, setUnbundled] = useState<Array<{ name: string; collection: Collection | null }>>([]);
   const [checkedPackages, setCheckedPackages] = useState(false);
 
@@ -49,7 +67,13 @@ export function ImportDialog({ filename, analysis, onCancel, onConfirm }: Props)
     let live = true;
     void (async () => {
       const bad: Array<{ name: string; collection: Collection | null }> = [];
+      // A project that ships its own .sty does not need TeX Live to have it: saying
+      // otherwise would be the "not bundled" false alarm again, this time for a file
+      // that is sitting in the archive.
+      const provided = new Set((project?.support ?? [])
+        .map((f) => (f.path.split('/').pop() ?? f.path).toLowerCase()));
       for (const name of report.packages) {
+        if (provided.has(`${name.toLowerCase()}.sty`)) continue;
         const origin = await packageOrigin(`${name}.sty`, dataBase());
         if (origin.conclusive && origin.collection === null) {
           bad.push({ name, collection: null });
@@ -60,7 +84,7 @@ export function ImportDialog({ filename, analysis, onCancel, onConfirm }: Props)
       setCheckedPackages(true);
     })();
     return () => { live = false; };
-  }, [report.packages.join('|')]);
+  }, [report.packages.join('|'), project?.main]);
 
   const kinds = Object.entries(report.elements)
     .filter(([kind]) => kind !== 'raw')
@@ -105,6 +129,65 @@ export function ImportDialog({ filename, analysis, onCancel, onConfirm }: Props)
             )}
             .
           </p>
+        )}
+
+        {project !== undefined && (
+          <div className="bp-import-files">
+            {project.mainCandidates.length > 1 && (
+              <label className="bp-field bp-field-inline">
+                <span>Main file</span>
+                <select
+                  value={project.main}
+                  onChange={(e) => onChooseMain?.(e.target.value)}
+                >
+                  {project.mainCandidates.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </label>
+            )}
+            <p>
+              <strong>Project:</strong> <code>{project.main}</code>
+              {project.inlined.length > 0
+                ? <>, with {plural(project.inlined.length, 'included file')} merged into one deck</>
+                : ', a single file'}
+              .
+            </p>
+            {project.inlined.length > 0 && (
+              <ul>
+                {project.inlined.slice(0, 6).map((p) => <li key={p}><code>{p}</code></li>)}
+                {project.inlined.length > 6 && <li>…and {project.inlined.length - 6} more.</li>}
+              </ul>
+            )}
+            <p className="bp-muted">
+              {plural(project.images.size, 'image')} found in the archive
+              {project.support.length > 0 && (
+                <>, and {plural(project.support.length, 'other file')} ({megabytes(project.supportBytes)})
+                  {' '}kept at their paths for the compiler: styles, bibliographies, data</>
+              )}
+              . Export writes them back beside one <code>main.tex</code>.
+            </p>
+            {project.missingInputs.length > 0 && (
+              <p className="bp-hint bp-hint-warn">
+                {project.missingInputs.length === 1 ? 'This include' : 'These includes'} named a
+                file the archive does not contain, and {project.missingInputs.length === 1 ? 'stays' : 'stay'} as
+                written:{' '}
+                {project.missingInputs.map((p) => <code key={p}>{p}</code>)
+                  .reduce<React.ReactNode[]>((acc, el, i) => (i === 0 ? [el] : [...acc, ', ', el]), [])}
+              </p>
+            )}
+            {project.eps.length > 0 && (
+              <p className="bp-hint bp-hint-warn">
+                {plural(project.eps.length, 'EPS figure')} cannot be used here: pdfLaTeX needs
+                them converted to PDF first, which the in-browser engine cannot do. Convert
+                them to PDF or PNG, or those figures will fail to compile.
+              </p>
+            )}
+            {project.supportBytes > LARGE_PROJECT_BYTES && (
+              <p className="bp-hint bp-hint-warn">
+                This project stores {megabytes(project.supportBytes)} of files in your browser.
+                That works, but it counts against the browser's storage for this site.
+              </p>
+            )}
+          </div>
         )}
 
         {report.raw.length > 0 ? (
@@ -172,8 +255,10 @@ export function ImportDialog({ filename, analysis, onCancel, onConfirm }: Props)
               included
             </strong>
             <p className="bp-muted">
-              A <code>.tex</code> names its images; it does not carry them. Pick them
-              now, or add them later from the slide.
+              {project !== undefined
+                ? 'These were not in the archive. Pick them now, or add them later from the slide.'
+                : <>A <code>.tex</code> names its images; it does not carry them. Pick them
+                  now, or add them later from the slide.</>}
             </p>
             <label className="bp-file-input">
               Choose images…

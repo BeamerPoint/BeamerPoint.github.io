@@ -96,6 +96,24 @@ const cols = (count: number): ColumnsElement => ({
 
 export const IMAGE_RESOURCE_ID = 'probe-image';
 export const BIB_RESOURCE_ID = 'probe-bib';
+/**
+ * A project's own package, stored as an 'other' resource -- what a zip import does with
+ * a local .sty. Its macro prints text nothing else can produce, so seeing that text in
+ * the PDF proves the file reached the compiler.
+ */
+export const STY_RESOURCE_ID = 'probe-sty';
+export const LOCAL_STY = '\\ProvidesPackage{localprobe}\n\\newcommand{\\probemacro}{PROBESTYOK}\n';
+
+function withLocalSty(d: Deck): Deck {
+  return {
+    ...d,
+    preamble: { ...d.preamble, packages: [...d.preamble.packages, { name: 'localprobe', options: [] }] },
+    resources: [...d.resources, {
+      id: STY_RESOURCE_ID, path: 'localprobe.sty', kind: 'other', mime: 'text/x-tex',
+      bytes: 0, sha256: 'probe', originalName: 'localprobe.sty',
+    }],
+  };
+}
 
 const image = (patch: Partial<ImageElement> = {}): ImageElement => ({
   id: id('i'), kind: 'image', placement: P, resourceId: IMAGE_RESOURCE_ID,
@@ -313,6 +331,9 @@ const ELEMENTS: Case[] = [
       newFrame('References', [{ id: id('bib'), kind: 'bibliography', placement: P, files: ['refs'] }]),
     ))), expect: { minPages: 2, text: ['Literate Programming'] } },
 
+  { id: 'project-local-sty', area: 'element', build: () => withLocalSty(deck([
+      { id: id('raw'), kind: 'raw', placement: P, tex: '\\probemacro', reason: 'unrecognised' },
+    ])), expect: { pages: 1, text: ['PROBESTYOK'] } },
   { id: 'raw', area: 'element', build: () => deck([{ id: id('raw'), kind: 'raw', placement: P, tex: '\\emph{PROBERAW}', reason: 'unrecognised' }]),
     expect: { pages: 1, text: ['PROBERAW'] } },
   { id: 'title-page', area: 'element', build: () => deck([], framesWith(newTitleFrame())), expect: { pages: 1, text: ['Conformance'] } },
