@@ -194,6 +194,16 @@ function isToday(content: RichText): boolean {
       || richTextToPlain(content).trim() === '\\today');
 }
 
+/**
+ * A date field as beamer prints it: `\today` becomes today's date, anything else its words.
+ *
+ * Shared with the footline, which printed the bare word "today" while the PDF printed the
+ * date -- the title page had this rule and nothing else did.
+ */
+export function displayDate(content: RichText): string {
+  return isToday(content) ? today() : richTextToPlain(content);
+}
+
 /** What `\today` puts on the slide, in the same shape as LaTeX's English default. */
 function today(): string {
   return new Date().toLocaleDateString('en-US', {

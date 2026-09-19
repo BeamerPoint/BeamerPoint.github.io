@@ -615,14 +615,9 @@ function ShapeView({
                 />
               )
           )}
-          <text
-            x={shape.x + INNER_SEP_MM}
-            y={shape.y + INNER_SEP_MM + 3.1}
-            fill={colorToCss(shape.style.textColor, theme, theme.foreground)}
-            style={{ font: 'inherit', fontSize: 3.9 }}
-          >
-            {richTextToPlain(shape.content)}
-          </text>
+          {/* The words are drawn by ShapeLabel, like every other shape's. This used to draw
+              them a second time as SVG <text>, offset from the first, so every text node --
+              and every SmartArt label, which is one -- appeared doubled. */}
         </g>
       );
     }

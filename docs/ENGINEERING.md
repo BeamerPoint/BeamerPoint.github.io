@@ -31,7 +31,7 @@ canvas; anything the app does not understand is preserved byte-for-byte.
 ```bash
 npm install          # once
 npm run dev          # http://localhost:5173
-npm test             # vitest, 510 tests (BP_FUZZ=1 soaks the property test at 3000 decks)
+npm test             # vitest, 519 tests (BP_FUZZ=1 soaks the property test at 3000 decks)
 npm run test:coverage    # the same, with v8 coverage
 npm run engine:install   # ~540MB TeX Live, optional, one-time
 npm run test:engine      # Playwright: compiles ~210 cases in the real engine (~10 min)
@@ -329,6 +329,13 @@ pointerdown that is NOT prevented produces a mousedown that keeps bubbling, whic
 re-selected the diagram over the top of the shape that had just been clicked and blurred
 the label editor as it opened. `selectElement` also keeps the shape selection when it is
 the same element — changing element is what makes a shape selection meaningless.
+
+**A diagram's words are drawn in ONE place: `ShapeLabel`.** A text node still carried the
+SVG `<text>` it had before labels learned to wrap, so its words were drawn twice, a few
+tenths of a millimetre apart -- every SmartArt label is a text node, and every one was
+doubled. Nobody saw it until the README screenshots. `app/test/tikzLabels.spec.tsx` counts
+each word once. The footline had the same shape of bug: it printed the bare word "today"
+while the title page and the PDF printed the date; both now use `displayDate`.
 
 **A `foreignObject` takes the pointer even when its child does not.** The shape label is
 inert HTML over the drawing, and `pointer-events: none` on the div inside was not enough:
@@ -784,7 +791,10 @@ broke the PDF or lost content (one S1, six S2) -- and all 22 are fixed; see
   fontspec themes via a `% !TEX program` magic comment
 - **Engine**: busytex WASM (TeX Live 2026), log parsing with diagnostics mapped back to
   slides and elements, overfull-box fidelity warnings
-- **UI**: an Office-style shell — title bar, ribbon with Home/Insert/Design/View tabs
+- **About**: App ▸ About (`panels/AboutDialog.tsx`) shows the version, commit and build
+  date, which `vite.config.ts` stamps in from the ROOT `package.json`. Keep
+  `packages/desktop/package.json` on the same number: the release tag names both
+- **UI**: an Office-style shell — title bar, ribbon with Home/Insert/Design/View/App tabs
   and labelled command groups, slide-thumbnail rail, contextual format pane, status
   bar. Commands that CREATE live in the ribbon; the format pane holds only properties
   of what is selected. Plus resizable columns, LaTeX syntax highlighting, three-layer

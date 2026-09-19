@@ -1,3 +1,14 @@
+<p align="center">
+  <img src="docs/images/logo.png" alt="BeamerPoint" width="340">
+</p>
+
+<p align="center">
+  <b>A PowerPoint-like editor for LaTeX Beamer presentations.</b><br>
+  <a href="https://beamerpoint.github.io/">Open the web app</a> ·
+  <a href="https://github.com/BeamerPoint/BeamerPoint.github.io/releases">Desktop downloads</a> ·
+  <a href="#install">Install</a>
+</p>
+
 # BeamerPoint
 
 A browser-based, PowerPoint-like editor for Beamer presentations. Edit slides on a visual
@@ -9,6 +20,32 @@ without installing a TeX distribution.
 The LaTeX source is a **first-class, editable view**, not a one-way export. Canvas edits
 appear in the source; source edits come back to the canvas. Anything BeamerPoint does not
 understand is preserved byte-for-byte rather than dropped.
+
+## Screenshots
+
+**Edit on the canvas, with the LaTeX beside it.** Every change on the slide appears in the
+source at once, and the format pane holds the properties of whatever is selected.
+
+![The editor: slide canvas, LaTeX source and format pane](docs/images/screenshot-editor.png)
+
+**Diagrams from ready-made layouts.** A layout expands into ordinary shapes, so every box,
+arrow and label stays editable.
+
+![A chevron process diagram on a slide](docs/images/screenshot-diagram.png)
+
+**Charts from data.** Paste from a spreadsheet or load a `.csv`; the chart is real
+`pgfplots` in the PDF.
+
+![A line chart with its data grid](docs/images/screenshot-chart.png)
+
+**The real PDF, compiled in the app.** A complete TeX Live runs inside the browser, so
+the preview is exactly what Beamer produces.
+
+![The compiled PDF beside the canvas](docs/images/screenshot-pdf.png)
+
+**App ▸ About** shows the version, the author and the license.
+
+![The About dialog](docs/images/screenshot-about.png)
 
 ## Getting started
 

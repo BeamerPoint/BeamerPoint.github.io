@@ -20,23 +20,25 @@ import { ShapeGallery } from '../panels/ShapeGallery.js';
 import { colorToCss } from '../canvas/shapeColors.js';
 import { useInlineFormat } from './useInlineFormat.js';
 import { SmartArtPicker } from '../panels/SmartArtPicker.js';
+import { AboutDialog, APP_VERSION } from '../panels/AboutDialog.js';
 import {
   IconBackward, IconBlock, IconBullets, IconCompile, IconDelete, IconDiagram,
   IconCode, IconEquation, IconExport, IconForward, IconGrid, IconGuides, IconImage,
-  IconChart, IconOutline, IconMoveUp, IconMoveDown,
+  IconChart, IconInfo, IconOutline, IconMoveUp, IconMoveDown,
   IconCopy, IconCut, IconPaste, IconDuplicate, IconTitleSlide, IconLockAspect,
   IconPause,
   IconNew, IconOpen, IconRedo, IconRuler, IconSave, IconShapes, IconSlideAdd,
   IconSmartArt, IconSnap, IconTable, IconText, IconTextBox, IconUndo,
 } from './icons.js';
 
-export type RibbonTab = 'home' | 'insert' | 'design' | 'view';
+export type RibbonTab = 'home' | 'insert' | 'design' | 'view' | 'app';
 
 const TABS: Array<{ id: RibbonTab; label: string }> = [
   { id: 'home', label: 'Home' },
   { id: 'insert', label: 'Insert' },
   { id: 'design', label: 'Design' },
   { id: 'view', label: 'View' },
+  { id: 'app', label: 'App' },
 ];
 
 const ASPECTS: Array<{ v: AspectRatio; label: string }> = [
@@ -248,6 +250,7 @@ export function Ribbon(props: Props): React.ReactElement {
   const [gallery, setGallery] = useState<{ top: number; left: number } | null>(null);
   const galleryHost = useRef<HTMLDivElement>(null);
   const [smartArt, setSmartArt] = useState(false);
+  const [about, setAbout] = useState(false);
   const images = useImageImport();
   const linkFile = useLinkFile();
 
@@ -667,7 +670,22 @@ export function Ribbon(props: Props): React.ReactElement {
             </Group>
           </>
         )}
+        {tab === 'app' && (
+          <>
+            <Group label="Help">
+              <Big
+                icon={<IconInfo size={20} />}
+                label="About"
+                title="About BeamerPoint: version, author and license"
+                onClick={() => setAbout(true)}
+              />
+            </Group>
+            <div className="bp-ribbon-note">BeamerPoint {APP_VERSION}</div>
+          </>
+        )}
       </div>
+
+      {about && <AboutDialog onClose={() => setAbout(false)} />}
 
       {smartArt && (
         <SmartArtPicker

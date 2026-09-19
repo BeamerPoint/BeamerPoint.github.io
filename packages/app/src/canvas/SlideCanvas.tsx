@@ -23,7 +23,7 @@ import { CanvasContext } from './CanvasContext.js';
 import { Gridlines, Guides, Rulers, RULER_PX, type AidSettings } from './CanvasAids.js';
 import type { OverlayMode } from './SelectionOverlay.js';
 import { InlineText } from './InlineText.js';
-import { TitlePage, isTitlePageTex } from './TitlePage.js';
+import { TitlePage, displayDate, isTitlePageTex } from './TitlePage.js';
 
 interface Props {
   deck: Deck;
@@ -405,7 +405,7 @@ function footContent(
     case 'author': return m.author ? richTextToPlain(m.author) : '';
     case 'institute': return m.institute ? richTextToPlain(m.institute) : '';
     case 'title': return m.title ? richTextToPlain(m.title) : '';
-    case 'date': return m.date ? richTextToPlain(m.date) || 'today' : '';
+    case 'date': return m.date ? displayDate(m.date) : '';
     case 'framenumber': return String(frameNumber);
     default: return '';
   }

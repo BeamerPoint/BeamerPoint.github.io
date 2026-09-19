@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { newDeck, resolveTheme, type Deck } from '@beamerpoint/core';
-import { TitlePage, isTitlePageTex } from '../src/canvas/TitlePage.js';
+import { TitlePage, displayDate, isTitlePageTex } from '../src/canvas/TitlePage.js';
 
 /**
  * The canvas used to draw `\titlepage` as the literal string `\titlepage` in a grey box,
@@ -87,5 +87,18 @@ describe('title page', () => {
     expect(deck.meta.date).toBeDefined();
     expect(html).not.toContain('\\today');
     expect(html).toContain(String(new Date().getFullYear()));
+  });
+});
+
+// The footline printed the word "today" where the PDF printed the date.
+describe('a date field', () => {
+  it('shows \\today as the current date, the way beamer prints it', () => {
+    const shown = displayDate([{ t: 'raw', tex: '\\today' }]);
+    expect(shown).not.toBe('today');
+    expect(shown).toContain(String(new Date().getFullYear()));
+  });
+
+  it('shows any other date as written', () => {
+    expect(displayDate([{ t: 'text', s: 'Spring 2027' }])).toBe('Spring 2027');
   });
 });

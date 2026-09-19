@@ -126,6 +126,13 @@ export const IconChart = (p: IconProps = {}): React.ReactElement => svg(
   </>, p);
 
 /** A numbered outline: the deck's sections, as `\tableofcontents` prints them. */
+export const IconInfo = (p: IconProps = {}): React.ReactElement => svg(
+  <>
+    <circle cx="8" cy="8" r="6.2" />
+    <path d="M8 7.2v4" />
+    <path d="M8 4.8v.1" />
+  </>, p);
+
 export const IconOutline = (p: IconProps = {}): React.ReactElement => svg(
   <>
     <path d="M2.4 4.2h1.4M2.4 8h1.4M2.4 11.8h1.4" />
